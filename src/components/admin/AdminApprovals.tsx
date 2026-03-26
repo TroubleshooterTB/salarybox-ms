@@ -8,7 +8,7 @@ const LEAVE_COL_MAP: Record<string, string> = {
   Casual: 'casual_balance',
 };
 
-export default function AdminApprovals() {
+export default function AdminApprovals({ selectedBranch }: { selectedBranch: string }) {
   const [activeTab, setActiveTab] = useState<'leaves' | 'devices' | 'balances'>('leaves');
   const [loading, setLoading] = useState(false);
   const [leaves, setLeaves] = useState<any[]>([]);
@@ -17,32 +17,50 @@ export default function AdminApprovals() {
 
   const fetchLeaves = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from('leave_requests')
       .select('*, profiles(full_name, employee_id, branch)')
       .eq('status', 'Pending')
       .order('created_at', { ascending: false });
+
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      query = query.eq('profiles.branch', selectedBranch);
+    }
+
+    const { data } = await query;
     if (data) setLeaves(data);
     setLoading(false);
   };
 
   const fetchDevices = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from('profiles')
       .select('id, full_name, employee_id, branch, device_fingerprint, device_reset_requested')
       .order('device_reset_requested', { ascending: false })
       .order('full_name', { ascending: true });
+
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      query = query.eq('branch', selectedBranch);
+    }
+
+    const { data } = await query;
     if (data) setDevices(data);
     setLoading(false);
   };
 
   const fetchBalances = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from('leaves')
-      .select('*, profiles(full_name, employee_id)')
+      .select('*, profiles(full_name, employee_id, branch)')
       .order('created_at', { ascending: true });
+
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      query = query.eq('profiles.branch', selectedBranch);
+    }
+
+    const { data } = await query;
     if (data) setBalances(data);
     setLoading(false);
   };
@@ -72,7 +90,7 @@ export default function AdminApprovals() {
     if (activeTab === 'leaves') fetchLeaves();
     else if (activeTab === 'devices') fetchDevices();
     else fetchBalances();
-  }, [activeTab]);
+  }, [activeTab, selectedBranch]);
 
   const handleLeaveAction = async (id: string, newStatus: 'Approved' | 'Rejected', userId: string, leaveType: string, days: number, isHalfDay: boolean) => {
     await supabase.from('leave_requests').update({ status: newStatus }).eq('id', id);

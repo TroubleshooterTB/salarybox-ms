@@ -12,7 +12,7 @@ interface DayPunch {
 
 const STATUS_OPTIONS = ['Present', 'Absent', 'Late', 'Half Day', 'Paid Leave'];
 
-export default function AdminHistoricalAttendance() {
+export default function AdminHistoricalAttendance({ selectedBranch }: { selectedBranch: string }) {
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1); // Default to yesterday
@@ -36,12 +36,18 @@ export default function AdminHistoricalAttendance() {
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
 
-    const { data } = await supabase
+    let query = supabase
       .from('attendance')
-      .select(`*, profiles (id, full_name, employee_id, department)`)
+      .select(`*, profiles (id, full_name, employee_id, department, branch)`)
       .gte('timestamp', start.toISOString())
       .lte('timestamp', end.toISOString())
       .order('timestamp', { ascending: true });
+
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      query = query.eq('profiles.branch', selectedBranch);
+    }
+
+    const { data } = await query;
 
     if (data) {
       const byUser = new Map<string, { profile: any; punches: any[] }>();

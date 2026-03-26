@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../../lib/supabase';
-import { LogOut, Download, Users, Settings, Activity, CalendarDays, Clock, IndianRupee } from 'lucide-react';
+import { 
+  LogOut, Users, Settings, Clock, 
+  IndianRupee, History, Map, 
+  FileStack, UserCheck, Calendar, Globe, CheckSquare 
+} from 'lucide-react';
 import L from 'leaflet';
 import ExportModule from './ExportModule';
 import AdminStaff from './AdminStaff';
@@ -13,6 +17,8 @@ import AdminCalendar from './AdminCalendar';
 import AdminDailyAttendance from './AdminDailyAttendance';
 import AdminLoans from './AdminLoans';
 import AdminHistoricalAttendance from './AdminHistoricalAttendance';
+import AdminCorrections from './AdminCorrections';
+import { useLanguage } from '../../lib/i18n';
 
 import iconMarkerURL from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaURL from 'leaflet/dist/images/marker-icon-2x.png';
@@ -38,13 +44,20 @@ const createSelfieIcon = (url: string) => L.divIcon({
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'>('daily');
+  const { language, setLanguage, t } = useLanguage();
+  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'corrections'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>(localStorage.getItem('admin_branch') || 'All Branches');
 
   const fetchData = async () => {
+    // Initial branch fetch
+    const { data: bData } = await supabase.from('branches').select('name').order('name');
+    if (bData) setBranches(bData);
+      
     const { data } = await supabase
       .from('attendance')
-      .select('*, profiles(full_name, branch)')
+      .select('*, profiles(full_name, branch, department)')
       .order('timestamp', { ascending: false })
       .limit(100);
       
@@ -63,105 +76,99 @@ export default function AdminDashboard() {
 
   return (
     <div className="flex bg-slate-50 min-h-screen text-slate-800 font-sans">
-      <aside className="w-72 bg-slate-950 text-white min-h-screen flex flex-col items-center py-10 shadow-2xl z-20">
-        <div className="text-center mb-12 w-full px-6">
-           <h1 className="text-2xl font-black tracking-tight text-white mb-1">Minimal Stroke</h1>
-           <div className="mx-auto mt-2 inline-block px-3 py-1 bg-brand-500/20 text-brand-400 text-[10px] font-bold uppercase tracking-[0.2em] rounded-full border border-brand-500/20">Control Panel</div>
+      <aside className="w-80 bg-white border-r border-slate-100 flex flex-col h-screen sticky top-0 shrink-0 shadow-2xl shadow-slate-200/50 z-20">
+        <div className="p-8 border-b border-slate-50">
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-2xl font-black tracking-tighter text-slate-900 flex items-center space-x-2">
+              <span className="w-10 h-10 bg-brand-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-brand-500/30">MS</span>
+              <span>Minimal<span className="text-brand-500">Stroke</span></span>
+            </h1>
+            <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+              {(['en', 'hi', 'mr'] as const).map(l => (
+                <button 
+                  key={l}
+                  onClick={() => setLanguage(l)}
+                  className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg transition ${language === l ? 'bg-white text-brand-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">{t('branch')}</label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Globe className="h-4 w-4 text-brand-500" />
+              </div>
+              <select 
+                value={selectedBranch}
+                onChange={(e) => {
+                  setSelectedBranch(e.target.value);
+                  localStorage.setItem('admin_branch', e.target.value);
+                }}
+                className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-2xl pl-11 pr-4 py-3.5 appearance-none focus:border-brand-500 focus:ring-0 transition group-hover:bg-slate-100 outline-none"
+              >
+                <option value="All Branches">{t('allBranches')}</option>
+                {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+              </select>
+            </div>
+          </div>
         </div>
 
-        <nav className="flex-1 w-full px-6 space-y-3">
-           <button 
-             onClick={() => setActiveTab('daily')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'daily' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <Clock className="w-5 h-5" />
-             <span className="text-sm">Live Punches</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('history')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'history' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <CalendarDays className="w-5 h-5" />
-             <span className="text-sm">Historical Attendance</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('staff')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'staff' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <Users className="w-5 h-5" />
-             <span className="text-sm">Staff Manager</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('calendar')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'calendar' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <CalendarDays className="w-5 h-5" />
-             <span className="text-sm">Master Calendar</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('approvals')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'approvals' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <Activity className="w-5 h-5" />
-             <span className="text-sm">Approvals Center</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('loans')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'loans' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <IndianRupee className="w-5 h-5" />
-             <span className="text-sm">Loan Ledgers</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('settings')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'settings' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <Settings className="w-5 h-5" />
-             <span className="text-sm">Company Settings</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('export')}
-             className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all duration-300 font-bold tracking-wide ${activeTab === 'export' ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20 translate-x-2' : 'hover:bg-slate-800 text-slate-400'}`}
-           >
-             <Download className="w-5 h-5" />
-             <span className="text-sm">Export Engine</span>
-           </button>
+        <nav className="flex-1 overflow-y-auto p-6 space-y-2 custom-scrollbar">
+          {[
+            { id: 'daily', icon: Clock, label: t('attendance') },
+            { id: 'history', icon: History, label: 'History' },
+            { id: 'staff', icon: Users, label: t('staff') },
+            { id: 'loans', icon: IndianRupee, label: t('loans') },
+            { id: 'approvals', icon: UserCheck, label: t('approvals') },
+            { id: 'corrections', icon: CheckSquare, label: t('corrections') },
+            { id: 'export', icon: FileStack, label: t('export') },
+            { id: 'map', icon: Map, label: 'Live Map' },
+            { id: 'calendar', icon: Calendar, label: 'Calendar' },
+            { id: 'settings', icon: Settings, label: t('settings') }
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id as any)}
+              className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition duration-300 group ${
+                activeTab === item.id 
+                  ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/30' 
+                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              <item.icon className="w-5 h-5" />
+              <span className="font-bold text-sm tracking-tight">{item.label}</span>
+            </button>
+          ))}
         </nav>
 
-        <button onClick={() => navigate('/')} className="mt-auto mb-2 px-6 py-4 w-[85%] text-slate-400 hover:text-white hover:bg-slate-800 rounded-2xl transition flex items-center justify-center space-x-2 border border-transparent">
-          <span className="font-bold tracking-wide text-sm">Return to Mobile App</span>
-        </button>
-        <button onClick={handleLogout} className="mb-2 px-6 py-4 w-[85%] text-slate-400 hover:text-white hover:bg-rose-500/20 rounded-2xl transition flex items-center justify-center space-x-2 border border-transparent hover:border-rose-500/30">
-          <LogOut className="w-5 h-5" />
-          <span className="font-bold tracking-wide text-sm">Terminate Session</span>
-        </button>
+        <div className="p-6 border-t border-slate-50 space-y-2">
+          <button onClick={() => navigate('/')} className="w-full py-3 text-slate-400 hover:text-slate-700 font-bold text-xs transition text-center">
+            Return to App
+          </button>
+          <button onClick={handleLogout} className="w-full flex items-center justify-center space-x-2 py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-100 transition">
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
       </aside>
 
       <main className="flex-1 bg-slate-50 relative overflow-hidden flex flex-col h-screen">
-        {/* Standard header for Map/Verity/Export only. New modules have their own scoped headers. */}
-        {['map', 'export'].includes(activeTab) && (
-        <header className="px-12 py-8 border-b border-slate-200/60 bg-white/80 backdrop-blur-md z-10 shadow-sm flex justify-between items-center">
-          <div>
-            <h2 className="text-3xl font-black mb-1.5 tracking-tight text-slate-900">
-              {activeTab === 'map' ? 'Geofence Tracker' : 'Report Exporter'}
-            </h2>
-            <p className="text-sm font-medium text-slate-500 tracking-wide">
-              {activeTab === 'map' ? 'Visual footprint of remote and local employee punches.' : 'Generate clean XLSX sheets for financing.'}
-            </p>
-          </div>
-        </header>
-        )}
+        <div className="flex-1 overflow-auto relative">
+           {activeTab === 'daily' && <AdminDailyAttendance selectedBranch={selectedBranch} />}
+           {activeTab === 'history' && <AdminHistoricalAttendance selectedBranch={selectedBranch} />}
+           {activeTab === 'staff' && <AdminStaff selectedBranch={selectedBranch} />}
+           {activeTab === 'calendar' && <AdminCalendar selectedBranch={selectedBranch} />}
+           {activeTab === 'approvals' && <AdminApprovals selectedBranch={selectedBranch} />}
+           {activeTab === 'corrections' && <AdminCorrections selectedBranch={selectedBranch} />}
+           {activeTab === 'loans' && <AdminLoans selectedBranch={selectedBranch} />}
+           {activeTab === 'settings' && <AdminSettings />}
+           {activeTab === 'export' && <ExportModule selectedBranch={selectedBranch} />}
 
-        <div className="flex-1 overflow-auto bg-slate-50 relative">
-           {activeTab === 'staff' ? <AdminStaff /> : 
-            activeTab === 'settings' ? <AdminSettings /> : 
-            activeTab === 'approvals' ? <AdminApprovals /> : 
-            activeTab === 'calendar' ? <AdminCalendar /> : 
-            activeTab === 'daily' ? <AdminDailyAttendance /> : 
-            activeTab === 'history' ? <AdminHistoricalAttendance /> :
-            activeTab === 'loans' ? <AdminLoans /> : 
-            activeTab === 'export' ? <ExportModule /> : 
-            activeTab === 'map' ? (
+           {activeTab === 'map' && (
              <div className="h-full w-full z-0 relative shadow-inner">
                <MapContainer center={mapCenter} zoom={13} className="h-full w-full">
                  <TileLayer
@@ -169,7 +176,9 @@ export default function AdminDashboard() {
                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                  />
                  
-                 {attendance.filter((a: any) => a.latitude && a.longitude).map((punch: any) => (
+                 {attendance
+                   .filter(p => p.latitude && p.longitude && (selectedBranch === 'All Branches' || p.profiles?.branch === selectedBranch))
+                   .map((punch: any) => (
                    <Marker 
                      key={punch.id} 
                      position={[punch.latitude, punch.longitude]} 
@@ -180,13 +189,14 @@ export default function AdminDashboard() {
                          <h3 className="font-bold text-sm text-slate-800 mb-1">{punch.profiles?.full_name || 'Verified Staff'}</h3>
                          <p className="text-xs font-semibold text-slate-500 mb-2 bg-slate-50 rounded py-1 border border-slate-100">{punch.type} Punch @ {new Date(punch.timestamp).toLocaleTimeString()}</p>
                          <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] rounded-full font-bold uppercase tracking-widest">{punch.status}</span>
+                         {punch.profiles?.branch && <p className="mt-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">{punch.profiles.branch}</p>}
                        </div>
                      </Popup>
                    </Marker>
                  ))}
                </MapContainer>
              </div>
-           ) : null}
+           )}
         </div>
       </main>
     </div>

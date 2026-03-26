@@ -139,14 +139,17 @@ export default function AdminSettings() {
               </p>
               
               <div className="bg-slate-950 p-6 rounded-2xl border border-white/5 space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Emergency Manual Reset (SQL)</p>
-                <code className="block bg-slate-900 p-4 rounded-xl text-xs font-mono text-emerald-400 break-all leading-loose">
+                <div className="flex justify-between items-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Emergency Manual Reset (SQL)</p>
+                  <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 text-[8px] font-black uppercase rounded">Advanced Tool</span>
+                </div>
+                <code className="block bg-slate-900 p-4 rounded-xl text-xs font-mono text-emerald-400 break-all leading-loose border border-white/5">
                   UPDATE auth.users <br/>
                   SET encrypted_password = crypt('NEW_PASSCODE', gen_salt('bf')) <br/>
-                  WHERE email = 'employee_id@minimalstroke.com';
+                  WHERE email = 'employee_email@minimalstroke.com';
                 </code>
                 <a 
-                  href="https://supabase.com/dashboard/project/gxekdcwwzebvtxdlddkb/sql" 
+                  href={`https://supabase.com/dashboard/project/${(import.meta.env.VITE_SUPABASE_URL || '').split('.')[0].split('//')[1] || 'default'}/sql`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="inline-flex items-center space-x-2 text-xs font-black text-brand-400 hover:text-brand-300 transition uppercase tracking-widest"
@@ -163,8 +166,9 @@ export default function AdminSettings() {
                 onClick={() => window.location.href = '/'}
                 className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-black rounded-2xl text-xs uppercase tracking-widest border border-white/10 transition-all"
               >
-                Go to "My Profile" in Mobile App
+                Go to "My Profile" on Mobile App
               </button>
+              <p className="mt-4 text-[10px] font-bold text-slate-500">Note: Profile & password settings are managed via the staff-facing employee portal.</p>
             </div>
           </div>
         </div>

@@ -10,7 +10,7 @@ interface PunchGroup {
   durationMinutes: number | null;
 }
 
-export default function AdminDailyAttendance() {
+export default function AdminDailyAttendance({ selectedBranch }: { selectedBranch: string }) {
   const [punchGroups, setPunchGroups] = useState<PunchGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,11 +20,17 @@ export default function AdminDailyAttendance() {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const { data } = await supabase
+    let query = supabase
       .from('attendance')
-      .select(`*, profiles (id, full_name, employee_id, role, department, multiple_branches)`)
+      .select(`*, profiles (id, full_name, employee_id, role, department, branch, multiple_branches)`)
       .gte('timestamp', startOfDay.toISOString())
       .order('timestamp', { ascending: true });
+
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      query = query.eq('profiles.branch', selectedBranch);
+    }
+
+    const { data } = await query;
 
     if (data) {
       // Group punches by user
@@ -39,7 +45,8 @@ export default function AdminDailyAttendance() {
 
       // For each user, find latest IN and latest OUT, and calculate duration
       const groups: PunchGroup[] = [];
-      for (const [, { profile, punches }] of byUser) {
+      for (const [userId, { profile, punches }] of byUser) {
+        console.log('Processing user:', userId);
         const inPunches = punches.filter(p => p.type === 'In');
         const outPunches = punches.filter(p => p.type === 'Out');
         const latestIn = inPunches[inPunches.length - 1] ?? null;
@@ -112,23 +119,98 @@ export default function AdminDailyAttendance() {
         </button>
       </div>
 
+      {/* High-Fidelity Analytics Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+        {/* Attendance Rate Donut */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center space-x-6">
+          <div className="relative w-20 h-20 shrink-0">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="3.5" />
+              <circle 
+                cx="18" cy="18" r="16" fill="none" 
+                className="stroke-emerald-500 transition-all duration-1000 ease-out" 
+                strokeWidth="3.5" 
+                strokeDasharray={`${(filtered.length / Math.max(1, punchGroups.length)) * 100}, 100`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-xs font-black text-slate-800 tracking-tighter">
+                {Math.round((filtered.length / Math.max(1, punchGroups.length)) * 100)}%
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Attendance Rate</p>
+            <p className="text-sm font-bold text-slate-700">{filtered.length} of {punchGroups.length} Staff</p>
+          </div>
+        </div>
+
+        {/* Punctuality Rate Donut */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center space-x-6">
+          <div className="relative w-20 h-20 shrink-0">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="3.5" />
+              <circle 
+                cx="18" cy="18" r="16" fill="none" 
+                className="stroke-amber-400 transition-all duration-1000 ease-out" 
+                strokeWidth="3.5" 
+                strokeDasharray={`${(filtered.filter(g => g.inPunch && g.punches[0]?.status === 'Present').length / Math.max(1, filtered.length)) * 100}, 100`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-xs font-black text-slate-800 tracking-tighter">
+                {Math.round((filtered.filter(g => g.inPunch && g.punches[0]?.status === 'Present').length / Math.max(1, filtered.length)) * 100)}%
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">On-Time Rate</p>
+            <p className="text-sm font-bold text-slate-700">Punctual arrivals</p>
+          </div>
+        </div>
+
+        {/* Live Status Card */}
+        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl lg:col-span-2 flex justify-between items-center group overflow-hidden relative">
+          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-brand-500/10 rounded-full blur-2xl group-hover:bg-brand-500/20 transition-all" />
+          <div className="relative z-10">
+            <h4 className="text-white font-black text-lg">V2.2 Payroll Engine</h4>
+            <p className="text-slate-400 text-xs font-semibold mt-1">Ready for {new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} processing</p>
+          </div>
+          <button 
+            className="px-6 py-3 bg-brand-500 hover:bg-brand-400 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition-all relative z-10"
+            onClick={() => {/* Navigate to payroll */}}
+          >
+            Run Payroll
+          </button>
+        </div>
+      </div>
+
       {/* Summary strip */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
-          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Currently In</p>
-          <p className="text-2xl font-black text-emerald-700">
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl">
+          <div className="flex justify-between items-start mb-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Present</p>
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+          <p className="text-3xl font-black text-emerald-700">{filtered.length}</p>
+        </div>
+        <div className="bg-amber-50 border border-amber-100 p-5 rounded-2xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2">Currently In</p>
+          <p className="text-3xl font-black text-amber-700">
             {filtered.filter(g => g.inPunch && !g.outPunch).length}
           </p>
         </div>
-        <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl">
-          <p className="text-[10px] font-black uppercase tracking-widest text-rose-600 mb-1">Checked Out</p>
-          <p className="text-2xl font-black text-rose-700">
+        <div className="bg-rose-50 border border-rose-100 p-5 rounded-2xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-rose-600 mb-2">Completed</p>
+          <p className="text-3xl font-black text-rose-700">
             {filtered.filter(g => g.outPunch).length}
           </p>
         </div>
-        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Total Punches</p>
-          <p className="text-2xl font-black text-slate-700">
+        <div className="bg-slate-100 border border-slate-200 p-5 rounded-2xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Total Activity</p>
+          <p className="text-3xl font-black text-slate-700">
             {filtered.reduce((sum, g) => sum + g.punches.length, 0)}
           </p>
         </div>

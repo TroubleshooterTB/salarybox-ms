@@ -12,30 +12,51 @@ export interface PayrollInput {
   standardShiftHours: number;   // e.g. 8
   loanDeduction: number;        // EMI scheduled for this month
   professionalTaxApplicable: boolean;
+  joiningDate?: string;         // YYYY-MM-DD
+  dateOfLeaving?: string;       // YYYY-MM-DD
+  // Adjustments from payroll_adjustments table
+  bonus?: number;               
+  incentive?: number;           
+  fines?: number;               
+  otherDeductions?: number;     
+  pfEnabled?: boolean;
+  esiEnabled?: boolean;
 }
 
 export interface PayrollOutput {
   monthDays: number;
   perMonthCtc: number;
-  baseMonthSalary: number;
+  baseMonthSalary: number;      // Fixed monthly component
+  proratedBaseSalary: number;   // Adjusted for joining/leaving dates
   payableDays: number;
-  grossEarned: number;
+  grossEarned: number;          // Attendance-based pay (Basic)
+  totalEarnings: number;        // Gross + Bonus + Incentives + OT
   overtimePay: number;
+  overtimeHours: number;        // Total OT hours
+  hourlyRate: number;           // Per hour rate used for OT
+  isExcessiveOT: boolean;       // Flag for HR review (>50 hours)
+  bonus: number;
+  incentive: number;
   lateFine: number;
   loanDeduction: number;
+  fines: number;
+  otherDeductions: number;
   deductions: {
     pt: number;
     epf: number;
     esi: number;
     lwf: number;
   };
+  employerContributions: {
+    epf: number;                // 13% (12% + 1% admin/EDLI approx)
+    esi: number;                // 3.25%
+    lwf: number;
+  };
   totalDeductions: number;
-  netPay: number;
+  netPay: number;               // Take home
+  ctcToCompany: number;         // Total cost including employer overheads
 }
 
-/**
- * Returns the exact number of days in a given month/year pair.
- */
 export const getDaysInMonth = (year: number, month: number): number => {
   return new Date(year, month + 1, 0).getDate();
 };
@@ -45,62 +66,105 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     baseSalary, year, month,
     presentDays, paidLeaves, publicHolidays, halfDays,
     lateDays, overtimeHours, overtimeType, standardShiftHours,
-    loanDeduction, professionalTaxApplicable
+    loanDeduction, professionalTaxApplicable,
+    joiningDate, dateOfLeaving,
+    bonus = 0, incentive = 0, fines = 0, otherDeductions = 0,
+    pfEnabled = false, esiEnabled = false
   } = input;
 
-  // Dynamic month days — the critical fix for Feb / 30-day months
   const monthDays = getDaysInMonth(year, month);
-
-  // Monthly salary breakdown
   const perMonthCtc = baseSalary / 12;
   const baseMonthSalary = perMonthCtc;
 
-  // Payable days
-  const payableDays = presentDays + paidLeaves + publicHolidays + (halfDays * 0.5);
-  const perDayPay = baseMonthSalary / monthDays;
-  const grossEarned = payableDays * perDayPay;
+  // 1. Prorated Salary Calculation (Tenure-based)
+  let tenureDays = monthDays;
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
 
-  // Late fine: 0.5 day pay per late mark
-  const lateFine = lateDays * (perDayPay * 0.5);
-
-  // Overtime
-  let overtimePay = 0;
-  if (overtimeType === 'Hourly') {
-    const perHourPay = perDayPay / standardShiftHours;
-    overtimePay = overtimeHours * perHourPay;
-  } else if (overtimeType === 'Day Basic') {
-    // OT paid as full day equivalents (hours / shiftHours)
-    overtimePay = (overtimeHours / standardShiftHours) * perDayPay;
+  if (joiningDate) {
+    const jDate = new Date(joiningDate);
+    if (jDate > monthStart && jDate <= monthEnd) {
+      const activeDays = monthDays - jDate.getDate() + 1;
+      tenureDays = Math.min(tenureDays, activeDays);
+    } else if (jDate > monthEnd) {
+      tenureDays = 0;
+    }
   }
 
-  // Maharashtra Professional Tax
+  if (dateOfLeaving) {
+    const lDate = new Date(dateOfLeaving);
+    if (lDate >= monthStart && lDate < monthEnd) {
+      const activeDays = lDate.getDate();
+      tenureDays = Math.min(tenureDays, activeDays);
+    } else if (lDate < monthStart) {
+      tenureDays = 0;
+    }
+  }
+
+  const proratedBaseSalary = (baseMonthSalary / monthDays) * tenureDays;
+
+  // 2. Attendance-based Pay
+  const payableDays = Math.min(tenureDays, presentDays + paidLeaves + publicHolidays + (halfDays * 0.5));
+  const grossEarned = payableDays * (baseMonthSalary / monthDays);
+
+  // 3. Overtime Pay
+  let overtimePay = 0;
+  const perHourPay = (baseMonthSalary / monthDays) / standardShiftHours;
+  
+  if (overtimeType === 'Hourly') {
+    overtimePay = overtimeHours * perHourPay;
+  } else if (overtimeType === 'Day Basic') {
+    overtimePay = (overtimeHours / standardShiftHours) * (baseMonthSalary / monthDays);
+  }
+
+  const isExcessiveOT = overtimeHours > 50;
+
+  const lateFine = lateDays * ((baseMonthSalary / monthDays) * 0.5);
+  const totalEarnings = grossEarned + bonus + incentive + overtimePay;
+
+  // 4. Statutory Deductions
   const isFeb = month === 1;
-  const pt = professionalTaxApplicable && baseMonthSalary > 10000 ? (isFeb ? 300 : 200) : 0;
-
-  // EPF (12% on wages up to ₹15,000)
-  const epfWage = Math.min(grossEarned, 15000);
-  const epf = epfWage * 0.12;
-
-  // ESI (0.75% on wages ≤ ₹21,000)
-  const esi = grossEarned <= 21000 ? grossEarned * 0.0075 : 0;
-
-  // LWF (Maharashtra: ₹25 in June and December)
+  const pt = (professionalTaxApplicable && totalEarnings > 10000) ? (isFeb ? 300 : 200) : 0;
+  const epfWage = Math.min(totalEarnings, 15000);
+  const epf = pfEnabled ? Math.round(epfWage * 0.12) : 0;
+  const esi = (esiEnabled && totalEarnings <= 21000) ? Math.ceil(totalEarnings * 0.0075) : 0;
   const lwf = (month === 5 || month === 11) ? 25 : 0;
 
-  const totalDeductions = pt + epf + esi + lwf + lateFine + loanDeduction;
-  const netPay = (grossEarned + overtimePay) - totalDeductions;
+  // 5. Statutory Contributions
+  const employerEpf = pfEnabled ? Math.round(epfWage * 0.13) : 0;
+  const employerEsi = (esiEnabled && totalEarnings <= 21000) ? Math.ceil(totalEarnings * 0.0325) : 0;
+  const employerLwf = (month === 5 || month === 11) ? 25 : 0;
+
+  const totalDeductions = pt + epf + esi + lwf + lateFine + loanDeduction + fines + otherDeductions;
+  const netPay = Math.max(0, totalEarnings - totalDeductions);
+  const ctcToCompany = totalEarnings + employerEpf + employerEsi + employerLwf;
 
   return {
     monthDays,
     perMonthCtc,
     baseMonthSalary,
+    proratedBaseSalary,
     payableDays,
     grossEarned,
+    totalEarnings,
     overtimePay,
+    overtimeHours,
+    hourlyRate: perHourPay,
+    isExcessiveOT,
+    bonus,
+    incentive,
     lateFine,
     loanDeduction,
+    fines,
+    otherDeductions,
     deductions: { pt, epf, esi, lwf },
+    employerContributions: {
+      epf: employerEpf,
+      esi: employerEsi,
+      lwf: employerLwf
+    },
     totalDeductions,
-    netPay: Math.max(0, netPay),  // Never negative
+    netPay,
+    ctcToCompany
   };
 };

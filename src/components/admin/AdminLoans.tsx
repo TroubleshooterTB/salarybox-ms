@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { IndianRupee, Plus, CalendarClock, Search, Loader2 } from 'lucide-react';
 
-export default function AdminLoans() {
+export default function AdminLoans({ selectedBranch }: { selectedBranch: string }) {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -19,12 +19,16 @@ export default function AdminLoans() {
 
   useEffect(() => {
     async function fetchProfiles() {
-      const { data } = await supabase.from('profiles').select('id, full_name, employee_id').order('full_name');
+      let query = supabase.from('profiles').select('id, full_name, employee_id, branch').order('full_name');
+      if (selectedBranch && selectedBranch !== 'All Branches') {
+        query = query.eq('branch', selectedBranch);
+      }
+      const { data } = await query;
       if (data) setProfiles(data);
       setLoading(false);
     }
     fetchProfiles();
-  }, []);
+  }, [selectedBranch]);
 
   useEffect(() => {
     if (!selectedUser) {

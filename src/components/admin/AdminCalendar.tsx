@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ChevronLeft, ChevronRight, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 
-export default function AdminCalendar() {
+export default function AdminCalendar({ selectedBranch }: { selectedBranch: string }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -14,8 +14,12 @@ export default function AdminCalendar() {
 
   const fetchData = async () => {
     setLoading(true);
-    // Fetch all profiles
-    const { data: profs } = await supabase.from('profiles').select('id, full_name, employee_id').order('full_name');
+    // Fetch profiles with branch filter
+    let profQuery = supabase.from('profiles').select('id, full_name, employee_id, branch').order('full_name');
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      profQuery = profQuery.eq('branch', selectedBranch);
+    }
+    const { data: profs } = await profQuery;
     if (profs) setProfiles(profs);
 
     // Fetch month attendance

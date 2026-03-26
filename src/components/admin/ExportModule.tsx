@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { calculatePayroll, getDaysInMonth } from '../../lib/payrollEngine';
 import { Download, FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function ExportModule() {
+export default function ExportModule({ selectedBranch }: { selectedBranch: string }) {
   const [loading, setLoading] = useState(false);
 
   // OT configuration (applied uniformly for this export — per employee can be extended later)
@@ -30,7 +30,11 @@ export default function ExportModule() {
   const exportAttendance = async () => {
     setLoading(true);
     try {
-      const { data: profiles } = await supabase.from('profiles').select('*');
+      let profileQuery = supabase.from('profiles').select('*');
+      if (selectedBranch && selectedBranch !== 'All Branches') {
+        profileQuery = profileQuery.eq('branch', selectedBranch);
+      }
+      const { data: profiles } = await profileQuery;
       const startDate = new Date(exportYear, exportMonth, 1).toISOString();
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
       const { data: attendance } = await supabase.from('attendance').select('*').gte('timestamp', startDate).lte('timestamp', endDate);
@@ -64,27 +68,26 @@ export default function ExportModule() {
   const exportSalary = async () => {
     setLoading(true);
     try {
-      const { data: profiles } = await supabase.from('profiles').select('*');
+      let profileQuery = supabase.from('profiles').select('*');
+      if (selectedBranch && selectedBranch !== 'All Branches') {
+        profileQuery = profileQuery.eq('branch', selectedBranch);
+      }
+      const { data: profiles } = await profileQuery;
+      
+      const targetMonthStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}`;
       const startDate = new Date(exportYear, exportMonth, 1).toISOString();
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
 
-      // Fetch all attendance for the month
-      const { data: attendance } = await supabase
-        .from('attendance')
-        .select('user_id, timestamp, type, status')
-        .gte('timestamp', startDate)
-        .lte('timestamp', endDate);
-
-      // Fetch all loan schedules for this month (format YYYY-MM)
-      const targetMonthStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}`;
-      const { data: loanSchedules } = await supabase
-        .from('loan_schedules')
-        .select('user_id, id, deduction_amount, is_processed')
-        .eq('target_month', targetMonthStr)
-        .eq('is_processed', false);
+      // Fetch all attendance, adjustments, and loan schedules for the month
+      const [{ data: attendance }, { data: adjustments }, { data: loanSchedules }] = await Promise.all([
+        supabase.from('attendance').select('user_id, timestamp, type, status').gte('timestamp', startDate).lte('timestamp', endDate),
+        supabase.from('payroll_adjustments').select('*').eq('month_year', targetMonthStr),
+        supabase.from('loan_schedules').select('user_id, id, deduction_amount, is_processed').eq('target_month', targetMonthStr).eq('is_processed', false)
+      ]);
 
       const rows = await Promise.all((profiles || []).map(async p => {
         const pAtt = attendance?.filter(a => a.user_id === p.id) || [];
+        const adj = adjustments?.find(a => a.user_id === p.id);
 
         // Group by calendar day for accurate counts
         const dayMap = new Map<number, any[]>();
@@ -102,74 +105,71 @@ export default function ExportModule() {
           else if (last?.status === 'Late') { presentDays++; lateDays++; }
         }
 
-        // Loan deduction for this month
         const loanSched = loanSchedules?.find(s => s.user_id === p.id);
         const loanDeduction = loanSched?.deduction_amount ?? 0;
 
         const payroll = calculatePayroll({
-          baseSalary: p.ctc_amount || 15000,
+          baseSalary: p.ctc_amount || 0,
           year: exportYear,
           month: exportMonth,
           presentDays,
-          paidLeaves: 1,
-          publicHolidays: 1,
+          paidLeaves: 1, // Placeholder: fetch from leave_requests in V3
+          publicHolidays: 1, 
           halfDays,
           lateDays,
           overtimeHours: parseFloat(otHours) || 0,
           overtimeType: otType,
           standardShiftHours: 8,
           loanDeduction,
-          professionalTaxApplicable: p.professional_tax_applicable ?? true,
+          professionalTaxApplicable: p.professional_tax_applicable !== false,
+          joiningDate: p.joining_date,
+          dateOfLeaving: p.date_of_leaving,
+          bonus: adj?.bonus || 0,
+          incentive: adj?.incentive || 0,
+          fines: adj?.fines || 0,
+          otherDeductions: adj?.other_deductions || 0,
+          pfEnabled: p.pf_enabled,
+          esiEnabled: p.esi_enabled
         });
 
-        // After generating payroll: mark loan schedule as processed and deduct from balance
+        // Mark loan as processed
         if (loanSched && loanDeduction > 0) {
           await supabase.from('loan_schedules').update({ is_processed: true }).eq('id', loanSched.id);
-          // Fetch latest balance
-          const { data: latestLoan } = await supabase
-            .from('loans')
-            .select('remaining_balance')
-            .eq('user_id', p.id)
-            .order('transaction_date', { ascending: false })
-            .limit(1)
-            .single();
+          const { data: latestLoan } = await supabase.from('loans').select('remaining_balance').eq('user_id', p.id).order('transaction_date', { ascending: false }).limit(1).single();
           const newBalance = Math.max(0, (latestLoan?.remaining_balance ?? 0) - loanDeduction);
           await supabase.from('loans').insert({
-            user_id: p.id,
-            type: 'Credit',
-            loan_amount: loanDeduction,
-            remaining_balance: newBalance,
-            transaction_date: endDate,
+            user_id: p.id, type: 'Credit', loan_amount: loanDeduction, remaining_balance: newBalance, transaction_date: endDate
           });
         }
 
         return {
           'EMP ID': p.employee_id,
           'Name': p.full_name,
-          'Designation': p.job_title || '',
           'Branch': p.branch || '',
-          'Department': p.department || '',
-          'Date of Joining': p.joining_date || '',
-          'Bank A/C Details': p.bank_account_details || '',
-          'Annual CTC': p.ctc_amount,
-          'Per Month CTC': payroll.perMonthCtc.toFixed(2),
-          'Base Monthly Salary': payroll.baseMonthSalary.toFixed(2),
+          'Designation': p.job_title || '',
+          'Joining Date': p.joining_date || '',
+          'A/C Details': p.bank_account_details || '',
+          'Monthly Base CTC': payroll.baseMonthSalary.toFixed(0),
+          'Prorated Base': payroll.proratedBaseSalary.toFixed(0),
           'Month Days': payroll.monthDays,
-          'Present Days': presentDays,
-          'Half Days': halfDays,
-          'Late Marks': lateDays,
           'Payable Days': payroll.payableDays,
-          'Gross Earned': payroll.grossEarned.toFixed(2),
-          'OT Pay': payroll.overtimePay.toFixed(2),
-          'Late Fine': payroll.lateFine.toFixed(2),
-          'Loan EMI Deducted': loanDeduction.toFixed(2),
-          'PT (Professional Tax)': payroll.deductions.pt,
-          'EPF Deduction': payroll.deductions.epf.toFixed(2),
-          'ESI Deduction': payroll.deductions.esi.toFixed(2),
-          'LWF': payroll.deductions.lwf,
-          'Total Deductions': payroll.totalDeductions.toFixed(2),
-          'Net Payable': payroll.netPay.toFixed(2),
-          'Status': 'Verified Processing',
+          'Gross Earned': payroll.grossEarned.toFixed(0),
+          'Variable Bonus': payroll.bonus,
+          'Incentive': payroll.incentive,
+          'OT Pay': payroll.overtimePay.toFixed(0),
+          'Total Earnings': payroll.totalEarnings.toFixed(0),
+          'PT': payroll.deductions.pt,
+          'EPF (Emp)': payroll.deductions.epf,
+          'ESI (Emp)': payroll.deductions.esi,
+          'LWF (Emp)': payroll.deductions.lwf,
+          'Loan EMI': payroll.loanDeduction,
+          'Fines/Penalties': payroll.fines + payroll.lateFine,
+          'Total Deductions': payroll.totalDeductions.toFixed(0),
+          'Net Take Home': payroll.netPay.toFixed(0),
+          'EPF (Company)': payroll.employerContributions.epf,
+          'ESI (Company)': payroll.employerContributions.esi,
+          'Total CTC to Company': payroll.ctcToCompany.toFixed(0),
+          'Remarks': adj?.remarks || ''
         };
       }));
 
