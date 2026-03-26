@@ -1,0 +1,282 @@
+import { useState } from 'react';
+import * as XLSX from 'xlsx';
+import { supabase } from '../../lib/supabase';
+import { calculatePayroll, getDaysInMonth } from '../../lib/payrollEngine';
+import { Download, FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+
+export default function ExportModule() {
+  const [loading, setLoading] = useState(false);
+
+  // OT configuration (applied uniformly for this export — per employee can be extended later)
+  const [otType, setOtType] = useState<'None' | 'Hourly' | 'Day Basic'>('None');
+  const [otHours, setOtHours] = useState('0');
+
+  // Default to current month
+  const now = new Date();
+  const [exportYear, setExportYear] = useState(now.getFullYear());
+  const [exportMonth, setExportMonth] = useState(now.getMonth()); // 0-indexed
+
+  const shiftMonth = (delta: number) => {
+    let m = exportMonth + delta;
+    let y = exportYear;
+    if (m > 11) { m = 0; y++; }
+    if (m < 0) { m = 11; y--; }
+    setExportMonth(m);
+    setExportYear(y);
+  };
+
+  const monthLabel = new Date(exportYear, exportMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const exportAttendance = async () => {
+    setLoading(true);
+    try {
+      const { data: profiles } = await supabase.from('profiles').select('*');
+      const startDate = new Date(exportYear, exportMonth, 1).toISOString();
+      const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
+      const { data: attendance } = await supabase.from('attendance').select('*').gte('timestamp', startDate).lte('timestamp', endDate);
+
+      const rows = profiles?.map(p => {
+        const pAtt = attendance?.filter(a => a.user_id === p.id) || [];
+        const baseRow: any = { 'EMP ID': p.employee_id, 'Name': p.full_name, 'Branch': p.branch };
+        const monthDays = getDaysInMonth(exportYear, exportMonth);
+        for (let i = 1; i <= monthDays; i++) {
+          const dayRecs = pAtt.filter(a => new Date(a.timestamp).getDate() === i);
+          // Determine status: take the last recorded status for the day
+          const lastRec = dayRecs.filter(a => a.type === 'Out').at(-1) ?? dayRecs.at(-1);
+          if (lastRec?.status === 'Present') baseRow[`D${i}`] = 'P';
+          else if (lastRec?.status === 'Half Day') baseRow[`D${i}`] = 'HD';
+          else if (lastRec?.status === 'Late') baseRow[`D${i}`] = 'L';
+          else if (lastRec?.status === 'Paid Leave') baseRow[`D${i}`] = 'PL';
+          else if (lastRec?.status === 'Absent') baseRow[`D${i}`] = 'A';
+          else baseRow[`D${i}`] = '';
+        }
+        return baseRow;
+      }) || [];
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+      XLSX.writeFile(wb, `Attendance_${monthLabel.replace(' ', '_')}.xlsx`);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const exportSalary = async () => {
+    setLoading(true);
+    try {
+      const { data: profiles } = await supabase.from('profiles').select('*');
+      const startDate = new Date(exportYear, exportMonth, 1).toISOString();
+      const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
+
+      // Fetch all attendance for the month
+      const { data: attendance } = await supabase
+        .from('attendance')
+        .select('user_id, timestamp, type, status')
+        .gte('timestamp', startDate)
+        .lte('timestamp', endDate);
+
+      // Fetch all loan schedules for this month (format YYYY-MM)
+      const targetMonthStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}`;
+      const { data: loanSchedules } = await supabase
+        .from('loan_schedules')
+        .select('user_id, id, deduction_amount, is_processed')
+        .eq('target_month', targetMonthStr)
+        .eq('is_processed', false);
+
+      const rows = await Promise.all((profiles || []).map(async p => {
+        const pAtt = attendance?.filter(a => a.user_id === p.id) || [];
+
+        // Group by calendar day for accurate counts
+        const dayMap = new Map<number, any[]>();
+        for (const rec of pAtt) {
+          const d = new Date(rec.timestamp).getDate();
+          if (!dayMap.has(d)) dayMap.set(d, []);
+          dayMap.get(d)!.push(rec);
+        }
+
+        let presentDays = 0, halfDays = 0, lateDays = 0;
+        for (const [, recs] of dayMap) {
+          const last = recs.filter(r => r.type === 'Out').at(-1) ?? recs.at(-1);
+          if (last?.status === 'Present') presentDays++;
+          else if (last?.status === 'Half Day') halfDays++;
+          else if (last?.status === 'Late') { presentDays++; lateDays++; }
+        }
+
+        // Loan deduction for this month
+        const loanSched = loanSchedules?.find(s => s.user_id === p.id);
+        const loanDeduction = loanSched?.deduction_amount ?? 0;
+
+        const payroll = calculatePayroll({
+          baseSalary: p.ctc_amount || 15000,
+          year: exportYear,
+          month: exportMonth,
+          presentDays,
+          paidLeaves: 1,
+          publicHolidays: 1,
+          halfDays,
+          lateDays,
+          overtimeHours: parseFloat(otHours) || 0,
+          overtimeType: otType,
+          standardShiftHours: 8,
+          loanDeduction,
+          professionalTaxApplicable: p.professional_tax_applicable ?? true,
+        });
+
+        // After generating payroll: mark loan schedule as processed and deduct from balance
+        if (loanSched && loanDeduction > 0) {
+          await supabase.from('loan_schedules').update({ is_processed: true }).eq('id', loanSched.id);
+          // Fetch latest balance
+          const { data: latestLoan } = await supabase
+            .from('loans')
+            .select('remaining_balance')
+            .eq('user_id', p.id)
+            .order('transaction_date', { ascending: false })
+            .limit(1)
+            .single();
+          const newBalance = Math.max(0, (latestLoan?.remaining_balance ?? 0) - loanDeduction);
+          await supabase.from('loans').insert({
+            user_id: p.id,
+            type: 'Credit',
+            loan_amount: loanDeduction,
+            remaining_balance: newBalance,
+            transaction_date: endDate,
+          });
+        }
+
+        return {
+          'EMP ID': p.employee_id,
+          'Name': p.full_name,
+          'Designation': p.job_title || '',
+          'Branch': p.branch || '',
+          'Department': p.department || '',
+          'Date of Joining': p.joining_date || '',
+          'Bank A/C Details': p.bank_account_details || '',
+          'Annual CTC': p.ctc_amount,
+          'Per Month CTC': payroll.perMonthCtc.toFixed(2),
+          'Base Monthly Salary': payroll.baseMonthSalary.toFixed(2),
+          'Month Days': payroll.monthDays,
+          'Present Days': presentDays,
+          'Half Days': halfDays,
+          'Late Marks': lateDays,
+          'Payable Days': payroll.payableDays,
+          'Gross Earned': payroll.grossEarned.toFixed(2),
+          'OT Pay': payroll.overtimePay.toFixed(2),
+          'Late Fine': payroll.lateFine.toFixed(2),
+          'Loan EMI Deducted': loanDeduction.toFixed(2),
+          'PT (Professional Tax)': payroll.deductions.pt,
+          'EPF Deduction': payroll.deductions.epf.toFixed(2),
+          'ESI Deduction': payroll.deductions.esi.toFixed(2),
+          'LWF': payroll.deductions.lwf,
+          'Total Deductions': payroll.totalDeductions.toFixed(2),
+          'Net Payable': payroll.netPay.toFixed(2),
+          'Status': 'Verified Processing',
+        };
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Salary_Register");
+      XLSX.writeFile(wb, `Salary_${monthLabel.replace(' ', '_')}.xlsx`);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="p-12 max-w-5xl mx-auto space-y-6">
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-slate-800">Export Centre</h2>
+        <p className="text-slate-500 font-medium text-sm mt-1">Generate real payroll and attendance reports. All data is live from Supabase.</p>
+      </div>
+
+      {/* Month Selector */}
+      <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Payroll Period</p>
+          <p className="text-xl font-black text-slate-800">{monthLabel}</p>
+        </div>
+        <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+          <button onClick={() => shiftMonth(-1)} className="p-2 hover:bg-slate-200 rounded-xl transition text-slate-600"><ChevronLeft className="w-5 h-5" /></button>
+          <span className="px-4 font-bold text-slate-700 min-w-[130px] text-center">{monthLabel}</span>
+          <button onClick={() => shiftMonth(1)} className="p-2 hover:bg-slate-200 rounded-xl transition text-slate-600"><ChevronRight className="w-5 h-5" /></button>
+        </div>
+      </div>
+
+      {/* OT Settings Card */}
+      <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Overtime Settings</p>
+            <p className="text-sm font-bold text-slate-700">Applied to all employees in this payroll run</p>
+          </div>
+          <span className={`px-3 py-1 text-[10px] font-black uppercase rounded-full border ${
+            otType === 'None' ? 'bg-slate-50 text-slate-500 border-slate-200' :
+            'bg-amber-50 text-amber-700 border-amber-200'
+          }`}>{otType === 'None' ? 'No OT' : `OT: ${otType}`}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {(['None', 'Hourly', 'Day Basic'] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => setOtType(type)}
+              className={`py-2.5 rounded-xl text-xs font-bold transition border ${
+                otType === type
+                  ? 'bg-brand-500 text-white border-brand-500 shadow-lg shadow-brand-500/20'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {type === 'None' ? 'No OT' : type}
+            </button>
+          ))}
+        </div>
+        {otType !== 'None' && (
+          <div className="mt-4 flex items-center space-x-3">
+            <label className="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">OT Hours (global)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={otHours}
+              onChange={e => setOtHours(e.target.value)}
+              className="w-32 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition"
+            />
+            <p className="text-xs text-slate-400 font-medium">
+              {otType === 'Hourly' ? 'Paid at per-hour rate × OT hours' : 'Paid as day equivalents (hours ÷ shift hours)'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Attendance Export */}
+      <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-bold text-slate-800 flex items-center space-x-2">
+            <FileSpreadsheet className="w-6 h-6 text-emerald-500" />
+            <span>Attendance Matrix — {monthLabel}</span>
+          </h3>
+          <p className="text-slate-500 text-sm mt-1 font-medium">Exact punch states (P/HD/L/A) mapped to each calendar day for the selected month.</p>
+        </div>
+        <button disabled={loading} onClick={exportAttendance} className="px-6 py-4 bg-slate-900 text-white font-bold rounded-xl flex items-center space-x-2 hover:bg-slate-800 transition shadow-lg shrink-0 disabled:opacity-50">
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+          <span>Download Matrix</span>
+        </button>
+      </div>
+
+      {/* Salary Export */}
+      <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-bold text-slate-800 flex items-center space-x-2">
+            <FileSpreadsheet className="w-6 h-6 text-brand-500" />
+            <span>Salary Register — {monthLabel}</span>
+          </h3>
+          <p className="text-slate-500 text-sm mt-1 font-medium">
+            Real present days · Dynamic month days ({getDaysInMonth(exportYear, exportMonth)} days this month) · Loan EMI deduction · EPF, PT, ESI · Bank & designation columns included.
+          </p>
+        </div>
+        <button disabled={loading} onClick={exportSalary} className="px-6 py-4 bg-brand-500 text-white font-bold rounded-xl flex items-center space-x-2 hover:bg-brand-600 transition shadow-lg shadow-brand-500/20 shrink-0 disabled:opacity-50">
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+          <span>Generate Register</span>
+        </button>
+      </div>
+    </div>
+  );
+}

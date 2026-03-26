@@ -1,0 +1,176 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import useStore from '../../store';
+import { ArrowLeft, PlusCircle, Loader2 } from 'lucide-react';
+
+export default function LeaveManagement({ onBack }: { onBack: () => void }) {
+  const { session } = useStore();
+  const [balances, setBalances] = useState({ privilege: 0, sick: 0, casual: 0 });
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'balances' | 'request'>('balances');
+  const [formData, setFormData] = useState({
+    leave_type: 'Privilege',
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date().toISOString().split('T')[0],
+    reason: '',
+    is_half_day: false
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function fetchLeaves() {
+      if (!session) return;
+      const { data, error } = await supabase.from('leaves').select('*').eq('user_id', session.user.id).single();
+      
+      if (data) {
+        setBalances({
+          privilege: data.privilege_balance || 0,
+          sick: data.sick_balance || 0,
+          casual: data.casual_balance || 0,
+        });
+      } else if (error && error.code === 'PGRST116') {
+        const { data: newL } = await supabase.from('leaves').insert({ user_id: session.user.id }).select().single();
+        if (newL) {
+          setBalances({ privilege: newL.privilege_balance, sick: newL.sick_balance, casual: newL.casual_balance });
+        }
+      }
+      setLoading(false);
+    }
+    fetchLeaves();
+  }, [session]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    
+    // Validate dates
+    if (!formData.is_half_day && formData.end_date < formData.start_date) {
+      alert('End date cannot be before start date.');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const payload = {
+        user_id: session.user.id,
+        leave_type: formData.leave_type,
+        start_date: formData.start_date,
+        end_date: formData.is_half_day ? formData.start_date : formData.end_date,
+        reason: formData.reason,
+        is_half_day: formData.is_half_day,
+        status: 'Pending',
+        created_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from('leave_requests').insert(payload);
+      if (error) throw error;
+
+      alert('Leave Request Submitted Successfully! Awaiting Admin Approval.');
+      setView('balances');
+      // Full form reset
+      setFormData({
+        leave_type: 'Privilege',
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: new Date().toISOString().split('T')[0],
+        reason: '',
+        is_half_day: false,
+      });
+    } catch (err: any) {
+      // Surface the real error message from Supabase (e.g. RLS violation)
+      const msg = err?.message || err?.details || JSON.stringify(err);
+      alert('Failed to submit leave request:\n\n' + msg + '\n\nPlease contact your administrator if this persists.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col max-w-md mx-auto relative">
+      <div className="flex items-center mb-8 pt-4">
+        <button onClick={() => view === 'request' ? setView('balances') : onBack()} className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <h2 className="text-xl font-bold ml-2 tracking-tight">{view === 'balances' ? 'Leave Balance' : 'Request Time Off'}</h2>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center mt-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>
+      ) : view === 'balances' ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+              <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-[0.2em] mb-2 opacity-80">Privilege Leave</p>
+              <h3 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-br from-emerald-300 to-emerald-600 mb-2">
+                {balances.privilege} <span className="text-xl font-semibold opacity-50">days</span>
+              </h3>
+              <div className="inline-block mt-1 px-3 py-1 bg-emerald-900/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-emerald-500/20">
+                Auto Carry Forward: 11 Days max
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-lg relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 rounded-full blur-2xl" />
+               <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Sick Leave</p>
+               <h3 className="text-3xl font-black">{balances.sick} <span className="text-[10px] text-slate-500 font-normal uppercase tracking-wider">days</span></h3>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-lg relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-20 h-20 bg-brand-500/10 rounded-full blur-2xl" />
+               <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest mb-1">Casual Leave</p>
+               <h3 className="text-3xl font-black">{balances.casual} <span className="text-[10px] text-slate-500 font-normal uppercase tracking-wider">days</span></h3>
+            </div>
+          </div>
+
+          <button onClick={() => setView('request')} className="w-full mt-8 py-5 bg-white text-slate-950 font-bold rounded-2xl flex items-center justify-center space-x-2 shadow-xl hover:shadow-white/20 active:scale-95 transition-all">
+            <PlusCircle className="w-5 h-5" />
+            <span className="uppercase tracking-wide text-sm">Request Time Off</span>
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Leave Category</label>
+            <select value={formData.leave_type} onChange={e=>setFormData({...formData, leave_type: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-white appearance-none focus:border-emerald-500 outline-none transition">
+              <option value="Privilege">Privilege Leave (Max 11 CR)</option>
+              <option value="Sick">Sick Leave</option>
+              <option value="Casual">Casual Leave</option>
+              <option value="Unpaid">Loss of Pay (LWP)</option>
+            </select>
+          </div>
+
+          <label className="flex items-center space-x-3 bg-slate-950 border border-slate-800 p-4 rounded-xl cursor-pointer hover:border-emerald-500/50 transition">
+            <input type="checkbox" checked={formData.is_half_day} onChange={e=>setFormData({...formData, is_half_day: e.target.checked})} className="w-5 h-5 rounded border-slate-700 text-emerald-500 bg-slate-900 focus:ring-emerald-500 focus:ring-offset-slate-950" />
+            <div>
+              <p className="text-sm font-bold text-white leading-none">Half-Day Leave</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold mt-1">Deducts 0.5 from balance</p>
+            </div>
+          </label>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{formData.is_half_day ? 'Date' : 'Start Date'}</label>
+              <input required value={formData.start_date} onChange={e=>setFormData({...formData, start_date: e.target.value})} type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-emerald-500 transition [color-scheme:dark]" />
+            </div>
+            {!formData.is_half_day && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">End Date</label>
+                <input required value={formData.end_date} onChange={e=>setFormData({...formData, end_date: e.target.value})} type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-emerald-500 transition [color-scheme:dark]" />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Reason / Remarks</label>
+            <textarea required value={formData.reason} onChange={e=>setFormData({...formData, reason: e.target.value})} rows={3} placeholder="Please provide a brief reason..." className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-white outline-none focus:border-emerald-500 transition resize-none placeholder-slate-600" />
+          </div>
+
+          <button type="submit" disabled={submitting} className="w-full flex justify-center items-center py-4 bg-emerald-500 text-slate-950 font-black tracking-widest uppercase text-sm rounded-xl hover:bg-emerald-400 active:scale-95 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50">
+            {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit Request'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
