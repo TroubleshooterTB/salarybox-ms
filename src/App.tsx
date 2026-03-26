@@ -41,9 +41,15 @@ function App() {
         const { error: updateErr } = await supabase.from('profiles').update({ device_fingerprint: fp }).eq('id', userId);
         if (updateErr) console.error("Could not bind device fingerprint:", updateErr);
       } else if (data.device_fingerprint !== fp) {
-        alert("Security Lock: Unrecognized Device Fingerprint. Your session has been terminated.");
-        await supabase.auth.signOut();
-        return;
+        // Special case: Allow Admins to auto-update fingerprint to prevent lockout during migration/domain change
+        if (emailLower.startsWith('admin')) {
+          console.warn("Admin device change detected. Updating security fingerprint...");
+          await supabase.from('profiles').update({ device_fingerprint: fp }).eq('id', userId);
+        } else {
+          alert("Security Lock: Unrecognized Device Fingerprint. Your session has been terminated.");
+          await supabase.auth.signOut();
+          return;
+        }
       }
 
       // Email prefix takes priority over DB role for system admins
