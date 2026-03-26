@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Target, Trash2, Edit3, Loader2 } from 'lucide-react';
+import { Plus, Target, Trash2, Edit3, Loader2, ShieldAlert, ExternalLink } from 'lucide-react';
 
 export default function AdminSettings() {
   const [branches, setBranches] = useState<any[]>([]);
@@ -116,6 +116,58 @@ export default function AdminSettings() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Global Security & Master Controls */}
+      <div className="mt-12 bg-slate-900 rounded-[2.5rem] p-10 border border-slate-800 relative overflow-hidden shadow-2xl">
+        <div className="absolute top-0 right-0 p-8 opacity-10">
+          <ShieldAlert className="w-32 h-32 text-rose-500" />
+        </div>
+        
+        <div className="relative z-10">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-10 h-10 bg-rose-500/20 rounded-xl flex items-center justify-center text-rose-500">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-black text-white">Security & Master Controls</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-slate-400 leading-relaxed">
+                As a Super Admin, you can trigger password reset emails from the <span className="text-brand-400">Staff Manager</span>. For emergency "Force Resets" without email access, use the SQL Tool below.
+              </p>
+              
+              <div className="bg-slate-950 p-6 rounded-2xl border border-white/5 space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Emergency Manual Reset (SQL)</p>
+                <code className="block bg-slate-900 p-4 rounded-xl text-xs font-mono text-emerald-400 break-all leading-loose">
+                  UPDATE auth.users <br/>
+                  SET encrypted_password = crypt('NEW_PASSCODE', gen_salt('bf')) <br/>
+                  WHERE email = 'employee_id@minimalstroke.com';
+                </code>
+                <a 
+                  href="https://supabase.com/dashboard/project/gxekdcwwzebvtxdlddkb/sql" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="inline-flex items-center space-x-2 text-xs font-black text-brand-400 hover:text-brand-300 transition uppercase tracking-widest"
+                >
+                  <span>Open Supabase SQL Editor</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-3xl border border-white/5 flex flex-col justify-center text-center">
+              <p className="text-sm font-bold text-slate-300 mb-6">Need to change your own Admin Passcode?</p>
+              <button 
+                onClick={() => window.location.href = '/'}
+                className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-black rounded-2xl text-xs uppercase tracking-widest border border-white/10 transition-all"
+              >
+                Go to "My Profile" in Mobile App
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {showModal && (

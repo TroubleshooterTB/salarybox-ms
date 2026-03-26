@@ -346,6 +346,31 @@ export default function AdminStaff() {
                 </div>
               </div>
 
+              {/* Security & Access (For Existing Employees) */}
+              {editingId && (
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Security & Access</h4>
+                  <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-rose-500 mb-1">Passcode Reset</p>
+                      <p className="text-[11px] font-bold text-slate-600">This will send a secure reset link to the employee's internal email.</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={async () => {
+                        const email = `${formData.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
+                        const { error } = await supabase.auth.resetPasswordForEmail(email);
+                        if (error) alert(error.message);
+                        else alert('Reset link sent to ' + email);
+                      }}
+                      className="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-500/20 hover:bg-rose-700 transition"
+                    >
+                      Send Reset Email
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end shrink-0 pb-4">
                 <button type="submit" disabled={isSubmitting} className="bg-brand-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-brand-600 transition flex items-center space-x-2 shadow-xl shadow-brand-500/20">
                   {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /><span>Saving...</span></> : <span>{editingId ? 'Save Changes' : 'Complete Registration'}</span>}

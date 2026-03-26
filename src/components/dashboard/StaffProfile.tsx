@@ -9,6 +9,35 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
   const [leaves, setLeaves] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Security State
+  const [newPasscode, setNewPasscode] = useState('');
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState('');
+
+  const handlePasswordUpdate = async () => {
+    if (!newPasscode || newPasscode.length < 6) {
+      setUpdateMessage('Passcode must be at least 6 characters.');
+      return;
+    }
+
+    setUpdateLoading(true);
+    setUpdateMessage('');
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPasscode
+      });
+
+      if (error) throw error;
+      setUpdateMessage('Success! Passcode updated.');
+      setNewPasscode('');
+    } catch (err: any) {
+      setUpdateMessage('Error: ' + err.message);
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
   useEffect(() => {
     async function fetch() {
       if (!session) return;
@@ -119,6 +148,35 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
               </div>
             </div>
           )}
+
+          {/* Security / Passcode Change */}
+          <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl mt-6">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Security Settings</p>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">New Passcode</label>
+                <input 
+                  type="password"
+                  placeholder="Enter new secret passcode"
+                  value={newPasscode}
+                  onChange={e => setNewPasscode(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:border-brand-500 outline-none transition"
+                />
+              </div>
+              <button 
+                onClick={handlePasswordUpdate}
+                disabled={!newPasscode || updateLoading}
+                className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-brand-500/20 transition-all"
+              >
+                {updateLoading ? 'Updating...' : 'Update Passcode'}
+              </button>
+              {updateMessage && (
+                <p className={`text-center text-[10px] font-black uppercase tracking-widest ${updateMessage.includes('Success') ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {updateMessage}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
