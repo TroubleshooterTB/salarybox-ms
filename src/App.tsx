@@ -5,7 +5,6 @@ import { supabase } from './lib/supabase';
 import LoginForm from './components/auth/LoginForm';
 import StaffDashboard from './components/dashboard/StaffDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
-import { getDeviceFingerprint } from './lib/deviceFingerprint';
 
 function App() {
   const { session, setSession, userRole, setUserRole } = useStore();
@@ -35,22 +34,7 @@ function App() {
       
       if (error) throw error;
 
-      // Global Device Fingerprint Security Check
-      const fp = await getDeviceFingerprint();
-      if (!data.device_fingerprint) {
-        const { error: updateErr } = await supabase.from('profiles').update({ device_fingerprint: fp }).eq('id', userId);
-        if (updateErr) console.error("Could not bind device fingerprint:", updateErr);
-      } else if (data.device_fingerprint !== fp) {
-        // Special case: Allow Admins to auto-update fingerprint. 
-        // For others, show warning but DON'T sign out during this production transition phase.
-        if (emailLower.startsWith('admin') || data.role === 'Super Admin') {
-          console.warn("Admin device change detected. Updating security fingerprint...");
-          await supabase.from('profiles').update({ device_fingerprint: fp }).eq('id', userId);
-        } else {
-          alert("Security Note: You are logged in from a new device. This has been logged for security.");
-          // We removed the signOut() here so the user can actually work!
-        }
-      }
+      // Device Fingerprint check disabled temporarily for production access
 
       // Email prefix takes priority over DB role for system admins
       if (emailLower.startsWith('admin')) {
