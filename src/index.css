@@ -1,15 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand: 185 100% 50%; /* Cyan */
+  --brand-muted: 185 80% 30%;
+  --bg-deep: 222 47% 4%; /* Slate 950 */
+}
+
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased overflow-x-hidden;
+    @apply bg-[#020617] text-slate-100 font-sans antialiased overflow-x-hidden;
+    font-family: 'Outfit', sans-serif;
   }
 }
 
-.glass-panel {
-  @apply bg-white border border-slate-200 shadow-sm rounded-2xl backdrop-blur-md;
+.glass-card {
+  @apply bg-slate-900/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.8)] rounded-[2.5rem];
+}
+
+.brand-glow {
+  @apply shadow-[0_0_40px_-10px_rgba(6,182,212,0.4)];
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-emerald-400;
+}
+
+/* Custom smooth transitions */
+* {
+  @apply transition-all duration-300 ease-out;
 }
