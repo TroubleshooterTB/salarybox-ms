@@ -30,8 +30,9 @@ export default function AdminApprovals() {
     setLoading(true);
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, employee_id, branch, device_fingerprint')
-      .not('device_fingerprint', 'is', null);
+      .select('id, full_name, employee_id, branch, device_fingerprint, device_reset_requested')
+      .order('device_reset_requested', { ascending: false })
+      .order('full_name', { ascending: true });
     if (data) setDevices(data);
     setLoading(false);
   };
@@ -89,9 +90,16 @@ export default function AdminApprovals() {
     fetchLeaves();
   };
 
-  const handleDeviceReset = async (id: string) => {
-    if (window.confirm("This will wipe the device fingerprint. The employee can log in from a new device.")) {
-      await supabase.from('profiles').update({ device_fingerprint: null }).eq('id', id);
+  const handleDeviceReset = async (id: string, isApproval = false) => {
+    const msg = isApproval 
+      ? "Authorize this new device for the employee?" 
+      : "This will wipe the device fingerprint. The employee can log in from a new device.";
+    
+    if (window.confirm(msg)) {
+      await supabase.from('profiles').update({ 
+        device_fingerprint: null,
+        device_reset_requested: false
+      }).eq('id', id);
       fetchDevices();
     }
   };
@@ -226,16 +234,48 @@ export default function AdminApprovals() {
               {devices.length === 0 ? (
                 <tr><td colSpan={3} className="py-12 text-center text-slate-400 font-bold">No active devices bound.</td></tr>
               ) : devices.map(d => (
-                <tr key={d.id} className="hover:bg-slate-50">
+                <tr key={d.id} className={`hover:bg-slate-50 transition-colors ${d.device_reset_requested ? 'bg-rose-50/30' : ''}`}>
                   <td className="px-6 py-4">
-                    <p className="font-bold text-slate-800">{d.full_name}</p>
-                    <p className="text-xs font-semibold text-slate-400">{d.employee_id} • {d.branch}</p>
+                    <div className="flex items-center space-x-3">
+                      <div>
+                        <p className="font-bold text-slate-800">{d.full_name}</p>
+                        <p className="text-xs font-semibold text-slate-400">{d.employee_id} • {d.branch}</p>
+                      </div>
+                      {d.device_reset_requested && (
+                        <span className="px-2 py-0.5 bg-rose-500 text-white text-[9px] font-black uppercase rounded-md animate-pulse">
+                          Reset Requested
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-6 py-4"><p className="font-mono text-xs bg-slate-100 p-2 rounded-lg text-slate-600 border border-slate-200 w-max">{d.device_fingerprint}</p></td>
+                  <td className="px-6 py-4">
+                    {!d.device_fingerprint ? (
+                      <span className="text-[10px] font-black uppercase text-slate-300 italic tracking-widest">Unbound (Auto-binds on login)</span>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Smartphone className="w-3 h-3 text-slate-400" />
+                        <p className="font-mono text-[11px] bg-slate-900/5 px-2 py-1 rounded-md text-slate-600 border border-slate-900/5">{d.device_fingerprint}</p>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleDeviceReset(d.id)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center space-x-2 ml-auto">
-                      <Unlock className="w-4 h-4" /> <span>Reset Binding</span>
-                    </button>
+                    {d.device_reset_requested ? (
+                      <button 
+                        onClick={() => handleDeviceReset(d.id, true)}
+                        className="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-black shadow-lg shadow-rose-500/20 hover:bg-rose-700 transition flex items-center space-x-2 ml-auto"
+                      >
+                        <Unlock className="w-4 h-4" /> <span>Approve New Device</span>
+                      </button>
+                    ) : d.device_fingerprint ? (
+                      <button 
+                        onClick={() => handleDeviceReset(d.id)}
+                        className="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-black hover:bg-slate-300 transition flex items-center space-x-2 ml-auto"
+                      >
+                        <Unlock className="w-4 h-4" /> <span>Reset Lock</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest px-4 py-2">System Ready</span>
+                    )}
                   </td>
                 </tr>
               ))}
