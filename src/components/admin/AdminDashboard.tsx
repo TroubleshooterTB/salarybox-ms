@@ -20,6 +20,7 @@ import AdminHistoricalAttendance from './AdminHistoricalAttendance';
 import AdminCorrections from './AdminCorrections';
 import AdminBranches from './AdminBranches';
 import { useLanguage } from '../../lib/i18n';
+import useStore from '../../store';
 
 import iconMarkerURL from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaURL from 'leaflet/dist/images/marker-icon-2x.png';
@@ -46,10 +47,17 @@ const createSelfieIcon = (url: string) => L.divIcon({
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
+  const { userRole, userProfile } = useStore();
   const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'corrections'|'branches'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>(localStorage.getItem('admin_branch') || 'All Branches');
+  
+  // Logic: If Branch Admin, force their assigned branch.
+  const initialBranch = (userRole === 'Branch Admin' && userProfile?.branch) 
+    ? userProfile.branch 
+    : (localStorage.getItem('admin_branch') || 'All Branches');
+
+  const [selectedBranch, setSelectedBranch] = useState<string>(initialBranch);
 
   const fetchData = async () => {
     // Initial branch fetch
@@ -97,24 +105,28 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">{t('branch')}</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Globe className="h-4 w-4 text-brand-500" />
+          <div className="space-y-1 mb-8">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Environment Context</label>
+            {userRole === 'Branch Admin' ? (
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex items-center space-x-3">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-sm font-black text-slate-700">{selectedBranch} (Locked)</span>
               </div>
+            ) : (
               <select 
                 value={selectedBranch}
                 onChange={(e) => {
                   setSelectedBranch(e.target.value);
                   localStorage.setItem('admin_branch', e.target.value);
                 }}
-                className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-2xl pl-11 pr-4 py-3.5 appearance-none focus:border-brand-500 focus:ring-0 transition group-hover:bg-slate-100 outline-none"
+                className="w-full bg-slate-50 border border-slate-100 p-4 rounded-2xl text-sm font-black text-slate-700 outline-none focus:ring-2 focus:ring-brand-500/20 transition"
               >
-                <option value="All Branches">{t('allBranches')}</option>
-                {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                <option>All Branches</option>
+                {branches.map(b => (
+                  <option key={b.name} value={b.name}>{b.name}</option>
+                ))}
               </select>
-            </div>
+            )}
           </div>
         </div>
 

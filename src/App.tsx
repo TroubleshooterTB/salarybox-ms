@@ -10,7 +10,7 @@ import { ShieldAlert, LogOut, Smartphone } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 function App() {
-  const { session, setSession, userRole, setUserRole } = useStore();
+  const { session, setSession, userRole, setUserRole, setUserProfile } = useStore();
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutFp, setLockoutFp] = useState('');
@@ -38,6 +38,7 @@ function App() {
       const { data, error } = await supabase.from('profiles').select('job_title, branch, department, device_fingerprint, role').eq('id', userId).single();
       
       if (error) throw error;
+      setUserProfile(data);
 
       // 🛠️ Hardware Device Locking System
       const fp = await getDeviceFingerprint();

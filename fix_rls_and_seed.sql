@@ -1,8 +1,18 @@
 -- =========================================================================
--- MINIMAL STROKE ERP - BRANCH MANAGEMENT & RLS FIX
+-- MINIMAL STROKE ERP - BRANCH MANAGEMENT & RLS FIX (V3)
 -- =========================================================================
 
--- 1. EXTEND BRANCHES TABLE
+-- 1. CREATE BRANCHES TABLE IF NOT EXISTS
+CREATE TABLE IF NOT EXISTS public.branches (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    radius_meters INTEGER NOT NULL DEFAULT 100,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. EXTEND BRANCHES TABLE WITH NEW COLUMNS
 ALTER TABLE public.branches 
 ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS shift_start TIME DEFAULT '09:00',
@@ -10,12 +20,18 @@ ADD COLUMN IF NOT EXISTS shift_end TIME DEFAULT '18:00',
 ADD COLUMN IF NOT EXISTS geofence_enabled BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS overtime_rate NUMERIC(5,2) DEFAULT 1.5;
 
--- 2. EXTEND PROFILES TABLE
+-- 3. EXTEND PROFILES TABLE
 ALTER TABLE public.profiles
 ADD COLUMN IF NOT EXISTS allow_remote_punch BOOLEAN DEFAULT false;
 
--- 3. FIX PROFILES RLS (Allow Admins to Manage Profiles)
--- First drop existing if any
+-- 4. ENABLE RLS
+ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- 5. FIX PROFILES RLS (Allow Admins to Manage Profiles)
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+
 DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.profiles;
 CREATE POLICY "Admins can manage all profiles" ON public.profiles
     FOR ALL
@@ -26,7 +42,7 @@ CREATE POLICY "Admins can manage all profiles" ON public.profiles
         )
     );
 
--- 4. FIX BRANCHES RLS
+-- 6. FIX BRANCHES RLS
 DROP POLICY IF EXISTS "Public Staff Read Access" ON public.branches;
 CREATE POLICY "Public Staff Read Access" 
     ON public.branches FOR SELECT 
@@ -42,9 +58,12 @@ CREATE POLICY "Admin Manage Branches"
         )
     );
 
--- 5. SEED INITIAL BRANCHES IF MISSING
+-- 7. SEED INITIAL BRANCHES IF MISSING
 INSERT INTO public.branches (name, latitude, longitude, radius_meters, geofence_enabled)
 VALUES 
-('Main Office', 18.5204, 73.8567, 100, true),
-('Remote/Field', 0, 0, 999999, false)
+('Factory', 18.5204, 73.8567, 100, true),
+('Main', 18.5304, 73.8667, 100, true),
+('The Mint', 18.5404, 73.8767, 100, true),
+('Wings', 18.5504, 73.8867, 100, true),
+('Remote/Field', 18.5204, 73.8567, 999999, false)
 ON CONFLICT (name) DO NOTHING;
