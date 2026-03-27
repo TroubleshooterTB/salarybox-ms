@@ -19,6 +19,8 @@ import AdminLoans from './AdminLoans';
 import AdminHistoricalAttendance from './AdminHistoricalAttendance';
 import AdminCorrections from './AdminCorrections';
 import AdminBranches from './AdminBranches';
+import AdminLeaveMatrix from './AdminLeaveMatrix';
+import NotificationBell from '../common/NotificationBell';
 import { useLanguage } from '../../lib/i18n';
 import useStore from '../../store';
 
@@ -48,7 +50,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
   const { userRole, userProfile } = useStore();
-  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'corrections'|'branches'>('daily');
+  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'corrections'|'branches'|'leaves'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   
@@ -137,6 +139,7 @@ export default function AdminDashboard() {
             { id: 'staff', icon: Users, label: t('staff') },
             { id: 'loans', icon: IndianRupee, label: t('loans') },
             { id: 'approvals', icon: UserCheck, label: t('approvals') },
+            { id: 'leaves', icon: FileStack, label: 'Leave Balances' },
             { id: 'corrections', icon: CheckSquare, label: t('corrections') },
             { id: 'branches', icon: Globe, label: t('branches') },
             { id: 'export', icon: FileStack, label: t('export') },
@@ -163,10 +166,13 @@ export default function AdminDashboard() {
           <button onClick={() => navigate('/')} className="w-full py-3 text-slate-400 hover:text-slate-700 font-bold text-xs transition text-center">
             Return to App
           </button>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center space-x-2 py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-100 transition">
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
+          <div className="flex items-center space-x-3 pr-4">
+            <NotificationBell />
+            <button onClick={handleLogout} className="flex items-center justify-center space-x-2 py-3 px-4 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-100 transition">
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -182,6 +188,7 @@ export default function AdminDashboard() {
            {activeTab === 'loans' && <AdminLoans selectedBranch={selectedBranch} />}
            {activeTab === 'settings' && <AdminSettings />}
            {activeTab === 'export' && <ExportModule selectedBranch={selectedBranch} />}
+           {activeTab === 'leaves' && <AdminLeaveMatrix selectedBranch={selectedBranch} />}
 
            {activeTab === 'map' && (
              <div className="h-full w-full z-0 relative shadow-inner">

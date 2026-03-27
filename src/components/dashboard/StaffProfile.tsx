@@ -9,6 +9,7 @@ import {
 import { useLanguage } from '../../lib/i18n';
 import { calculatePayroll } from '../../lib/payrollEngine';
 import PayslipView from '../admin/PayslipView';
+import { Send, X } from 'lucide-react';
 
 export default function StaffProfile({ onBack }: { onBack: () => void }) {
   const { session } = useStore();
@@ -21,6 +22,11 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
   const [showPayslip, setShowPayslip] = useState(false);
   const [payslipData, setPayslipData] = useState<any>(null);
 
+  // Update Request State
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [requestForm, setRequestForm] = useState({ phone: '', bank_name: '', bank_account: '', reason: '' });
+  const [requestLoading, setRequestLoading] = useState(false);
+  
   // Security State
   const [newPasscode, setNewPasscode] = useState('');
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -94,6 +100,33 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleRequestUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    setRequestLoading(true);
+    
+    try {
+      const { error } = await supabase.from('profile_update_requests').insert({
+        user_id: session.user.id,
+        request_data: {
+          phone_number: requestForm.phone,
+          bank_name: requestForm.bank_name,
+          bank_account: requestForm.bank_account
+        },
+        reason: requestForm.reason
+      });
+
+      if (error) throw error;
+      alert('Request submitted to HR successfully.');
+      setShowUpdateModal(false);
+      setRequestForm({ phone: '', bank_name: '', bank_account: '', reason: '' });
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
   useEffect(() => {
     async function fetch() {
       if (!session) return;
@@ -152,7 +185,23 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
             <div>
               <h3 className="text-xl font-black text-white">{profile.full_name}</h3>
               <p className="text-sm font-bold text-brand-400">{profile.job_title || t('no_designation')}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">{profile.employee_id} • {profile.salary_type || 'Monthly'}</p>
+              <div className="flex items-center space-x-2 mt-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{profile.employee_id} • {profile.salary_type || 'Monthly'}</p>
+                <button 
+                  onClick={() => {
+                    setRequestForm({
+                      phone: profile.phone_number || '',
+                      bank_name: profile.bank_name || '',
+                      bank_account: profile.bank_account_details || '',
+                      reason: ''
+                    });
+                    setShowUpdateModal(true);
+                  }}
+                  className="px-2 py-0.5 bg-brand-500/10 text-brand-400 text-[9px] font-black rounded border border-brand-500/20 hover:bg-brand-500 hover:text-white transition uppercase tracking-tighter"
+                >
+                  Request Update
+                </button>
+              </div>
             </div>
           </div>
 
@@ -259,6 +308,66 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
                 </p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showUpdateModal && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-300">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 relative overflow-hidden">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black tracking-tight">Request Profile Update</h3>
+              <button onClick={() => setShowUpdateModal(false)} className="p-2 text-slate-500 hover:text-white transition"><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={handleRequestUpdate} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">New Phone Number</label>
+                <input 
+                  type="text" 
+                  value={requestForm.phone} 
+                  onChange={e=>setRequestForm({...requestForm, phone: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:border-brand-500 outline-none transition" 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Bank Name</label>
+                <input 
+                  type="text" 
+                  value={requestForm.bank_name} 
+                  onChange={e=>setRequestForm({...requestForm, bank_name: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:border-brand-500 outline-none transition" 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Bank Account Number</label>
+                <input 
+                  type="text" 
+                  value={requestForm.bank_account} 
+                  onChange={e=>setRequestForm({...requestForm, bank_account: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:border-brand-500 outline-none transition" 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Reason for Change</label>
+                <textarea 
+                  rows={2}
+                  value={requestForm.reason} 
+                  onChange={e=>setRequestForm({...requestForm, reason: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-medium text-white focus:border-emerald-500 outline-none transition resize-none" 
+                  placeholder="e.g. Switched to a different bank"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={requestLoading}
+                className="w-full py-4 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-brand-500/20 transition-all flex items-center justify-center space-x-2"
+              >
+                {requestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <span>Send Request to HR</span>
+              </button>
+            </form>
           </div>
         </div>
       )}

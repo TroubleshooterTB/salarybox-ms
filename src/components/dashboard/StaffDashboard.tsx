@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  User, Clock, Bell, CheckSquare, 
-  CalendarDays, IndianRupee, FileText, 
-  Palmtree, FolderOpen, AlertCircle, Settings 
+  User, Clock, 
+  CalendarDays, IndianRupee, 
+  Palmtree, FolderOpen, Globe, Settings 
 } from 'lucide-react';
 import useStore from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -14,16 +14,15 @@ import LoanLedger from '../loans/LoanLedger';
 import StaffProfile from './StaffProfile';
 import HolidayCalendar from './HolidayCalendar';
 import CorrectionRequest from './CorrectionRequest';
+import AttendanceCalendar from './AttendanceCalendar';
+import NotificationBell from '../common/NotificationBell';
 
 const menuItems = [
   { id: 'profile', label: 'Profile', icon: User, color: 'bg-blue-500' },
   { id: 'leaves', label: 'Leaves', icon: Palmtree, color: 'bg-emerald-500' },
   { id: 'loans', label: 'Loans', icon: IndianRupee, color: 'bg-orange-500' },
-  { id: 'corrections', label: 'Corrections', icon: CheckSquare, color: 'bg-purple-500' },
-  { id: 'announcements', label: 'Announcements', icon: Bell, color: 'bg-rose-500' },
-  { id: 'alarms', label: 'Alarms', icon: AlertCircle, color: 'bg-red-500' },
-  { id: 'notes', label: 'Notes', icon: FileText, color: 'bg-amber-500' },
-  { id: 'holidays', label: 'Holidays', icon: CalendarDays, color: 'bg-teal-500' },
+  { id: 'history', label: 'History', icon: CalendarDays, color: 'bg-emerald-500' },
+  { id: 'holidays', label: 'Holidays', icon: Globe, color: 'bg-teal-500' },
   { id: 'documents', label: 'Documents', icon: FolderOpen, color: 'bg-cyan-500' },
   { id: 'settings', label: 'Settings', icon: Settings, color: 'bg-slate-600' },
 ];
@@ -79,6 +78,9 @@ export default function StaffDashboard() {
   if (activeTab === 'corrections') {
     return <CorrectionRequest onBack={() => setActiveTab(null)} />;
   }
+  if (activeTab === 'history') {
+    return <AttendanceCalendar onBack={() => setActiveTab(null)} />;
+  }
   if (activeTab && !['attendance', 'leaves', 'loans'].includes(activeTab)) {
     return (
       <div className="min-h-screen bg-slate-950 text-white p-4 max-w-md mx-auto flex flex-col items-center justify-center">
@@ -118,6 +120,7 @@ export default function StaffDashboard() {
                 Admin Panel
               </motion.button>
             )}
+            <NotificationBell />
             <motion.div 
               whileTap={{ scale: 0.9 }}
               onClick={handleLogout}

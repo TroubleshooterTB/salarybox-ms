@@ -5,11 +5,11 @@ import { ArrowLeft, PlusCircle, Loader2 } from 'lucide-react';
 
 export default function LeaveManagement({ onBack }: { onBack: () => void }) {
   const { session } = useStore();
-  const [balances, setBalances] = useState({ privilege: 0, sick: 0, casual: 0 });
+  const [quotas, setQuotas] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'balances' | 'request'>('balances');
   const [formData, setFormData] = useState({
-    leave_type: 'Privilege',
+    leave_type: 'PL',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
     reason: '',
@@ -18,25 +18,29 @@ export default function LeaveManagement({ onBack }: { onBack: () => void }) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    async function fetchLeaves() {
+    async function fetchQuotas() {
       if (!session) return;
-      const { data, error } = await supabase.from('leaves').select('*').eq('user_id', session.user.id).single();
+      const currentYear = new Date().getFullYear();
+      const { data } = await supabase
+        .from('leave_quotas')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('year', currentYear)
+        .maybeSingle();
       
       if (data) {
-        setBalances({
-          privilege: data.privilege_balance || 0,
-          sick: data.sick_balance || 0,
-          casual: data.casual_balance || 0,
+        setQuotas(data);
+      } else {
+        // Fallback or initialization handled by DB trigger/seed, but we can show defaults
+        setQuotas({
+          pl_total: 15, pl_used: 0,
+          sl_total: 12, sl_used: 0,
+          cl_total: 10, cl_used: 0
         });
-      } else if (error && error.code === 'PGRST116') {
-        const { data: newL } = await supabase.from('leaves').insert({ user_id: session.user.id }).select().single();
-        if (newL) {
-          setBalances({ privilege: newL.privilege_balance, sick: newL.sick_balance, casual: newL.casual_balance });
-        }
       }
       setLoading(false);
     }
-    fetchLeaves();
+    fetchQuotas();
   }, [session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +73,7 @@ export default function LeaveManagement({ onBack }: { onBack: () => void }) {
       setView('balances');
       // Full form reset
       setFormData({
-        leave_type: 'Privilege',
+        leave_type: 'PL',
         start_date: new Date().toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0],
         reason: '',
@@ -96,46 +100,42 @@ export default function LeaveManagement({ onBack }: { onBack: () => void }) {
       {loading ? (
         <div className="flex justify-center mt-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>
       ) : view === 'balances' ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4">
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-              <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-[0.2em] mb-2 opacity-80">Privilege Leave</p>
-              <h3 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-br from-emerald-300 to-emerald-600 mb-2">
-                {balances.privilege} <span className="text-xl font-semibold opacity-50">days</span>
-              </h3>
-              <div className="inline-block mt-1 px-3 py-1 bg-emerald-900/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-emerald-500/20">
-                Auto Carry Forward: 11 Days max
-              </div>
-            </div>
-          </div>
+        <div className="space-y-6">
+          <QuotaCard 
+            label="Privileged Leave (PL)" 
+            total={quotas.pl_total} 
+            used={quotas.pl_used} 
+            color="bg-emerald-500" 
+            glow="bg-emerald-500/20"
+          />
+          <QuotaCard 
+            label="Sick Leave (SL)" 
+            total={quotas.sl_total} 
+            used={quotas.sl_used} 
+            color="bg-rose-500" 
+            glow="bg-rose-500/20"
+          />
+          <QuotaCard 
+            label="Casual Leave (CL)" 
+            total={quotas.cl_total} 
+            used={quotas.cl_used} 
+            color="bg-brand-500" 
+            glow="bg-brand-500/20"
+          />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-lg relative overflow-hidden">
-               <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 rounded-full blur-2xl" />
-               <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Sick Leave</p>
-               <h3 className="text-3xl font-black">{balances.sick} <span className="text-[10px] text-slate-500 font-normal uppercase tracking-wider">days</span></h3>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-lg relative overflow-hidden">
-               <div className="absolute top-0 right-0 w-20 h-20 bg-brand-500/10 rounded-full blur-2xl" />
-               <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest mb-1">Casual Leave</p>
-               <h3 className="text-3xl font-black">{balances.casual} <span className="text-[10px] text-slate-500 font-normal uppercase tracking-wider">days</span></h3>
-            </div>
-          </div>
-
-          <button onClick={() => setView('request')} className="w-full mt-8 py-5 bg-white text-slate-950 font-bold rounded-2xl flex items-center justify-center space-x-2 shadow-xl hover:shadow-white/20 active:scale-95 transition-all">
+          <button onClick={() => setView('request')} className="w-full mt-4 py-5 bg-white text-slate-950 font-black rounded-2xl flex items-center justify-center space-x-2 shadow-xl hover:shadow-white/20 active:scale-95 transition-all uppercase tracking-widest text-xs">
             <PlusCircle className="w-5 h-5" />
-            <span className="uppercase tracking-wide text-sm">Request Time Off</span>
+            <span>Request Time Off</span>
           </button>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4">
           <div className="space-y-1.5">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Leave Category</label>
-            <select value={formData.leave_type} onChange={e=>setFormData({...formData, leave_type: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-white appearance-none focus:border-emerald-500 outline-none transition">
-              <option value="Privilege">Privilege Leave (Max 11 CR)</option>
-              <option value="Sick">Sick Leave</option>
-              <option value="Casual">Casual Leave</option>
+            <select value={formData.leave_type} onChange={e=>setFormData({...formData, leave_type: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-white appearance-none focus:border-emerald-500 outline-none transition uppercase tracking-widest">
+              <option value="PL">Privilege Leave (PL)</option>
+              <option value="SL">Sick Leave (SL)</option>
+              <option value="CL">Casual Leave (CL)</option>
               <option value="Unpaid">Loss of Pay (LWP)</option>
             </select>
           </div>
@@ -171,6 +171,35 @@ export default function LeaveManagement({ onBack }: { onBack: () => void }) {
           </button>
         </form>
       )}
+    </div>
+  );
+}
+
+function QuotaCard({ label, total, used, color, glow }: { label: string, total: number, used: number, color: string, glow: string }) {
+  const remaining = Math.max(0, total - used);
+  const percentage = (used / total) * 100;
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl relative overflow-hidden">
+      <div className={`absolute top-0 right-0 w-32 h-32 ${glow} rounded-full blur-3xl pointer-events-none`} />
+      
+      <div className="flex justify-between items-end mb-4 relative z-10">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{label}</p>
+          <h3 className="text-3xl font-black text-white">{remaining} <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Available</span></h3>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{used} / {total}</p>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Days Used</p>
+        </div>
+      </div>
+
+      <div className="h-3 bg-slate-950/50 rounded-full overflow-hidden border border-white/5 relative z-10">
+        <div 
+          className={`h-full ${color} rounded-full transition-all duration-1000 ease-out`}
+          style={{ width: `${Math.min(100, percentage)}%` }}
+        />
+      </div>
     </div>
   );
 }

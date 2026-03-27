@@ -7,9 +7,8 @@ import { Download, FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'l
 export default function ExportModule({ selectedBranch }: { selectedBranch: string }) {
   const [loading, setLoading] = useState(false);
 
-  // OT configuration (applied uniformly for this export — per employee can be extended later)
-  const [otType, setOtType] = useState<'None' | 'Hourly' | 'Day Basic'>('None');
-  const [otHours, setOtHours] = useState('0');
+  // OT configuration is now dynamic per employee based on logs
+  // No more global OT inputs
 
   // Default to current month
   const now = new Date();
@@ -78,11 +77,21 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const startDate = new Date(exportYear, exportMonth, 1).toISOString();
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
 
-      // Fetch all attendance, adjustments, and loan schedules for the month
-      const [{ data: attendance }, { data: adjustments }, { data: loanSchedules }] = await Promise.all([
+      // Fetch everything: attendance, adjustments, branches, loans, leaves, and holidays
+      const [
+        { data: attendance }, 
+        { data: adjustments }, 
+        { data: branches }, 
+        { data: loanSchedules },
+        { data: approvedLeaves },
+        { data: holidays }
+      ] = await Promise.all([
         supabase.from('attendance').select('user_id, timestamp, type, status').gte('timestamp', startDate).lte('timestamp', endDate),
         supabase.from('payroll_adjustments').select('*').eq('month_year', targetMonthStr),
-        supabase.from('loan_schedules').select('user_id, id, deduction_amount, is_processed').eq('target_month', targetMonthStr).eq('is_processed', false)
+        supabase.from('branches').select('*'),
+        supabase.from('loan_schedules').select('user_id, id, deduction_amount, is_processed').eq('target_month', targetMonthStr).eq('is_processed', false),
+        supabase.from('leave_requests').select('*').eq('status', 'Approved').gte('start_date', startDate).lte('start_date', endDate),
+        supabase.from('holidays').select('*').gte('date', startDate).lte('date', endDate)
       ]);
 
       const rows = await Promise.all((profiles || []).map(async p => {
@@ -98,28 +107,67 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
         }
 
         let presentDays = 0, halfDays = 0, lateDays = 0;
+        let actualPaidHours = 0;
+
         for (const [, recs] of dayMap) {
+          const sorted = [...recs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          // Calculate work duration for the day
+          let dayWorkMs = 0;
+          for (let i = 0; i < sorted.length - 1; i++) {
+            if (sorted[i].type === 'In' && sorted[i+1].type === 'Out') {
+              dayWorkMs += new Date(sorted[i+1].timestamp).getTime() - new Date(sorted[i].timestamp).getTime();
+            }
+          }
+          actualPaidHours += dayWorkMs / 3600000;
+
           const last = recs.filter(r => r.type === 'Out').at(-1) ?? recs.at(-1);
           if (last?.status === 'Present') presentDays++;
           else if (last?.status === 'Half Day') halfDays++;
           else if (last?.status === 'Late') { presentDays++; lateDays++; }
         }
 
+        const branchData = (branches || []).find(b => b.name === p.branch);
+        let standardShiftHours = 8;
+        if (branchData?.shift_start && branchData?.shift_end) {
+          const [startH, startM] = branchData.shift_start.split(':').map(Number);
+          const [endH, endM] = branchData.shift_end.split(':').map(Number);
+          standardShiftHours = (endH + endM/60) - (startH + startM/60);
+          if (standardShiftHours < 0) standardShiftHours += 24; // Handle night shifts
+        }
+
+        const expectedWorkHours = (presentDays + lateDays + (halfDays * 0.5)) * standardShiftHours;
+        const overtimeHours = Math.max(0, actualPaidHours - expectedWorkHours);
+
         const loanSched = loanSchedules?.find(s => s.user_id === p.id);
         const loanDeduction = loanSched?.deduction_amount ?? 0;
+
+        const employeeLeaves = (approvedLeaves || []).filter(l => l.user_id === p.id);
+        const paidLeavesCount = employeeLeaves.reduce((acc, l) => {
+          // Assuming leave_type is PL, SL, CL for paid leaves. Adjust if 'Unpaid' is also a type.
+          if (l.leave_type !== 'Unpaid') {
+            const start = new Date(l.start_date);
+            const end = new Date(l.end_date);
+            const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+            return acc + days;
+          }
+          return acc;
+        }, 0);
+
+        const holidaysCount = (holidays || []).length;
 
         const payroll = calculatePayroll({
           baseSalary: p.ctc_amount || 0,
           year: exportYear,
           month: exportMonth,
           presentDays,
-          paidLeaves: 1, // Placeholder: fetch from leave_requests in V3
-          publicHolidays: 1, 
+          paidLeaves: paidLeavesCount,
+          publicHolidays: holidaysCount, 
           halfDays,
           lateDays,
-          overtimeHours: parseFloat(otHours) || 0,
-          overtimeType: otType,
-          standardShiftHours: 8,
+          overtimeHours,
+          overtimeType: overtimeHours > 0 ? 'Hourly' : 'None',
+          standardShiftHours: standardShiftHours,
           loanDeduction,
           professionalTaxApplicable: p.professional_tax_applicable !== false,
           joiningDate: p.joining_date,
@@ -201,49 +249,15 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
         </div>
       </div>
 
-      {/* OT Settings Card */}
+      {/* OT Summary Info */}
       <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Overtime Settings</p>
-            <p className="text-sm font-bold text-slate-700">Applied to all employees in this payroll run</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Overtime Logic</p>
+            <p className="text-sm font-bold text-slate-700">OT is automatically calculated from punch-logs (Work Hours - Shift Hours)</p>
           </div>
-          <span className={`px-3 py-1 text-[10px] font-black uppercase rounded-full border ${
-            otType === 'None' ? 'bg-slate-50 text-slate-500 border-slate-200' :
-            'bg-amber-50 text-amber-700 border-amber-200'
-          }`}>{otType === 'None' ? 'No OT' : `OT: ${otType}`}</span>
+          <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full border bg-brand-50 text-brand-700 border-brand-200">Automated</span>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          {(['None', 'Hourly', 'Day Basic'] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setOtType(type)}
-              className={`py-2.5 rounded-xl text-xs font-bold transition border ${
-                otType === type
-                  ? 'bg-brand-500 text-white border-brand-500 shadow-lg shadow-brand-500/20'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {type === 'None' ? 'No OT' : type}
-            </button>
-          ))}
-        </div>
-        {otType !== 'None' && (
-          <div className="mt-4 flex items-center space-x-3">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">OT Hours (global)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              value={otHours}
-              onChange={e => setOtHours(e.target.value)}
-              className="w-32 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition"
-            />
-            <p className="text-xs text-slate-400 font-medium">
-              {otType === 'Hourly' ? 'Paid at per-hour rate × OT hours' : 'Paid as day equivalents (hours ÷ shift hours)'}
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Attendance Export */}
