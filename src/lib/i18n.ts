@@ -53,7 +53,8 @@ export const translations = {
     success_passcode_updated: 'Success! Passcode updated.',
     error: 'Error',
     branch: 'Branch',
-    joiningDate: 'Date Joined'
+    joiningDate: 'Date Joined',
+    branches: 'Branches'
   },
   hi: {
     dashboard: 'डैशबोर्ड',
@@ -105,7 +106,8 @@ export const translations = {
     success_passcode_updated: 'सफलता! पासकोड अपडेट हो गया।',
     error: 'त्रुटि',
     branch: 'शाखा',
-    joiningDate: 'शामिल होने की तिथि'
+    joiningDate: 'शामिल होने की तिथि',
+    branches: 'शाखाएं'
   },
   mr: {
     dashboard: 'डॅशबोर्ड',
@@ -157,7 +159,8 @@ export const translations = {
     success_passcode_updated: 'यशस्वी! पासकोड अपडेट झाला.',
     error: 'त्रुटी',
     branch: 'शाखा',
-    joiningDate: 'रुजू झाल्याची तारीख'
+    joiningDate: 'रुजू झाल्याची तारीख',
+    branches: 'शाखा'
   }
 };
 

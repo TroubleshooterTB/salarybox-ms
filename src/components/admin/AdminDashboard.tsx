@@ -18,6 +18,7 @@ import AdminDailyAttendance from './AdminDailyAttendance';
 import AdminLoans from './AdminLoans';
 import AdminHistoricalAttendance from './AdminHistoricalAttendance';
 import AdminCorrections from './AdminCorrections';
+import AdminBranches from './AdminBranches';
 import { useLanguage } from '../../lib/i18n';
 
 import iconMarkerURL from 'leaflet/dist/images/marker-icon.png';
@@ -45,7 +46,7 @@ const createSelfieIcon = (url: string) => L.divIcon({
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'corrections'>('daily');
+  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'corrections'|'branches'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>(localStorage.getItem('admin_branch') || 'All Branches');
@@ -125,6 +126,7 @@ export default function AdminDashboard() {
             { id: 'loans', icon: IndianRupee, label: t('loans') },
             { id: 'approvals', icon: UserCheck, label: t('approvals') },
             { id: 'corrections', icon: CheckSquare, label: t('corrections') },
+            { id: 'branches', icon: Globe, label: t('branches') },
             { id: 'export', icon: FileStack, label: t('export') },
             { id: 'map', icon: Map, label: 'Live Map' },
             { id: 'calendar', icon: Calendar, label: 'Calendar' },
@@ -164,6 +166,7 @@ export default function AdminDashboard() {
            {activeTab === 'calendar' && <AdminCalendar selectedBranch={selectedBranch} />}
            {activeTab === 'approvals' && <AdminApprovals selectedBranch={selectedBranch} />}
            {activeTab === 'corrections' && <AdminCorrections selectedBranch={selectedBranch} />}
+           {activeTab === 'branches' && <AdminBranches />}
            {activeTab === 'loans' && <AdminLoans selectedBranch={selectedBranch} />}
            {activeTab === 'settings' && <AdminSettings />}
            {activeTab === 'export' && <ExportModule selectedBranch={selectedBranch} />}

@@ -43,7 +43,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     // V2.2 Statutory Fields
     pan_no: '', uan_no: '', pf_no: '', esi_no: '',
     pf_enabled: false, esi_enabled: false,
-    bank_name: '', bank_ifsc: '', salary_type: 'Monthly'
+    bank_name: '', bank_ifsc: '', salary_type: 'Monthly',
+    allow_remote_punch: false
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -95,7 +96,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       esi_enabled: profile.esi_enabled || false,
       bank_name: profile.bank_name || '',
       bank_ifsc: profile.bank_ifsc || '',
-      salary_type: profile.salary_type || 'Monthly'
+      salary_type: profile.salary_type || 'Monthly',
+      allow_remote_punch: profile.allow_remote_punch || false
     });
     setShowModal(true);
   };
@@ -126,7 +128,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         esi_enabled: formData.esi_enabled,
         bank_name: formData.bank_name,
         bank_ifsc: formData.bank_ifsc,
-        salary_type: formData.salary_type
+        salary_type: formData.salary_type,
+        allow_remote_punch: formData.allow_remote_punch,
+        branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
       if (editingId) {
@@ -588,6 +592,10 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input type="checkbox" checked={formData.professional_tax_applicable} onChange={e=>setFormData({...formData, professional_tax_applicable: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
                       <span className="text-sm font-bold text-slate-700">Deduct Professional Tax</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input type="checkbox" checked={formData.allow_remote_punch} onChange={e=>setFormData({...formData, allow_remote_punch: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
+                      <span className="text-sm font-bold text-slate-700 text-brand-600">Allow Remote/Field Punch (No Geofence)</span>
                     </label>
                   </div>
                 </div>

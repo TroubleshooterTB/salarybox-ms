@@ -26,7 +26,8 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
   const webcamRef = useRef<Webcam>(null);
   
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [nearestBranch, setNearestBranch] = useState<{name: string, distance: number, radius: number} | null>(null);
+  const [nearestBranch, setNearestBranch] = useState<{name: string, distance: number, radius: number, geofence_enabled: boolean} | null>(null);
+  const [allowRemotePunch, setAllowRemotePunch] = useState(false);
   const [locating, setLocating] = useState(true);
   const [geoError, setGeoError] = useState('');
   
@@ -37,8 +38,15 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     let watchId: number;
 
     const initGeo = async () => {
-      // 1. Fetch dynamic branches first
-      const { data: bs } = await supabase.from('branches').select('*');
+      if (!session) return;
+      
+      // 1. Fetch user profile and dynamic branches
+      const [{ data: profile }, { data: bs }] = await Promise.all([
+        supabase.from('profiles').select('allow_remote_punch').eq('id', session.user.id).single(),
+        supabase.from('branches').select('*').eq('is_active', true)
+      ]);
+      
+      if (profile) setAllowRemotePunch(profile.allow_remote_punch);
       const loadedBranches = bs || [];
 
       // 2. Start GPS tracker
@@ -66,7 +74,12 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
             const dist = getDistance(latitude, longitude, branch.latitude, branch.longitude);
             if (dist < minDistance) {
               minDistance = dist;
-              closest = { name: branch.name, distance: dist, radius: branch.radius_meters || 100 };
+              closest = { 
+                name: branch.name, 
+                distance: dist, 
+                radius: branch.radius_meters || 100, 
+                geofence_enabled: branch.geofence_enabled !== false 
+              };
             }
           }
           
@@ -93,7 +106,12 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     const imageSrc = webcamRef.current.getScreenshot();
     if (!imageSrc || !location || !session) return;
 
-    if (nearestBranch && nearestBranch.distance > nearestBranch.radius) {
+    // Bypass conditions: 
+    // 1. Profile allows remote/field punch
+    // 2. Branch has geofencing disabled
+    const canBypass = allowRemotePunch || (nearestBranch && !nearestBranch.geofence_enabled);
+
+    if (!canBypass && nearestBranch && nearestBranch.distance > nearestBranch.radius) {
       alert(`PUNCH REJECTED: You are ${Math.round(nearestBranch.distance)}m away from ${nearestBranch.name}. Must be within ${nearestBranch.radius}m.`);
       return;
     }
@@ -180,9 +198,9 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     } finally {
       if (!success) setLoading(false);
     }
-  }, [location, nearestBranch, session, success, onBack]);
+  }, [location, nearestBranch, session, success, onBack, allowRemotePunch]);
 
-  const isViolation = nearestBranch && nearestBranch.distance > nearestBranch.radius;
+  const isViolation = !allowRemotePunch && nearestBranch && nearestBranch.geofence_enabled && nearestBranch.distance > nearestBranch.radius;
 
   if (success) {
     return (
