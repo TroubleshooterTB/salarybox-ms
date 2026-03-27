@@ -51,7 +51,9 @@ export const translations = {
     update_passcode: 'Update Passcode',
     passcode_too_short: 'Passcode must be at least 6 characters.',
     success_passcode_updated: 'Success! Passcode updated.',
-    error: 'Error'
+    error: 'Error',
+    branch: 'Branch',
+    joiningDate: 'Date Joined'
   },
   hi: {
     dashboard: 'डैशबोर्ड',
@@ -101,7 +103,9 @@ export const translations = {
     update_passcode: 'पासकोड अपडेट करें',
     passcode_too_short: 'पासकोड कम से कम 6 अक्षरों का होना चाहिए।',
     success_passcode_updated: 'सफलता! पासकोड अपडेट हो गया।',
-    error: 'त्रुटि'
+    error: 'त्रुटि',
+    branch: 'शाखा',
+    joiningDate: 'शामिल होने की तिथि'
   },
   mr: {
     dashboard: 'डॅशबोर्ड',
@@ -151,7 +155,9 @@ export const translations = {
     update_passcode: 'पासकोड अपडेट करा',
     passcode_too_short: 'पासकोड किमान ६ अक्षरांचा असावा.',
     success_passcode_updated: 'यशस्वी! पासकोड अपडेट झाला.',
-    error: 'त्रुटी'
+    error: 'त्रुटी',
+    branch: 'शाखा',
+    joiningDate: 'रुजू झाल्याची तारीख'
   }
 };
 

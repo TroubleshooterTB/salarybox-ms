@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Loader2, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../lib/i18n';
 
 export default function AdminCorrections({ selectedBranch }: { selectedBranch: string }) {

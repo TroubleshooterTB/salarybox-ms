@@ -32,7 +32,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
   // Payslip State
   const [showPayslip, setShowPayslip] = useState(false);
   const [payslipData, setPayslipData] = useState<any>(null);
-  const { t } = useLanguage();
+  const {} = useLanguage();
 
   const initialForm = {
     full_name: '', phone_number: '', employee_id: '',

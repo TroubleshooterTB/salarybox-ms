@@ -1,5 +1,5 @@
 import { useLanguage } from '../../lib/i18n';
-import { Download, Printer, X } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 
 interface PayslipViewProps {
   staff: any;
