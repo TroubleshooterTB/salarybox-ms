@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { Clock, Search, Loader2, AlertTriangle, ShieldCheck, RefreshCw, Timer, Calendar } from 'lucide-react';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 
@@ -10,6 +12,8 @@ interface PunchGroup {
 }
 
 export default function AdminDailyAttendance({ selectedBranch }: { selectedBranch: string }) {
+  const [punchGroups, setPunchGroups] = useState<PunchGroup[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [selectedUser, setSelectedUser] = useState<{ id: string, name: string } | null>(null);
