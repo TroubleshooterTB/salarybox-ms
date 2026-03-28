@@ -1,31 +1,34 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 
-export default function AttendanceCalendar({ onBack }: { onBack: () => void }) {
+export default function AttendanceCalendar({ onBack, userId, userName }: { onBack: () => void, userId?: string, userName?: string }) {
   const { session } = useStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const targetUserId = userId || session?.user?.id;
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
 
   useEffect(() => {
     async function fetchAttendance() {
-      if (!session) return;
+      if (!targetUserId) return;
       setLoading(true);
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
       const { data } = await supabase
-        .from('attendance')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .gte('timestamp', startOfMonth)
-        .lte('timestamp', endOfMonth)
-        .order('timestamp', { ascending: true });
+          .from('attendance')
+          .select('*')
+          .eq('user_id', targetUserId)
+          .gte('timestamp', startOfMonth)
+          .lte('timestamp', endOfMonth)
+          .order('timestamp', { ascending: true });
 
       if (data) setAttendance(data);
       setLoading(false);
@@ -33,112 +36,143 @@ export default function AttendanceCalendar({ onBack }: { onBack: () => void }) {
     fetchAttendance();
   }, [session, currentDate]);
 
+  const changeMonth = (delta: number) => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + delta, 1));
+  };
+
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const prevMonthPadding = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+  const padding = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
-  const getDayStatus = (day: number) => {
+  const getDayData = (day: number) => {
     const dayPunches = attendance.filter(a => new Date(a.timestamp).getDate() === day);
-    if (dayPunches.length === 0) return null;
-    
-    // Logic: find a punch with a status, prioritize the last one
+    if (dayPunches.length === 0) {
+      // Check if it's a weekend (Sunday = 0)
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      if (date.getDay() === 0) return { status: 'Week Off' };
+      return null;
+    }
     const lastPunch = dayPunches.at(-1);
-    return lastPunch?.status;
+    return { status: lastPunch?.status, raw: dayPunches };
   };
 
-  const statusColors: any = {
-    'Present': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-    'Absent': 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-    'Half Day': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-    'Paid Leave': 'bg-brand-500/20 text-brand-400 border-brand-500/30',
-    'Late': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-    'Holiday': 'bg-teal-500/20 text-teal-400 border-teal-500/30',
-    'Week Off': 'bg-slate-700/30 text-slate-500 border-slate-700/50'
+  const getStats = () => {
+    const stats = { present: 0, absent: 0, halfDay: 0, paidLeave: 0, weekOff: 0 };
+    for (let d = 1; d <= daysInMonth; d++) {
+      const data = getDayData(d);
+      if (data?.status === 'Present' || data?.status === 'Late') stats.present++;
+      else if (data?.status === 'Absent') stats.absent++;
+      else if (data?.status === 'Half Day') stats.halfDay++;
+      else if (data?.status === 'Paid Leave') stats.paidLeave++;
+      else if (data?.status === 'Week Off') stats.weekOff++;
+    }
+    return stats;
   };
 
-  const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const stats = getStats();
+  const monthLabel = currentDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+
+  const statusMap: any = {
+    'Present': { color: 'bg-[#22c55e]', text: 'text-white' },
+    'Late': { color: 'bg-[#22c55e]', text: 'text-white', badge: 'LATE' },
+    'Absent': { color: 'bg-[#ef4444]', text: 'text-white' },
+    'Half Day': { color: 'bg-[#f59e0b]', text: 'text-white' },
+    'Paid Leave': { color: 'bg-[#a855f7]', text: 'text-white' },
+    'Week Off': { color: 'bg-[#94a3b8]', text: 'text-white' },
+    'Holiday': { color: 'bg-[#64748b]', text: 'text-white' }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-4 max-w-md mx-auto relative flex flex-col">
-      <div className="flex items-center justify-between mb-8 pt-4">
-        <div className="flex items-center">
-          <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition">
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <h2 className="text-xl font-bold ml-2 tracking-tight">Attendance History</h2>
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="min-h-screen bg-white text-slate-900 flex flex-col font-sans"
+    >
+      {/* Header */}
+      <div className="px-4 py-4 flex items-center bg-white sticky top-0 z-20">
+        <button onClick={onBack} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <div className="flex-1 text-center mr-8">
+            <h2 className="text-lg font-bold">Attendance</h2>
+            {userName && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest -mt-1">{userName}</p>}
         </div>
       </div>
 
-      {/* Month Carousel */}
-      <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl mb-6 flex items-center justify-between shadow-xl shadow-black/20">
-        <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-2 hover:bg-slate-800 rounded-xl transition">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <span className="font-black text-sm uppercase tracking-widest text-slate-200">{monthName}</span>
-        <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-2 hover:bg-slate-800 rounded-xl transition">
-          <ChevronRight className="w-5 h-5" />
-        </button>
+      <div className="px-4 py-2 bg-[#fffcf0] border-y border-[#fff5d6] flex items-center justify-between">
+         <span className="text-xs font-bold text-[#b49842]">Attendance for:</span>
+         <div className="flex items-center space-x-1">
+            <button onClick={() => changeMonth(-1)} className="p-1 text-slate-400 hover:text-slate-600">
+               <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button className="bg-white border border-slate-200 px-3 py-1.5 rounded-full flex items-center space-x-2 shadow-sm">
+                <span className="text-xs font-bold text-slate-700">{monthLabel}</span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+            <button onClick={() => changeMonth(1)} className="p-1 text-slate-400 hover:text-slate-600">
+               <ChevronRight className="w-4 h-4" />
+            </button>
+         </div>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] shadow-2xl relative overflow-hidden flex-1 mb-6">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/5 rounded-full blur-3xl" />
-        
-        <div className="grid grid-cols-7 gap-2 mb-4 relative z-10">
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-            <div key={d} className="text-center text-[10px] font-black text-slate-500 uppercase tracking-widest py-1">{d}</div>
+      <div className="p-4 flex-1">
+        {/* Summary Bar */}
+        <div className="grid grid-cols-5 bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden mb-8">
+           <StatBox label="Present" count={stats.present} border="border-l-4 border-l-[#22c55e] bg-[#f0fdf4]" />
+           <StatBox label="Absent" count={stats.absent} border="border-l-4 border-l-[#ef4444] bg-[#fef2f2]" />
+           <StatBox label="Half day" count={stats.halfDay} border="border-l-4 border-l-[#f59e0b] bg-[#fffbeb]" />
+           <StatBox label="Paid Leave" count={stats.paidLeave.toFixed(1)} border="border-l-4 border-l-[#a855f7] bg-[#faf5ff]" />
+           <StatBox label="Week Off" count={stats.weekOff} border="border-l-4 border-l-[#94a3b8] bg-[#f8fafc]" />
+        </div>
+
+        {/* Days Header */}
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+            <div key={d} className="text-center text-[11px] font-bold text-slate-400 py-2">{d}</div>
           ))}
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-64 relative z-10">
-            <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-4" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing History...</p>
-          </div>
+             <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Syncing Records...</p>
+             </div>
         ) : (
-          <div className="grid grid-cols-7 gap-2 relative z-10">
-            {prevMonthPadding.map(i => (
-              <div key={`p-${i}`} className="aspect-square" />
-            ))}
+            <div className="grid grid-cols-7 gap-2">
+            {padding.map(i => <div key={`p-${i}`} className="aspect-square" />)}
             {days.map(day => {
-              const status = getDayStatus(day);
+              const data = getDayData(day);
+              const config = data ? statusMap[data.status] : null;
+              
               return (
                 <div 
                   key={day} 
-                  className={`aspect-square rounded-2xl flex items-center justify-center text-sm font-bold border transition-all duration-300 ${
-                    status ? statusColors[status] || 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-950/40 border-slate-900 text-slate-600'
+                  className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-transform active:scale-95 ${
+                    config ? config.color : 'bg-slate-100'
                   }`}
                 >
-                  {day}
+                  <span className={`text-sm font-bold ${config ? config.text : 'text-slate-400'}`}>
+                    {day < 10 ? `0${day}` : day}
+                  </span>
+                  {config?.badge && (
+                    <span className="absolute bottom-1.5 text-[6px] font-black uppercase text-white/90 tracking-tighter">
+                      {config.badge}
+                    </span>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
-
-        {/* Legend */}
-        <div className="mt-8 grid grid-cols-2 gap-3 relative z-10 border-t border-slate-800 pt-6">
-          <LegendItem color="bg-emerald-500" label="Present" />
-          <LegendItem color="bg-rose-500" label="Absent" />
-          <LegendItem color="bg-amber-500" label="Half Day" />
-          <LegendItem color="bg-brand-500" label="Leave" />
-        </div>
       </div>
-
-      <div className="bg-slate-900/50 border border-white/5 p-4 rounded-2xl flex items-start space-x-3 mb-8">
-        <Info className="w-4 h-4 text-slate-500 mt-0.5" />
-        <p className="text-[10px] font-bold text-slate-500 leading-relaxed uppercase tracking-wide">
-          Attendance is marked based on your first and last punches of the day. Contact HR for regularizations if you see discrepancies.
-        </p>
-      </div>
-    </div>
+    </motion.div>
   );
 }
 
-function LegendItem({ color, label }: { color: string, label: string }) {
+function StatBox({ label, count, border }: { label: string, count: any, border: string }) {
   return (
-    <div className="flex items-center space-x-2">
-      <div className={`w-2 h-2 rounded-full ${color}`} />
-      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</span>
+    <div className={`flex flex-col items-center justify-center py-3 ${border}`}>
+      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tight mb-1">{label}</span>
+      <span className="text-sm font-black text-slate-800">{count}</span>
     </div>
   );
 }

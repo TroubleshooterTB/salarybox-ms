@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { 
   User, Clock, 
   CalendarDays, IndianRupee, 
-  Palmtree, FolderOpen, Globe, Settings 
+  Palmtree, FolderOpen, Globe, Settings,
+  Briefcase, MessageSquare
 } from 'lucide-react';
 import useStore from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -19,11 +20,13 @@ import NotificationBell from '../common/NotificationBell';
 
 const menuItems = [
   { id: 'profile', label: 'Profile', icon: User, color: 'bg-blue-500' },
-  { id: 'leaves', label: 'Leaves', icon: Palmtree, color: 'bg-emerald-500' },
-  { id: 'loans', label: 'Loans', icon: IndianRupee, color: 'bg-orange-500' },
-  { id: 'history', label: 'History', icon: CalendarDays, color: 'bg-emerald-500' },
-  { id: 'holidays', label: 'Holidays', icon: Globe, color: 'bg-teal-500' },
+  { id: 'history', label: 'View Attendance', icon: CalendarDays, color: 'bg-emerald-500' },
+  { id: 'leaves', label: 'Request Leave', icon: Palmtree, color: 'bg-orange-500' },
+  { id: 'crm', label: 'CRM', icon: Briefcase, color: 'bg-indigo-500' },
+  { id: 'notes', label: 'Notes', icon: MessageSquare, color: 'bg-amber-500' },
+  { id: 'holidays', label: 'Holiday List', icon: Globe, color: 'bg-teal-500' },
   { id: 'documents', label: 'Documents', icon: FolderOpen, color: 'bg-cyan-500' },
+  { id: 'loans', label: 'Loans', icon: IndianRupee, color: 'bg-rose-500' },
   { id: 'settings', label: 'Settings', icon: Settings, color: 'bg-slate-600' },
 ];
 
@@ -81,7 +84,7 @@ export default function StaffDashboard() {
   if (activeTab === 'history') {
     return <AttendanceCalendar onBack={() => setActiveTab(null)} />;
   }
-  if (activeTab && !['attendance', 'leaves', 'loans'].includes(activeTab)) {
+  if (activeTab && !['attendance', 'leaves', 'loans', 'history', 'profile', 'holidays', 'corrections'].includes(activeTab)) {
     return (
       <div className="min-h-screen bg-slate-950 text-white p-4 max-w-md mx-auto flex flex-col items-center justify-center">
         <div className="w-20 h-20 bg-brand-500/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(var(--color-brand-500),0.3)]">

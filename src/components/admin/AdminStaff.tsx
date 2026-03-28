@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { createClient } from '@supabase/supabase-js';
-import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText } from 'lucide-react';
+import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText, CalendarDays } from 'lucide-react';
 import { calculatePayroll } from '../../lib/payrollEngine';
 import PayslipView from './PayslipView';
+import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 import { useLanguage } from '../../lib/i18n';
 
 const supabaseAdminMaker = createClient(
@@ -32,6 +33,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
   // Payslip State
   const [showPayslip, setShowPayslip] = useState(false);
   const [payslipData, setPayslipData] = useState<any>(null);
+  const [viewingAttendance, setViewingAttendance] = useState<{ id: string, name: string } | null>(null);
   const {} = useLanguage();
 
   const initialForm = {
@@ -281,6 +283,18 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     }));
   };
 
+  if (viewingAttendance) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-white overflow-y-auto">
+        <AttendanceCalendar 
+          userId={viewingAttendance.id} 
+          userName={viewingAttendance.name} 
+          onBack={() => setViewingAttendance(null)} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
@@ -342,6 +356,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   )}
                 </td>
                 <td className="px-6 py-4 text-right space-x-2">
+                  <button onClick={() => setViewingAttendance({ id: s.id, name: s.full_name })} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="View Attendance History">
+                    <CalendarDays className="w-4 h-4" />
+                  </button>
                   <button onClick={() => handleGeneratePayslip(s)} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition" title="Generate Payslip">
                     <FileText className="w-4 h-4" />
                   </button>

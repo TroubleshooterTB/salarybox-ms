@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { calculatePayroll, getDaysInMonth } from '../../lib/payrollEngine';
@@ -14,6 +14,19 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
   const now = new Date();
   const [exportYear, setExportYear] = useState(now.getFullYear());
   const [exportMonth, setExportMonth] = useState(now.getMonth()); // 0-indexed
+  const [isLocked, setIsLocked] = useState(false);
+  const [locking, setLocking] = useState(false);
+
+  const monthKey = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}`;
+
+  const checkLockStatus = async () => {
+    const { data } = await supabase.from('payroll_lockdown').select('*').eq('month_year', monthKey).maybeSingle();
+    setIsLocked(!!data);
+  };
+
+  useEffect(() => {
+    checkLockStatus();
+  }, [exportYear, exportMonth]);
 
   const shiftMonth = (delta: number) => {
     let m = exportMonth + delta;
@@ -229,6 +242,14 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
     setLoading(false);
   };
 
+  const handleLock = async () => {
+    if (!window.confirm(`Are you sure you want to lock payroll for ${monthLabel}? This will prevent all attendance and leave edits for this period.`)) return;
+    setLocking(true);
+    const { error } = await supabase.from('payroll_lockdown').insert({ month_year: monthKey });
+    if (!error) setIsLocked(true);
+    setLocking(false);
+  };
+
   return (
     <div className="p-12 max-w-5xl mx-auto space-y-6">
       <div>
@@ -236,16 +257,37 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
         <p className="text-slate-500 font-medium text-sm mt-1">Generate real payroll and attendance reports. All data is live from Supabase.</p>
       </div>
 
-      {/* Month Selector */}
+      {/* Month Selector & Lockdown Status */}
       <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Payroll Period</p>
-          <p className="text-xl font-black text-slate-800">{monthLabel}</p>
+        <div className="flex items-center space-x-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Payroll Period</p>
+            <div className="flex items-center space-x-3">
+              <p className="text-xl font-black text-slate-800">{monthLabel}</p>
+              {isLocked && (
+                <span className="flex items-center space-x-1 px-2 py-0.5 bg-rose-500 text-white text-[9px] font-black uppercase rounded-md shadow-lg shadow-rose-500/20">
+                  <Download className="w-3 h-3" /> Locked
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-          <button onClick={() => shiftMonth(-1)} className="p-2 hover:bg-slate-200 rounded-xl transition text-slate-600"><ChevronLeft className="w-5 h-5" /></button>
-          <span className="px-4 font-bold text-slate-700 min-w-[130px] text-center">{monthLabel}</span>
-          <button onClick={() => shiftMonth(1)} className="p-2 hover:bg-slate-200 rounded-xl transition text-slate-600"><ChevronRight className="w-5 h-5" /></button>
+        <div className="flex items-center space-x-4">
+          {!isLocked && (
+            <button 
+              onClick={handleLock}
+              disabled={locking}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black uppercase tracking-widest rounded-xl transition flex items-center space-x-2"
+            >
+              {locking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3 rotate-180" />}
+              <span>Finalize & Lock</span>
+            </button>
+          )}
+          <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+            <button onClick={() => shiftMonth(-1)} className="p-2 hover:bg-slate-200 rounded-xl transition text-slate-600"><ChevronLeft className="w-5 h-5" /></button>
+            <span className="px-4 font-bold text-slate-700 min-w-[130px] text-center">{monthLabel}</span>
+            <button onClick={() => shiftMonth(1)} className="p-2 hover:bg-slate-200 rounded-xl transition text-slate-600"><ChevronRight className="w-5 h-5" /></button>
+          </div>
         </div>
       </div>
 
