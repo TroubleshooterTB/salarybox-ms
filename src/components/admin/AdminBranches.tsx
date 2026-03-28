@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { Plus, Edit2, Loader2, MapPin, Globe, Clock, ShieldCheck, ToggleLeft, ToggleRight, Trash2, AlertCircle } from 'lucide-react';
 import useStore from '../../store';
 
@@ -93,7 +95,7 @@ export default function AdminBranches() {
           <h2 className="text-2xl font-black text-slate-800">Branch Management</h2>
           <p className="text-slate-500 font-medium text-sm">Configure branch-specific rules, geofencing, and timings.</p>
         </div>
-        {(userRole === 'Super Admin' || userRole === 'Admin') && (
+        {userRole === 'Super Admin' && (
           <button onClick={openAdd} className="flex items-center space-x-2 bg-brand-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-brand-500/30 hover:bg-brand-600 transition">
             <Plus className="w-5 h-5" /> <span>Add Branch</span>
           </button>
@@ -111,7 +113,7 @@ export default function AdminBranches() {
               <div className="bg-brand-50 p-3 rounded-2xl text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition duration-300">
                 <Globe className="w-6 h-6" />
               </div>
-              {(userRole === 'Super Admin' || userRole === 'Admin') && (
+              {userRole === 'Super Admin' && (
                 <div className="flex space-x-2">
                   <button onClick={() => openEdit(b)} className="p-2 text-slate-400 hover:text-brand-500 transition"><Edit2 className="w-4 h-4" /></button>
                   <button onClick={() => handleDelete(b.id)} className="p-2 text-slate-400 hover:text-rose-500 transition"><Trash2 className="w-4 h-4" /></button>
@@ -142,7 +144,7 @@ export default function AdminBranches() {
                <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${b.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                  {b.is_active ? 'Production Ready' : 'Maintenance'}
                </span>
-               {(userRole === 'Super Admin' || userRole === 'Admin') && (
+               {userRole === 'Super Admin' && (
                  <button onClick={() => toggleStatus(b.id, b.is_active)} className="transition">
                    {b.is_active ? <ToggleRight className="w-8 h-8 text-emerald-500" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
                  </button>
