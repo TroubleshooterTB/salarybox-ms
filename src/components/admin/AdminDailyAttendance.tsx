@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { Clock, Search, Loader2, AlertTriangle, ShieldCheck, RefreshCw, Timer } from 'lucide-react';
+import { Clock, Search, Loader2, AlertTriangle, ShieldCheck, RefreshCw, Timer, Calendar } from 'lucide-react';
+import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 
 interface PunchGroup {
   profile: any;
@@ -11,10 +10,9 @@ interface PunchGroup {
 }
 
 export default function AdminDailyAttendance({ selectedBranch }: { selectedBranch: string }) {
-  const [punchGroups, setPunchGroups] = useState<PunchGroup[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [selectedUser, setSelectedUser] = useState<{ id: string, name: string } | null>(null);
 
   const fetchDailyPunches = async () => {
     const startOfDay = new Date();
@@ -237,6 +235,7 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                 <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Punch OUT</th>
                 <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Duration</th>
                 <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Location & Status</th>
+                <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Actions</th>
                 <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase text-right">Selfie</th>
               </tr>
             </thead>
@@ -312,6 +311,16 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                       </span>
                     </div>
                   </td>
+                  {/* Actions */}
+                  <td className="px-6 py-4">
+                    <button 
+                      onClick={() => setSelectedUser({ id: g.profile?.id, name: g.profile?.full_name })}
+                      className="p-2 bg-brand-50 text-brand-500 rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm border border-brand-100"
+                      title="View Attendance History"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </button>
+                  </td>
                   {/* Selfie - show latest */}
                   <td className="px-6 py-4 text-right">
                     {g.inPunch?.selfie_url ? (
@@ -328,6 +337,19 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
           </table>
         </div>
       </div>
+
+      {/* Attendance History Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 bg-white md:bg-black/40 backdrop-blur-sm md:p-8 flex items-center justify-center">
+          <div className="bg-white w-full h-full md:max-w-4xl md:h-[90vh] md:rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+             <AttendanceCalendar 
+               userId={selectedUser.id} 
+               userName={selectedUser.name} 
+               onBack={() => setSelectedUser(null)} 
+             />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
