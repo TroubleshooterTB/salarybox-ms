@@ -140,7 +140,20 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         const { error } = await supabase.from('profiles').update(payload).eq('id', editingId);
         if (error) throw error;
       } else {
-        // Create Auth identity seamlessly using secondary client
+        // 1. First, check if the employee ID already exists in profiles
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id, employee_id, full_name')
+          .eq('employee_id', formData.employee_id)
+          .single();
+
+        if (existingProfile) {
+          alert(`Error: Employee ID "${formData.employee_id}" is already assigned to ${existingProfile.full_name || 'another staff member'}.`);
+          setIsSubmitting(false);
+          return;
+        }
+
+        // 2. Create Auth identity seamlessly
         const email = `${formData.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
         const { data: authData, error: authError } = await supabaseAdminMaker.auth.signUp({
           email, password: 'password123'
