@@ -38,7 +38,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
   const initialForm = {
     full_name: '', phone_number: '', employee_id: '',
-    department: 'Q1', job_title: '', ctc_amount: '',
+    department: 'Management', job_title: '', ctc_amount: '',
     role: 'Employee', joining_date: new Date().toISOString().split('T')[0],
     background_verified: false, professional_tax_applicable: true, bank_account_details: '',
     multiple_branches: [] as string[],
@@ -80,7 +80,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       full_name: profile.full_name || '',
       phone_number: profile.phone_number || '',
       employee_id: profile.employee_id || '',
-      department: profile.department || 'Q1',
+      department: profile.department || 'Management',
       job_title: profile.job_title || '',
       ctc_amount: profile.ctc_amount || '',
       role: profile.role || 'Employee',
@@ -551,8 +551,15 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Department</label>
                     <select value={formData.department} onChange={e=>setFormData({...formData, department: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 appearance-none">
-                      <option value="Q1">Q1</option>
-                      <option value="Q2">Q2</option>
+                      <option value="Management">Management</option>
+                      <option value="Accounts">Accounts</option>
+                      <option value="Sales">Sales</option>
+                      <option value="Finance">Finance</option>
+                      <option value="Production">Production</option>
+                      <option value="Product Design">Product Design</option>
+                      <option value="Digital Marketing">Digital Marketing</option>
+                      <option value="Office Help Staff">Office Help Staff</option>
+                      <option value="Purchase">Purchase</option>
                     </select>
                   </div>
                 </div>
