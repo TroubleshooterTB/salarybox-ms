@@ -39,12 +39,57 @@ async function seed() {
       employee_id: 'ADMIN02',
       branch: 'Main',
       job_title: 'Operations Director',
-      department: 'Management',
+      department: 'Q1',
+      role: 'Admin',
       ctc_amount: 95000
     });
     if (p2) console.log('Admin profile error:', p2.message);
     else console.log('Admin profile inserted.');
     await supabase.from('leaves').upsert({ user_id: d2.user.id, privilege_balance: 11, sick_balance: 4 });
+  }
+
+  console.log('\nRegistering SUPER ADMIN user (admin01@minimalstroke.com)...');
+  const { data: d3, error: e3 } = await supabase.auth.signUp({
+    email: 'admin01@minimalstroke.com',
+    password: 'password123',
+  });
+  if (e3) console.log(e3.message);
+  if (d3?.user) {
+    const { error: p3 } = await supabase.from('profiles').upsert({
+      id: d3.user.id,
+      full_name: 'Super Admin',
+      employee_id: 'SADMIN01',
+      branch: 'Main',
+      job_title: 'System Architect',
+      department: 'Q2',
+      role: 'Super Admin',
+      ctc_amount: 150000
+    });
+    if (p3) console.log('Super Admin profile error:', p3.message);
+    else console.log('Super Admin profile inserted.');
+    await supabase.from('leaves').upsert({ user_id: d3.user.id, privilege_balance: 11, sick_balance: 4 });
+  }
+
+  console.log('\nRegistering ADMIN99 user...');
+  const { data: d4, error: e4 } = await supabase.auth.signUp({
+    email: 'admin99@minimalstroke.com',
+    password: 'password123',
+  });
+  if (e4) console.log(e4.message);
+  if (d4?.user) {
+    const { error: p4 } = await supabase.from('profiles').upsert({
+      id: d4.user.id,
+      full_name: 'Admin Ninety Nine',
+      employee_id: 'ADMIN99',
+      branch: 'Main',
+      job_title: 'Global Operations',
+      department: 'Q1',
+      role: 'Super Admin',
+      ctc_amount: 200000
+    });
+    if (p4) console.log('ADMIN99 profile error:', p4.message);
+    else console.log('ADMIN99 profile inserted.');
+    await supabase.from('leaves').upsert({ user_id: d4.user.id, privilege_balance: 11, sick_balance: 4 });
   }
   
   console.log('Done');

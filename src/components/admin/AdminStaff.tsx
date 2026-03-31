@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { createClient } from '@supabase/supabase-js';
-import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText, CalendarDays } from 'lucide-react';
+import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText, CalendarDays, Trash2 } from 'lucide-react';
 import { calculatePayroll } from '../../lib/payrollEngine';
 import PayslipView from './PayslipView';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
@@ -165,8 +165,13 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       
       setShowModal(false);
       fetchData();
+      alert(editingId ? 'Employee updated successfully!' : 'Employee registered successfully!');
     } catch (err: any) {
-      alert('Error saving employee: ' + err.message);
+      if (err.message?.includes('User already registered') || err.code === '42710' || err.message?.includes('already exists')) {
+        alert('Error: An employee with this ID or Email already exists in the system.');
+      } else {
+        alert('Error saving employee: ' + err.message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -213,7 +218,10 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     }, { onConflict: 'user_id,month_year' });
 
     if (error) alert(error.message);
-    else setShowAdjustmentsModal(false);
+    else {
+      setShowAdjustmentsModal(false);
+      alert('Adjustments saved successfully.');
+    }
     setAdjLoading(false);
   };
 
@@ -222,7 +230,31 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       is_active: !currentStatus,
       date_of_leaving: !currentStatus ? null : new Date().toISOString().split('T')[0] // Set leaving date if deactivating
     }).eq('id', id);
-    if (!error) fetchData();
+    if (!error) {
+      fetchData();
+      alert(`Employee ${currentStatus ? 'deactivated' : 'reactivated'} successfully.`);
+    } else {
+      alert('Error updating status: ' + error.message);
+    }
+  };
+
+  const handleDeleteEmployee = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to PERMANENTLY delete ${name}? This will remove all their attendance and payroll data. This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { error } = await supabase.from('profiles').delete().eq('id', id);
+      if (error) throw error;
+      
+      alert('Employee deleted from records successfully.');
+      fetchData();
+    } catch (err: any) {
+      alert('Error deleting employee: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGeneratePayslip = async (p: any) => {
@@ -368,8 +400,11 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   <button onClick={() => openEdit(s)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition" title="Edit Employee">
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleToggleActive(s.id, s.is_active !== false)} className={`p-2 rounded-lg transition ${s.is_active !== false ? 'bg-rose-50 text-rose-500 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`} title={s.is_active !== false ? "Soft Delete (Deactivate)" : "Reactivate Employee"}>
+                  <button onClick={() => handleToggleActive(s.id, s.is_active !== false)} className={`p-2 rounded-lg transition ${s.is_active !== false ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`} title={s.is_active !== false ? "Deactivate Employee" : "Reactivate Employee"}>
                     {s.is_active !== false ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => handleDeleteEmployee(s.id, s.full_name)} className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-100 transition" title="Delete Employee Record">
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </td>
               </tr>
