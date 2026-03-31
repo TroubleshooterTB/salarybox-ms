@@ -17,7 +17,9 @@ export default function LoginForm() {
     setStatusText('Authenticating...');
 
     try {
-      const email = `${employeeId.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
+      const email = employeeId.includes('@') 
+        ? employeeId.toLowerCase() 
+        : `${employeeId.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
       
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
