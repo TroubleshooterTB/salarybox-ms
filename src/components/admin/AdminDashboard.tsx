@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { 
   LogOut, Users, Settings, Clock, 
   IndianRupee, History, Map, 
-  FileStack, UserCheck, Calendar, Globe, CheckSquare 
+  FileStack, UserCheck, Calendar, Globe 
 } from 'lucide-react';
 import L from 'leaflet';
 import ExportModule from './ExportModule';
@@ -17,7 +17,6 @@ import AdminCalendar from './AdminCalendar';
 import AdminDailyAttendance from './AdminDailyAttendance';
 import AdminLoans from './AdminLoans';
 import AdminHistoricalAttendance from './AdminHistoricalAttendance';
-import AdminCorrections from './AdminCorrections';
 import AdminBranches from './AdminBranches';
 import AdminLeaveMatrix from './AdminLeaveMatrix';
 import NotificationBell from '../common/NotificationBell';
@@ -50,7 +49,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
   const { userRole, userProfile } = useStore();
-  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'corrections'|'branches'|'leaves'>('daily');
+  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'branches'|'leaves'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   
@@ -140,7 +139,6 @@ export default function AdminDashboard() {
             { id: 'loans', icon: IndianRupee, label: t('loans') },
             { id: 'approvals', icon: UserCheck, label: t('approvals') },
             { id: 'leaves', icon: FileStack, label: 'Leave Balances' },
-            { id: 'corrections', icon: CheckSquare, label: t('corrections') },
             { id: 'branches', icon: Globe, label: t('branches') },
             { id: 'export', icon: FileStack, label: t('export') },
             { id: 'map', icon: Map, label: 'Live Map' },
@@ -183,7 +181,6 @@ export default function AdminDashboard() {
            {activeTab === 'staff' && <AdminStaff selectedBranch={selectedBranch} />}
            {activeTab === 'calendar' && <AdminCalendar selectedBranch={selectedBranch} />}
            {activeTab === 'approvals' && <AdminApprovals selectedBranch={selectedBranch} />}
-           {activeTab === 'corrections' && <AdminCorrections selectedBranch={selectedBranch} />}
            {activeTab === 'branches' && <AdminBranches />}
            {activeTab === 'loans' && <AdminLoans selectedBranch={selectedBranch} />}
            {activeTab === 'settings' && <AdminSettings />}

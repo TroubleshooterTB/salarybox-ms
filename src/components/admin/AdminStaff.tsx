@@ -153,19 +153,27 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
           return;
         }
 
-        // 2. Create Auth identity seamlessly
+        // 2. Create Auth identity seamlessly with metadata
         const email = `${formData.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
         const { data: authData, error: authError } = await supabaseAdminMaker.auth.signUp({
-          email, password: 'password123'
+          email, 
+          password: 'password123',
+          options: {
+            data: {
+              full_name: formData.full_name
+            }
+          }
         });
         
         if (authError) throw authError;
 
         if (authData?.user) {
-          const { error: profileError } = await supabase.from('profiles').insert({
+          // Use UPSERT instead of INSERT to handle the case where the database trigger 
+          // might have already created a basic profile record.
+          const { error: profileError } = await supabase.from('profiles').upsert({
             id: authData.user.id,
             ...payload
-          });
+          }, { onConflict: 'id' });
           
           if (profileError) throw profileError;
           

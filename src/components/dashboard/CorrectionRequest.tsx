@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Send, Calendar, MessageSquare, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
+import { useLanguage } from '../../lib/i18n';
 
 interface CorrectionRequestProps {
   onBack: () => void;
@@ -9,13 +10,15 @@ interface CorrectionRequestProps {
 
 export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
   const { session } = useStore();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const [form, setForm] = useState({
-    requested_date: new Date().toISOString().split('T')[0],
-    requested_status: 'Present',
+    date: new Date().toISOString().split('T')[0],
+    requested_punch_in: '09:00',
+    requested_punch_out: '18:00',
     reason: '',
     type: 'Forgot to Punch'
   });
@@ -31,11 +34,12 @@ export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
       const { error: submitErr } = await supabase
         .from('attendance_corrections')
         .insert({
-          profile_id: session.user.id,
-          requested_date: form.requested_date,
-          requested_status: form.requested_status,
+          user_id: session.user.id,
+          date: form.date,
+          requested_punch_in: form.requested_punch_in,
+          requested_punch_out: form.requested_punch_out,
           reason: `[${form.type}] ${form.reason}`,
-          status: 'pending'
+          status: 'Pending'
         });
 
       if (submitErr) throw submitErr;
@@ -71,7 +75,7 @@ export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
         <button onClick={onBack} className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800">
           <ArrowLeft className="w-5 h-5 text-slate-400" />
         </button>
-        <h1 className="text-xl font-black tracking-tight">Regularization</h1>
+        <h1 className="text-xl font-black tracking-tight">{t('regularization')}</h1>
       </header>
 
       <main className="flex-1 p-6 space-y-8 overflow-y-auto">
@@ -86,14 +90,14 @@ export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Date of Correction</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('date_of_correction')}</label>
             <div className="relative">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 type="date" 
                 required
-                value={form.requested_date}
-                onChange={e => setForm({...form, requested_date: e.target.value})}
+                value={form.date}
+                onChange={e => setForm({...form, date: e.target.value})}
                 className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold focus:border-brand-500 outline-none transition"
               />
             </div>
@@ -101,36 +105,44 @@ export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Correction Type</label>
-              <select 
-                value={form.type}
-                onChange={e => setForm({...form, type: e.target.value})}
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-sm font-bold focus:border-brand-500 outline-none transition appearance-none"
-              >
-                <option>Forgot to Punch</option>
-                <option>Technical Issue</option>
-                <option>Wrong Location</option>
-                <option>Field Work</option>
-                <option>Other</option>
-              </select>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('punch_in_time')}</label>
+              <input 
+                type="time"
+                required
+                value={form.requested_punch_in}
+                onChange={e => setForm({...form, requested_punch_in: e.target.value})}
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-sm font-bold focus:border-brand-500 outline-none transition"
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">New Status</label>
-              <select 
-                value={form.requested_status}
-                onChange={e => setForm({...form, requested_status: e.target.value})}
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-sm font-bold focus:border-brand-500 outline-none transition appearance-none"
-              >
-                <option>Present</option>
-                <option>Early Exit</option>
-                <option>Duty Trip</option>
-                <option>On Leave</option>
-              </select>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('punch_out_time')}</label>
+              <input 
+                type="time"
+                required
+                value={form.requested_punch_out}
+                onChange={e => setForm({...form, requested_punch_out: e.target.value})}
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-sm font-bold focus:border-brand-500 outline-none transition"
+              />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Detailed Reason</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('correction_type')}</label>
+            <select 
+              value={form.type}
+              onChange={e => setForm({...form, type: e.target.value})}
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-sm font-bold focus:border-brand-500 outline-none transition appearance-none"
+            >
+              <option>Forgot to Punch</option>
+              <option>Technical Issue</option>
+              <option>Wrong Location</option>
+              <option>Field Work</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('detailed_reason')}</label>
             <div className="relative">
               <MessageSquare className="absolute left-4 top-4 w-4 h-4 text-slate-400" />
               <textarea 
@@ -159,7 +171,7 @@ export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
             {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (
               <>
                 <Send className="w-4 h-4" />
-                <span>Submit Request</span>
+                <span>{t('submit_request')}</span>
               </>
             )}
           </button>

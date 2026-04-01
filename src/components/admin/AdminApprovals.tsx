@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { CheckCircle2, XCircle, Smartphone, CalendarDays, Loader2, BarChart3 } from 'lucide-react';
+import { useLanguage } from '../../lib/i18n';
 
 export default function AdminApprovals({ selectedBranch }: { selectedBranch: string }) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'leaves' | 'devices' | 'balances' | 'corrections' | 'profiles'>('leaves');
   const [loading, setLoading] = useState(false);
   const [leaves, setLeaves] = useState<any[]>([]);
@@ -32,8 +34,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     setLoading(true);
     let query = supabase
       .from('attendance_corrections')
-      .select('*, profiles:profile_id(full_name, employee_id, branch)')
-      .eq('status', 'pending')
+      .select('*, profiles:user_id(full_name, employee_id, branch)')
+      .eq('status', 'Pending')
       .order('created_at', { ascending: false });
 
     if (selectedBranch && selectedBranch !== 'All Branches') {
@@ -110,21 +112,15 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     if (!error) fetchLeaves();
   };
 
-  const handleCorrectionAction = async (id: string, newStatus: 'approved' | 'rejected', request: any) => {
-    const { error } = await supabase.from('attendance_corrections').update({ status: newStatus }).eq('id', id);
+  const handleCorrectionAction = async (id: string, newStatus: 'Approved' | 'Rejected') => {
+    // Note: The database trigger 'trigger_apply_correction' will handle 
+    // the attendance record creation upon status = 'Approved'
+    const { error } = await supabase
+      .from('attendance_corrections')
+      .update({ status: newStatus })
+      .eq('id', id);
     
-    if (!error && newStatus === 'approved') {
-      // Create a manual attendance entry for the corrected date
-      await supabase.from('attendance').insert({
-        user_id: request.profile_id,
-        timestamp: new Date(request.requested_date).toISOString(),
-        type: 'In',
-        status: request.requested_status,
-        address_string: 'Regularized: ' + request.reason,
-        latitude: 0,
-        longitude: 0
-      });
-    }
+    if (error) alert(error.message);
     fetchCorrections();
   };
 
@@ -132,7 +128,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     const { error } = await supabase.from('profile_update_requests').update({ status: newStatus }).eq('id', id);
     
     if (!error && newStatus === 'Approved') {
-      // Apply data to profiles
+      // Apply data to profiles dynamically
       await supabase.from('profiles').update({
         phone_number: request.request_data.phone_number,
         bank_name: request.request_data.bank_name,
@@ -161,9 +157,9 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
 
       <div className="flex space-x-1 bg-slate-100 p-1.5 rounded-2xl w-max mb-8 shrink-0 shadow-sm border border-slate-200">
         {[
-          { id: 'leaves', icon: CalendarDays, label: 'Leaves', count: leaves.length },
-          { id: 'corrections', icon: BarChart3, label: 'Corrections', count: corrections.length },
-          { id: 'profiles', icon: Smartphone, label: 'Profiles', count: profileRequests.length },
+          { id: 'leaves', icon: CalendarDays, label: t('leaves'), count: leaves.length },
+          { id: 'corrections', icon: BarChart3, label: t('corrections'), count: corrections.length },
+          { id: 'profiles', icon: Smartphone, label: t('profile'), count: profileRequests.length },
           { id: 'balances', icon: BarChart3, label: 'Quotas' },
           { id: 'devices', icon: Smartphone, label: 'Hardware' }
         ].map(tab => (
@@ -247,15 +243,19 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.profiles?.branch}</p>
                       </td>
                       <td className="px-8 py-6">
-                        <p className="text-xs font-black text-slate-700">{new Date(c.requested_date).toLocaleDateString()} </p>
-                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase rounded-md border border-indigo-100 mt-1 inline-block">{'->'} {c.requested_status}</span>
+                        <p className="text-xs font-black text-slate-700">{new Date(c.date).toLocaleDateString()} </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="px-2 py-0.5 bg-brand-50 text-brand-600 text-[9px] font-black uppercase rounded-md border border-brand-100">{c.requested_punch_in || '—'}</span>
+                          <span className="text-[9px] font-black text-slate-300">→</span>
+                          <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-black uppercase rounded-md border border-rose-100">{c.requested_punch_out || '—'}</span>
+                        </div>
                       </td>
                       <td className="px-8 py-6 max-w-xs">
                         <p className="text-xs font-bold text-slate-500 italic">"{c.reason}"</p>
                       </td>
                       <td className="px-8 py-6 text-right space-x-3">
-                        <button onClick={() => handleCorrectionAction(c.id, 'rejected', c)} className="p-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition"><XCircle className="w-6 h-6" /></button>
-                        <button onClick={() => handleCorrectionAction(c.id, 'approved', c)} className="p-3 text-emerald-500 hover:bg-emerald-50 rounded-2xl transition"><CheckCircle2 className="w-6 h-6" /></button>
+                        <button onClick={() => handleCorrectionAction(c.id, 'Rejected')} className="p-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition"><XCircle className="w-6 h-6" /></button>
+                        <button onClick={() => handleCorrectionAction(c.id, 'Approved')} className="p-3 text-emerald-500 hover:bg-emerald-50 rounded-2xl transition"><CheckCircle2 className="w-6 h-6" /></button>
                       </td>
                     </tr>
                   ))}

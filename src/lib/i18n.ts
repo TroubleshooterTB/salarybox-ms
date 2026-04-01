@@ -10,6 +10,8 @@ export const translations = {
     approvals: 'Approvals',
     export: 'Data Export',
     settings: 'Company Settings',
+    leaves: 'Leaves',
+    corrections: 'Corrections',
     present: 'Present',
     absent: 'Absent',
     late: 'Late',
@@ -30,7 +32,6 @@ export const translations = {
     deductions: 'Deductions',
     netPay: 'Net Pay',
     // Phase 4 & 5
-    corrections: 'Corrections',
     payslip: 'Payslip',
     language: 'Language',
     profile: 'Profile',
@@ -54,7 +55,14 @@ export const translations = {
     error: 'Error',
     branch: 'Branch',
     joiningDate: 'Date Joined',
-    branches: 'Branches'
+    branches: 'Branches',
+    regularization: 'Regularization',
+    date_of_correction: 'Date of Correction',
+    punch_in_time: 'Punch In Time',
+    punch_out_time: 'Punch Out Time',
+    correction_type: 'Correction Type',
+    detailed_reason: 'Detailed Reason',
+    submit_request: 'Submit Request'
   },
   hi: {
     dashboard: 'डैशबोर्ड',
@@ -64,6 +72,8 @@ export const translations = {
     approvals: 'स्वीकृतियाँ',
     export: 'डेटा निर्यात',
     settings: 'कंपनी सेटिंग्स',
+    leaves: 'छुत्तियां',
+    corrections: 'सुधार',
     present: 'उपस्थित',
     absent: 'अनुपस्थित',
     late: 'देर से',
@@ -83,7 +93,6 @@ export const translations = {
     earnings: 'कमाई',
     deductions: 'कटौती',
     netPay: 'कुल वेतन',
-    corrections: 'सुधार',
     payslip: 'वेतन पर्ची',
     language: 'भाषा',
     profile: 'प्रोफ़ाइल',
@@ -107,7 +116,14 @@ export const translations = {
     error: 'त्रुटि',
     branch: 'शाखा',
     joiningDate: 'शामिल होने की तिथि',
-    branches: 'शाखाएं'
+    branches: 'शाखाएं',
+    regularization: 'नियमितीकरण',
+    date_of_correction: 'संशोधन की तिथि',
+    punch_in_time: 'पंच इन समय',
+    punch_out_time: 'पंच आउट समय',
+    correction_type: 'संशोधन का प्रकार',
+    detailed_reason: 'विस्तृत कारण',
+    submit_request: 'अनुरोध भेजें'
   },
   mr: {
     dashboard: 'डॅशबोर्ड',
@@ -117,6 +133,8 @@ export const translations = {
     approvals: 'मंजुरी',
     export: 'डेटा निर्यात',
     settings: 'कंपनी सेटिंग्ज',
+    leaves: 'रजा',
+    corrections: 'सुधारणा',
     present: 'हजर',
     absent: 'गैरहजर',
     late: 'उशिरा',
@@ -136,7 +154,6 @@ export const translations = {
     earnings: 'उत्पन्न',
     deductions: 'वजावट',
     netPay: 'निव्वळ पगार',
-    corrections: 'सुधारणा',
     payslip: 'वेतन पर्ची',
     language: 'भाषा',
     profile: 'प्रोफाइल',
@@ -160,7 +177,14 @@ export const translations = {
     error: 'त्रुटी',
     branch: 'शाखा',
     joiningDate: 'रुजू झाल्याची तारीख',
-    branches: 'शाखा'
+    branches: 'शाखा',
+    regularization: 'नियमितीकरण',
+    date_of_correction: 'दुरुस्तीची तारीख',
+    punch_in_time: 'पंच इन वेळ',
+    punch_out_time: 'पंच आउट वेळ',
+    correction_type: 'दुरुस्तीचा प्रकार',
+    detailed_reason: 'सविस्तर कारण',
+    submit_request: 'विनंती पाठवा'
   }
 };
 
