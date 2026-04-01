@@ -189,7 +189,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Name</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee ID</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Request</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Period</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Action</th>
@@ -197,12 +198,15 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {leaves.length === 0 ? (
-                    <tr><td colSpan={4} className="py-24 text-center text-slate-300 font-black uppercase tracking-widest">No pending leaves</td></tr>
+                    <tr><td colSpan={5} className="py-24 text-center text-slate-300 font-black uppercase tracking-widest">No pending leaves</td></tr>
                   ) : leaves.map(l => (
                     <tr key={l.id} className="hover:bg-slate-50/50 transition duration-300">
                       <td className="px-8 py-6">
                         <p className="font-bold text-slate-800">{l.profiles?.full_name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{l.profiles?.branch}</p>
+                        <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest mt-0.5">{l.profiles?.branch}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{l.profiles?.employee_id}</p>
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex items-center space-x-2">
@@ -227,7 +231,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Name</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee ID</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Details</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Reason</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Action</th>
@@ -235,12 +240,15 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {corrections.length === 0 ? (
-                    <tr><td colSpan={4} className="py-24 text-center text-slate-300 font-black uppercase tracking-widest">Clean slate - No corrections</td></tr>
+                    <tr><td colSpan={5} className="py-24 text-center text-slate-300 font-black uppercase tracking-widest">Clean slate - No corrections</td></tr>
                   ) : corrections.map(c => (
                     <tr key={c.id} className="hover:bg-slate-50/50 transition duration-300">
                       <td className="px-8 py-6">
                         <p className="font-bold text-slate-800">{c.employee_name || c.profiles?.full_name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.employee_id || c.profiles?.employee_id} • {c.profiles?.branch}</p>
+                        <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{c.profiles?.branch}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{c.employee_id || c.profiles?.employee_id}</p>
                       </td>
                       <td className="px-8 py-6">
                         <p className="text-xs font-black text-slate-700">{new Date(c.date).toLocaleDateString()} </p>
@@ -267,7 +275,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Name</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee ID</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Proposed Changes</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Reason</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Action</th>
@@ -275,12 +284,15 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {profileRequests.length === 0 ? (
-                    <tr><td colSpan={4} className="py-24 text-center text-slate-300 font-black uppercase tracking-widest">No master data requests</td></tr>
+                    <tr><td colSpan={5} className="py-24 text-center text-slate-300 font-black uppercase tracking-widest">No master data requests</td></tr>
                   ) : profileRequests.map(r => (
                     <tr key={r.id} className="hover:bg-slate-50/50 transition duration-300">
                       <td className="px-8 py-6">
                         <p className="font-bold text-slate-800">{r.employee_name || r.profiles?.full_name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{r.employee_id || r.profiles?.employee_id}</p>
+                        <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{r.profiles?.branch}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{r.employee_id || r.profiles?.employee_id}</p>
                       </td>
                       <td className="px-8 py-6 text-xs font-bold text-slate-700 space-y-1">
                         <p>Phone: {r.request_data.phone_number}</p>
@@ -304,7 +316,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Name</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee ID</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">PL (Statutory)</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">SL (Medical)</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">CL (Casual)</th>
@@ -315,7 +328,10 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                     <tr key={b.id} className="hover:bg-slate-50/50 transition duration-300">
                       <td className="px-8 py-6">
                         <p className="font-bold text-slate-800">{b.profiles?.full_name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{b.profiles?.employee_id}</p>
+                        <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{b.profiles?.branch}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{b.profiles?.employee_id}</p>
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex items-center space-x-3">
@@ -351,7 +367,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Name</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee ID</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Hardware Sig</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Action</th>
                   </tr>
@@ -361,7 +378,10 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                     <tr key={d.id} className={`hover:bg-slate-50/50 transition duration-300 ${d.device_reset_requested ? 'bg-rose-50/30' : ''}`}>
                       <td className="px-8 py-6">
                         <p className="font-bold text-slate-800">{d.full_name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{d.employee_id}</p>
+                        <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{d.branch}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{d.employee_id}</p>
                       </td>
                       <td className="px-8 py-6">
                         {d.device_fingerprint ? (

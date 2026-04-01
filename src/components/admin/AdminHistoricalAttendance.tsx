@@ -185,7 +185,8 @@ export default function AdminHistoricalAttendance({ selectedBranch }: { selected
           <table className="w-full text-left whitespace-nowrap">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Employee</th>
+                <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Name</th>
+                <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Employee ID</th>
                 <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Punch IN</th>
                 <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Punch OUT</th>
                 <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Duration</th>
@@ -195,14 +196,18 @@ export default function AdminHistoricalAttendance({ selectedBranch }: { selected
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={6} className="py-12 text-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Loading records...</td></tr>
+                <tr><td colSpan={7} className="py-12 text-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Loading records...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="py-12 text-center font-bold text-slate-400">No attendance records found for this date.</td></tr>
+                <tr><td colSpan={7} className="py-12 text-center font-bold text-slate-400">No attendance records found for this date.</td></tr>
               ) : filtered.map((g, idx) => (
                 <tr key={idx} className="hover:bg-slate-50 transition">
                   <td className="px-6 py-4">
                     <p className="font-bold text-slate-800">{g.profile?.full_name}</p>
-                    <p className="text-xs font-semibold text-slate-400">{g.profile?.employee_id} • {g.profile?.department}</p>
+                    <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{g.profile?.branch || 'N/A'}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{g.profile?.employee_id}</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">{g.profile?.department}</p>
                   </td>
                   {/* IN PUNCH */}
                   <td className="px-6 py-4">

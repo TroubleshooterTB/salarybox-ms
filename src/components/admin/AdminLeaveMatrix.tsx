@@ -104,7 +104,8 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Employee</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Name</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Employee ID</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Branch</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-emerald-50/30">Privilege (PL)</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-rose-50/30">Sick (SL)</th>
@@ -114,21 +115,24 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
+                  <td colSpan={6} className="px-6 py-20 text-center">
                     <Loader2 className="w-8 h-8 animate-spin text-brand-500 mx-auto mb-2" />
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Balances...</p>
                   </td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center font-medium text-slate-400">No records found.</td>
+                  <td colSpan={6} className="px-6 py-20 text-center font-medium text-slate-400">No records found.</td>
                 </tr>
               ) : (
                 filteredData.map(item => (
                   <tr key={item.id} className="hover:bg-slate-50/50 transition">
                     <td className="px-6 py-4">
                       <p className="font-bold text-slate-800">{item.full_name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.employee_id} • {item.department}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.department}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{item.employee_id}</p>
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-lg uppercase border border-slate-200">{item.branch}</span>
