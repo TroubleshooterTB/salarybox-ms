@@ -45,7 +45,7 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
     const { data: adj } = await supabase
       .from('payroll_adjustments')
       .select('*')
-      .eq('profile_id', profile.id)
+      .eq('user_id', profile.id)
       .eq('month_year', targetMonth)
       .maybeSingle();
 
@@ -106,8 +106,12 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
     setRequestLoading(true);
     
     try {
+      const { data: profile } = await supabase.from('profiles').select('full_name, employee_id').eq('id', session.user.id).single();
+      
       const { error } = await supabase.from('profile_update_requests').insert({
         user_id: session.user.id,
+        employee_name: profile?.full_name,
+        employee_id: profile?.employee_id,
         request_data: {
           phone_number: requestForm.phone,
           bank_name: requestForm.bank_name,

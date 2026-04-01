@@ -239,8 +239,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                   ) : corrections.map(c => (
                     <tr key={c.id} className="hover:bg-slate-50/50 transition duration-300">
                       <td className="px-8 py-6">
-                        <p className="font-bold text-slate-800">{c.profiles?.full_name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.profiles?.branch}</p>
+                        <p className="font-bold text-slate-800">{c.employee_name || c.profiles?.full_name}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.employee_id || c.profiles?.employee_id} • {c.profiles?.branch}</p>
                       </td>
                       <td className="px-8 py-6">
                         <p className="text-xs font-black text-slate-700">{new Date(c.date).toLocaleDateString()} </p>
@@ -279,8 +279,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                   ) : profileRequests.map(r => (
                     <tr key={r.id} className="hover:bg-slate-50/50 transition duration-300">
                       <td className="px-8 py-6">
-                        <p className="font-bold text-slate-800">{r.profiles?.full_name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{r.profiles?.employee_id}</p>
+                        <p className="font-bold text-slate-800">{r.employee_name || r.profiles?.full_name}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{r.employee_id || r.profiles?.employee_id}</p>
                       </td>
                       <td className="px-8 py-6 text-xs font-bold text-slate-700 space-y-1">
                         <p>Phone: {r.request_data.phone_number}</p>

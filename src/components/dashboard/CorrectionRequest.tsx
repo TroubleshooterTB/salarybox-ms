@@ -9,7 +9,7 @@ interface CorrectionRequestProps {
 }
 
 export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
-  const { session } = useStore();
+  const { session, userProfile } = useStore();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -35,6 +35,8 @@ export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
         .from('attendance_corrections')
         .insert({
           user_id: session.user.id,
+          employee_name: userProfile?.full_name,
+          employee_id: userProfile?.employee_id,
           date: form.date,
           requested_punch_in: form.requested_punch_in,
           requested_punch_out: form.requested_punch_out,
