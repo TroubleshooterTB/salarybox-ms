@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import useStore from './store';
 import { supabase } from './lib/supabase';
 import LoginForm from './components/auth/LoginForm';
+import PasswordResetModal from './components/auth/PasswordResetModal';
 import StaffDashboard from './components/dashboard/StaffDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import { getDeviceFingerprint } from './lib/deviceFingerprint';
@@ -10,7 +11,7 @@ import { ShieldAlert, LogOut, Smartphone } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 function App() {
-  const { session, setSession, userRole, setUserRole, setUserProfile } = useStore();
+  const { session, setSession, userRole, setUserRole, setUserProfile, userProfile } = useStore();
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutFp, setLockoutFp] = useState('');
@@ -35,9 +36,23 @@ function App() {
   const fetchProfileRole = async (userId: string, userEmail: string) => {
     const emailLower = userEmail.toLowerCase();
     try {
-      const { data, error } = await supabase.from('profiles').select('job_title, branch, department, device_fingerprint, role').eq('id', userId).single();
+      const { data, error } = await supabase.from('profiles').select('job_title, branch, department, device_fingerprint, role, full_name, needs_password_reset').eq('id', userId).maybeSingle();
       
       if (error) throw error;
+      
+      if (!data) {
+        console.warn("Profile not found for authenticated user:", userId);
+        // Fallback for system admins or broken profiles
+        if (emailLower.startsWith('admin')) {
+          setUserRole('Super Admin');
+          setUserProfile({ full_name: 'Admin', role: 'Super Admin' });
+        } else {
+          setUserRole('Employee');
+        }
+        setIsInitializing(false);
+        return;
+      }
+
       setUserProfile(data);
 
       // 🛠️ Hardware Device Locking System
@@ -171,6 +186,14 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+        {userProfile?.needs_password_reset && (
+          <PasswordResetModal 
+            userId={session?.user.id || ''} 
+            onComplete={() => {
+              setUserProfile({ ...userProfile, needs_password_reset: false });
+            }}
+          />
+        )}
         <Routes>
           <Route path="/login" element={!session ? <LoginForm /> : <Navigate to="/" />} />
           <Route path="/" element={session ? <StaffDashboard /> : <Navigate to="/login" />} />

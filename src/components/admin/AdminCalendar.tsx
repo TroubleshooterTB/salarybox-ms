@@ -146,7 +146,8 @@ export default function AdminCalendar({ selectedBranch }: { selectedBranch: stri
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest sticky left-0 bg-slate-50 z-20 border-r border-slate-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] w-64">Employee</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest sticky left-0 bg-slate-50 z-20 border-r border-slate-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] w-40">Name</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest sticky left-[160px] bg-slate-50 z-20 border-r border-slate-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] w-24">ID</th>
                   {daysArray.map(day => (
                     <th key={day} className="py-4 px-2 text-center text-[10px] font-black text-slate-400 border-x border-slate-100 min-w-[40px]">
                       {day}
@@ -159,7 +160,9 @@ export default function AdminCalendar({ selectedBranch }: { selectedBranch: stri
                   <tr key={p.id} className="hover:bg-slate-50 transition group">
                     <td className="px-6 py-3 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.02)]">
                       <p className="font-bold text-slate-800 text-sm truncate">{p.full_name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{p.employee_id}</p>
+                    </td>
+                    <td className="px-6 py-3 sticky left-[160px] bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.02)]">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{p.employee_id}</p>
                     </td>
                     {daysArray.map(day => {
                       const code = getStatusDisplay(p.id, day);

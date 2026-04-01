@@ -7,9 +7,10 @@ import PayslipView from './PayslipView';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 import { useLanguage } from '../../lib/i18n';
 
-const supabaseAdminMaker = createClient(
+// Administrative client with Service Role Key (BYPASSES RLS)
+const supabaseAdmin = createClient(
   import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
   { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
 );
 
@@ -34,6 +35,12 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
   const [showPayslip, setShowPayslip] = useState(false);
   const [payslipData, setPayslipData] = useState<any>(null);
   const [viewingAttendance, setViewingAttendance] = useState<{ id: string, name: string } | null>(null);
+  
+  // Bulk Import State
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkLog, setBulkLog] = useState<string[]>([]);
+  
   const {} = useLanguage();
 
   const initialForm = {
@@ -145,7 +152,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
           .from('profiles')
           .select('id, employee_id, full_name')
           .eq('employee_id', formData.employee_id)
-          .single();
+          .maybeSingle();
 
         if (existingProfile) {
           alert(`Error: Employee ID "${formData.employee_id}" is already assigned to ${existingProfile.full_name || 'another staff member'}.`);
@@ -153,16 +160,13 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
           return;
         }
 
-        // 2. Create Auth identity seamlessly with metadata
+        // 2. Create Auth identity seamlessly using ADMIN client (to set password and bypass email verification)
         const email = `${formData.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
-        const { data: authData, error: authError } = await supabaseAdminMaker.auth.signUp({
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email, 
           password: 'password123',
-          options: {
-            data: {
-              full_name: formData.full_name
-            }
-          }
+          email_confirm: true,
+          user_metadata: { role: formData.role, full_name: formData.full_name }
         });
         
         if (authError) throw authError;
@@ -172,7 +176,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
           // might have already created a basic profile record.
           const { error: profileError } = await supabase.from('profiles').upsert({
             id: authData.user.id,
-            ...payload
+            ...payload,
+            role: formData.role,
+            needs_password_reset: true // Force reset on manual creation
           }, { onConflict: 'id' });
           
           if (profileError) throw profileError;
@@ -209,7 +215,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       .select('*')
       .eq('user_id', profile.id)
       .eq('month_year', adjForm.month_year)
-      .single();
+      .maybeSingle();
     
     if (data) {
       setAdjForm({
@@ -287,8 +293,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
     const [{ data: att }, { data: adj }, { data: loans }] = await Promise.all([
       supabase.from('attendance').select('status, type, timestamp').eq('user_id', p.id).gte('timestamp', startDate).lte('timestamp', endDate),
-      supabase.from('payroll_adjustments').select('*').eq('user_id', p.id).eq('month_year', targetMonth).single(),
-      supabase.from('loan_schedules').select('deduction_amount').eq('user_id', p.id).eq('target_month', targetMonth).single()
+      supabase.from('payroll_adjustments').select('*').eq('user_id', p.id).eq('month_year', targetMonth).maybeSingle(),
+      supabase.from('loan_schedules').select('deduction_amount').eq('user_id', p.id).eq('target_month', targetMonth).maybeSingle()
     ]);
 
     // Simple attendance counting
@@ -336,6 +342,87 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     }));
   };
 
+  const handleDownloadTemplate = () => {
+    const headers = ["full_name", "employee_id", "branch", "role", "password", "department", "job_title"];
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "minimal_stroke_staff_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleBulkImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsBulkProcessing(true);
+    setBulkLog(["Starting bulk import process..."]);
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const csv = event.target?.result as string;
+      const lines = csv.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      
+      const results = [];
+      for (let i = 1; i < lines.length; i++) {
+        const currentLine = lines[i].split(',').map(v => v.trim());
+        if (currentLine.length < headers.length) continue;
+        
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = currentLine[index];
+        });
+        results.push(row);
+      }
+
+      for (const row of results) {
+        try {
+          setBulkLog(prev => [...prev, `⏳ Creating account for ${row.full_name}...`]);
+          
+          if (!row.full_name || !row.employee_id || !row.branch) {
+            throw new Error("Missing critical fields: full_name, employee_id, and branch are required.");
+          }
+
+          const email = `${row.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
+          
+          // 1. Create Auth User
+          const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password: row.password || 'password123',
+            email_confirm: true,
+            user_metadata: { full_name: row.full_name, role: row.role || 'Employee' }
+          });
+
+          if (authErr) throw authErr;
+
+          // 2. Create Profile
+          const { error: profErr } = await supabaseAdmin.from('profiles').insert({
+            id: authData.user.id,
+            full_name: row.full_name,
+            employee_id: row.employee_id,
+            branch: row.branch,
+            department: row.department || 'Management',
+            job_title: row.job_title || 'Staff',
+            role: row.role || 'Employee',
+            needs_password_reset: true
+          });
+
+          if (profErr) throw profErr;
+          setBulkLog(prev => [...prev, `✅ Successfully processed ${row.full_name}`]);
+        } catch (err: any) {
+          setBulkLog(prev => [...prev, `❌ Error with ${row.full_name || 'row'}: ${err.message}`]);
+        }
+      }
+      setIsBulkProcessing(false);
+      fetchData();
+    };
+    reader.readAsText(file);
+  };
+
   if (viewingAttendance) {
     return (
       <div className="fixed inset-0 z-[100] bg-white overflow-y-auto">
@@ -355,9 +442,14 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
           <h2 className="text-2xl font-black tracking-tight text-slate-800">Staff Management V2</h2>
           <p className="text-slate-500 font-medium text-sm">Add, edit, or toggle employment status.</p>
         </div>
-        <button onClick={openAdd} className="flex items-center space-x-2 bg-brand-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-brand-500/30 hover:bg-brand-600 transition">
-          <Plus className="w-5 h-5" /> <span>Add Employee</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button onClick={() => setShowBulkImport(true)} className="flex items-center space-x-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition border border-indigo-700 shadow-lg shadow-indigo-500/20">
+            <FileText className="w-5 h-5" /> <span>Bulk Import (CSV)</span>
+          </button>
+          <button onClick={openAdd} className="flex items-center space-x-2 bg-brand-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-brand-500/30 hover:bg-brand-600 transition">
+            <Plus className="w-5 h-5" /> <span>Add Employee</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
@@ -462,7 +554,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                     <input required value={formData.employee_id} onChange={e=>setFormData({...formData, employee_id: e.target.value})} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="MS001" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Job Title</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Designation</label>
                     <input required value={formData.job_title} onChange={e=>setFormData({...formData, job_title: e.target.value})} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="Lead Designer" />
                   </div>
                   <div className="space-y-1">
@@ -592,14 +684,6 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
               <div>
                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Location & Designation</h4>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Job Title</label>
-                    <input required value={formData.job_title} onChange={e=>setFormData({...formData, job_title: e.target.value})} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Joining Date</label>
-                    <input required value={formData.joining_date} onChange={e=>setFormData({...formData, joining_date: e.target.value})} type="date" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" />
-                  </div>
                   <div className="col-span-2 space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Authorized Geofence Branches</label>
                     <div className="flex flex-wrap gap-2">
@@ -614,83 +698,25 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                 </div>
               </div>
 
-              {/* Finance & Compliance Block */}
-              <div>
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Finance & Compliance</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2 space-y-2">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Salary</label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Annual CTC (₹)</label>
-                        <input
-                          required
-                          value={formData.ctc_amount}
-                          onChange={e => setFormData({ ...formData, ctc_amount: e.target.value })}
-                          type="number"
-                          placeholder="e.g. 180000"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-brand-500 outline-none transition"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Per Month (₹)</label>
-                        <input
-                          value={formData.ctc_amount && parseFloat(formData.ctc_amount) > 0
-                            ? Math.round(parseFloat(formData.ctc_amount) / 12).toString()
-                            : ''}
-                          onChange={e => {
-                            const monthly = parseFloat(e.target.value);
-                            if (!isNaN(monthly)) {
-                              setFormData({ ...formData, ctc_amount: (monthly * 12).toString() });
-                            } else {
-                              setFormData({ ...formData, ctc_amount: '' });
-                            }
-                          }}
-                          type="number"
-                          placeholder="e.g. 15000"
-                          className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm font-bold text-emerald-700 focus:border-emerald-400 outline-none transition"
-                        />
-                      </div>
-                    </div>
-                    {formData.ctc_amount && parseFloat(formData.ctc_amount) > 0 && (
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        ₹{parseFloat(formData.ctc_amount).toLocaleString('en-IN')} / Year  →  ₹{Math.round(parseFloat(formData.ctc_amount) / 12).toLocaleString('en-IN')} / Month  →  ₹{Math.round(parseFloat(formData.ctc_amount) / 365).toLocaleString('en-IN')} / Day (approx.)
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
-                    <input value={formData.phone_number} onChange={e=>setFormData({...formData, phone_number: e.target.value})} type="tel" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Account Details (A/C & IFSC)</label>
-                    <input value={formData.bank_account_details} onChange={e=>setFormData({...formData, bank_account_details: e.target.value})} type="text" placeholder="e.g. 19283748291 IFSC: HDFC000123" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" />
-                  </div>
-                  <div className="col-span-2 flex space-x-6">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input type="checkbox" checked={formData.background_verified} onChange={e=>setFormData({...formData, background_verified: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
-                      <span className="text-sm font-bold text-slate-700">Background Checked</span>
-                    </label>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input type="checkbox" checked={formData.professional_tax_applicable} onChange={e=>setFormData({...formData, professional_tax_applicable: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
-                      <span className="text-sm font-bold text-slate-700">Deduct Professional Tax</span>
-                    </label>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input type="checkbox" checked={formData.allow_remote_punch} onChange={e=>setFormData({...formData, allow_remote_punch: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
-                      <span className="text-sm font-bold text-slate-700 text-brand-600">Allow Remote/Field Punch (No Geofence)</span>
-                    </label>
-                  </div>
-                </div>
+              {/* Remote Punch & Security */}
+              <div className="flex space-x-6 pt-4 border-t border-slate-100">
+                <label className="flex items-center space-x-2 cursor-pointer group">
+                  <input type="checkbox" checked={formData.background_verified} onChange={e=>setFormData({...formData, background_verified: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-slate-950 transition">Background Checked</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer group">
+                  <input type="checkbox" checked={formData.allow_remote_punch} onChange={e=>setFormData({...formData, allow_remote_punch: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
+                  <span className="text-sm font-bold text-brand-600 group-hover:text-brand-700 transition font-black">Allow Field Punch</span>
+                </label>
               </div>
 
-              {/* Security & Access (For Existing Employees) */}
+              {/* Passcode Reset Link (Existing Employees) */}
               {editingId && (
-                <div>
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Security & Access</h4>
-                  <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center justify-between">
+                <div className="bg-rose-50 border border-rose-100 p-6 rounded-3xl mt-8">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-black uppercase text-rose-500 mb-1">Passcode Reset</p>
-                      <p className="text-[11px] font-bold text-slate-600">This will send a secure reset link to the employee's internal email.</p>
+                      <h5 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-1">Security Reset</h5>
+                      <p className="text-xs font-bold text-slate-600">Send a password reset link to the employee's system email.</p>
                     </div>
                     <button 
                       type="button"
@@ -700,9 +726,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                         if (error) alert(error.message);
                         else alert('Reset link sent to ' + email);
                       }}
-                      className="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-500/20 hover:bg-rose-700 transition"
+                      className="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-rose-500/20 hover:bg-rose-700 transition"
                     >
-                      Send Reset Email
+                      Reset Password
                     </button>
                   </div>
                 </div>
@@ -721,82 +747,47 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       {/* Salary Adjustments Modal */}
       {showAdjustmentsModal && selectedStaffForAdj && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200 border border-slate-100">
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
               <div>
-                <h3 className="text-xl font-black text-slate-800">Monthly Adjustments</h3>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{selectedStaffForAdj.full_name}</p>
+                 <h3 className="text-lg font-bold text-slate-800">Salary Adjustments</h3>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedStaffForAdj.full_name}</p>
               </div>
-              <button onClick={() => setShowAdjustmentsModal(false)} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-slate-600 rounded-2xl transition font-bold">×</button>
+              <button onClick={() => setShowAdjustmentsModal(false)} className="text-slate-400 font-bold hover:text-slate-600 px-3 py-1">Esc</button>
             </div>
             
             <div className="p-8 space-y-6">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Payroll Month</label>
-                <input 
-                  type="month" 
-                  value={adjForm.month_year} 
-                  onChange={e => setAdjForm({...adjForm, month_year: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 focus:border-brand-500 outline-none transition"
-                />
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Adjustment Month (YYYY-MM)</label>
+                <input value={adjForm.month_year} onChange={e=>setAdjForm({...adjForm, month_year: e.target.value})} type="month" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" />
               </div>
-
+              
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Bonus</label>
-                  <input 
-                    type="number" 
-                    value={adjForm.bonus} 
-                    onChange={e => setAdjForm({...adjForm, bonus: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-emerald-50/50 border border-emerald-100 rounded-2xl px-5 py-3.5 text-sm font-bold text-emerald-700 outline-none focus:border-emerald-300"
-                  />
+                <div className="space-y-1 text-emerald-600">
+                  <label className="text-[10px] font-bold uppercase tracking-wider ml-1">Bonus (+)</label>
+                  <input value={adjForm.bonus} onChange={e=>setAdjForm({...adjForm, bonus: parseFloat(e.target.value)||0})} type="number" className="w-full bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-sm font-bold" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-brand-500 uppercase tracking-widest ml-1">Incentive</label>
-                  <input 
-                    type="number" 
-                    value={adjForm.incentive} 
-                    onChange={e => setAdjForm({...adjForm, incentive: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-brand-50/50 border border-brand-100 rounded-2xl px-5 py-3.5 text-sm font-bold text-brand-700 outline-none focus:border-brand-300"
-                  />
+                <div className="space-y-1 text-emerald-600">
+                  <label className="text-[10px] font-bold uppercase tracking-wider ml-1">Incentive (+)</label>
+                  <input value={adjForm.incentive} onChange={e=>setAdjForm({...adjForm, incentive: parseFloat(e.target.value)||0})} type="number" className="w-full bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-sm font-bold" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest ml-1">Fine/Penalty</label>
-                  <input 
-                    type="number" 
-                    value={adjForm.fines} 
-                    onChange={e => setAdjForm({...adjForm, fines: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-rose-50/50 border border-rose-100 rounded-2xl px-5 py-3.5 text-sm font-bold text-rose-700 outline-none focus:border-rose-300"
-                  />
+                <div className="space-y-1 text-rose-600">
+                  <label className="text-[10px] font-bold uppercase tracking-wider ml-1">Fines (-)</label>
+                  <input value={adjForm.fines} onChange={e=>setAdjForm({...adjForm, fines: parseFloat(e.target.value)||0})} type="number" className="w-full bg-rose-50 border border-rose-100 rounded-xl px-4 py-3 text-sm font-bold" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Other Ded.</label>
-                  <input 
-                    type="number" 
-                    value={adjForm.other_deductions} 
-                    onChange={e => setAdjForm({...adjForm, other_deductions: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 outline-none focus:border-slate-300"
-                  />
+                <div className="space-y-1 text-rose-600">
+                  <label className="text-[10px] font-bold uppercase tracking-wider ml-1">Other Ded. (-)</label>
+                  <input value={adjForm.other_deductions} onChange={e=>setAdjForm({...adjForm, other_deductions: parseFloat(e.target.value)||0})} type="number" className="w-full bg-rose-50 border border-rose-100 rounded-xl px-4 py-3 text-sm font-bold" />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Remarks / Note</label>
-                <textarea 
-                  value={adjForm.remarks} 
-                  onChange={e => setAdjForm({...adjForm, remarks: e.target.value})}
-                  rows={2}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 resize-none"
-                  placeholder="e.g. Festival Bonus or Laptop Damage Fine"
-                />
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Adjustment Reason/Remarks</label>
+                <textarea value={adjForm.remarks} onChange={e=>setAdjForm({...adjForm, remarks: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 min-h-[80px]" placeholder="Explain the adjustment..."></textarea>
               </div>
 
-              <button 
-                onClick={handleSaveAdjustments}
-                disabled={adjLoading}
-                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition flex items-center justify-center space-x-2"
-              >
-                {adjLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Apply Adjustments</span>}
+              <button onClick={handleSaveAdjustments} disabled={adjLoading} className="w-full py-4 bg-brand-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-brand-500/20 hover:bg-brand-600 transition disabled:opacity-50">
+                {adjLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Apply Adjustments'}
               </button>
             </div>
           </div>
@@ -810,6 +801,72 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
           monthYear={payslipData.monthYear} 
           onClose={() => setShowPayslip(false)} 
         />
+      )}
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-300">
+             <div className="p-8 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800">CSV Bulk Onboarding</h3>
+                  <p className="text-sm font-medium text-slate-500">Fast-track your staff registration in one click.</p>
+                </div>
+                <button onClick={() => setShowBulkImport(false)} className="p-2 hover:bg-slate-200 rounded-full transition text-slate-400">
+                  <Square className="w-6 h-6 rotate-45" />
+                </button>
+             </div>
+             
+             <div className="p-8 bg-white">
+                <div className="bg-brand-50 border-2 border-dashed border-brand-200 rounded-3xl p-10 text-center mb-6 group hover:border-brand-500 transition-all duration-300 relative">
+                  <FileText className="w-12 h-12 text-brand-400 mx-auto mb-4 group-hover:scale-110 transition-transform" />
+                  <p className="text-sm font-bold text-slate-700 mb-2">Drag & Drop or Click to Upload CSV</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-400">Supports .csv files only</p>
+                  <input 
+                    type="file" 
+                    accept=".csv" 
+                    onChange={handleBulkImport}
+                    disabled={isBulkProcessing}
+                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                  />
+                </div>
+
+                <div className="space-y-4">
+                   <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div>
+                        <p className="text-xs font-black text-slate-800 uppercase tracking-widest">CSV Requirements</p>
+                        <p className="text-[10px] font-bold text-slate-500 mt-1">Headers: full_name, employee_id, branch, role, password, department, job_title</p>
+                      </div>
+                      <button 
+                        onClick={handleDownloadTemplate}
+                        className="px-4 py-2 bg-brand-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-lg shadow-brand-500/20 hover:bg-brand-600 transition"
+                      >
+                        Download Template
+                      </button>
+                   </div>
+
+                   {bulkLog.length > 0 && (
+                     <div className="bg-slate-900 rounded-2xl p-6 font-mono text-[11px] h-48 overflow-y-auto space-y-1.5 shadow-inner">
+                        {bulkLog.map((log, i) => (
+                           <p key={i} className={log.includes('✅') ? 'text-emerald-400' : log.includes('❌') ? 'text-rose-400' : 'text-slate-400'}>
+                              {log}
+                           </p>
+                        ))}
+                     </div>
+                   )}
+                </div>
+             </div>
+
+             <div className="p-8 border-t border-slate-50 bg-slate-50/50 flex justify-end space-x-3">
+                <button 
+                  onClick={() => setShowBulkImport(false)}
+                  className="px-6 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 transition"
+                >
+                  Close
+                </button>
+             </div>
+          </div>
+        </div>
       )}
     </div>
   );
