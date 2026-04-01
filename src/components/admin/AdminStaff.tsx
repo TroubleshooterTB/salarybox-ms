@@ -7,12 +7,7 @@ import PayslipView from './PayslipView';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 import { useLanguage } from '../../lib/i18n';
 
-// Administrative client with Service Role Key (BYPASSES RLS)
-const supabaseAdmin = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
-  { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-);
+// Server-side onboarding will handle all administrative auth actions
 
 export default function AdminStaff({ selectedBranch }: { selectedBranch: string }) {
   const [staff, setStaff] = useState<any[]>([]);
@@ -160,33 +155,22 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
           return;
         }
 
-        // 2. Create Auth identity seamlessly using ADMIN client (to set password and bypass email verification)
-        const email = `${formData.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email, 
-          password: 'password123',
-          email_confirm: true,
-          user_metadata: { role: formData.role, full_name: formData.full_name }
-        });
-        
-        if (authError) throw authError;
+        // 2. Offload User Registration to Secure Server-Side API
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Unauthorized: Super Admin session required.");
 
-        if (authData?.user) {
-          // Use UPSERT instead of INSERT to handle the case where the database trigger 
-          // might have already created a basic profile record.
-          const { error: profileError } = await supabase.from('profiles').upsert({
-            id: authData.user.id,
-            ...payload,
-            role: formData.role,
-            needs_password_reset: true // Force reset on manual creation
-          }, { onConflict: 'id' });
-          
-          if (profileError) throw profileError;
-          
-          // Setup default leaves
-          await supabase.from('leaves').insert({
-            user_id: authData.user.id, privilege_balance: 11, sick_balance: 4, casual_balance: 4
-          });
+        const res = await fetch('/api/bulk-onboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: session.access_token,
+            staffList: [{ ...formData, ...payload }]
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.results[0].status === 'error') {
+          throw new Error(data.results[0]?.message || data.error || 'Registration failed');
         }
       }
       
@@ -379,44 +363,37 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         results.push(row);
       }
 
-      for (const row of results) {
-        try {
-          setBulkLog(prev => [...prev, `⏳ Creating account for ${row.full_name}...`]);
-          
-          if (!row.full_name || !row.employee_id || !row.branch) {
-            throw new Error("Missing critical fields: full_name, employee_id, and branch are required.");
-          }
-
-          const email = `${row.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
-          
-          // 1. Create Auth User
-          const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-            email,
-            password: row.password || 'password123',
-            email_confirm: true,
-            user_metadata: { full_name: row.full_name, role: row.role || 'Employee' }
-          });
-
-          if (authErr) throw authErr;
-
-          // 2. Create Profile
-          const { error: profErr } = await supabaseAdmin.from('profiles').insert({
-            id: authData.user.id,
-            full_name: row.full_name,
-            employee_id: row.employee_id,
-            branch: row.branch,
-            department: row.department || 'Management',
-            job_title: row.job_title || 'Staff',
-            role: row.role || 'Employee',
-            needs_password_reset: true
-          });
-
-          if (profErr) throw profErr;
-          setBulkLog(prev => [...prev, `✅ Successfully processed ${row.full_name}`]);
-        } catch (err: any) {
-          setBulkLog(prev => [...prev, `❌ Error with ${row.full_name || 'row'}: ${err.message}`]);
-        }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setBulkLog(prev => [...prev, "❌ Error: Session expired. Please login again."]);
+        setIsBulkProcessing(false);
+        return;
       }
+
+      setBulkLog(prev => [...prev, `⏳ Handing over ${results.length} records to secure server...`]);
+
+      const res = await fetch('/api/bulk-onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.access_token,
+          staffList: results
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setBulkLog(prev => [...prev, `❌ Server Error: ${data.error || 'Unknown error'}`]);
+      } else {
+        data.results.forEach((r: any) => {
+          if (r.status === 'success') {
+            setBulkLog(prev => [...prev, `✅ Successfully processed ${r.name}`]);
+          } else {
+            setBulkLog(prev => [...prev, `❌ Error with ${r.name}: ${r.message}`]);
+          }
+        });
+      }
+
       setIsBulkProcessing(false);
       fetchData();
     };
