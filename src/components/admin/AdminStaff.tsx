@@ -370,7 +370,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         return;
       }
 
-      setBulkLog(prev => [...prev, `🚀 SYSTEM v1.0.1: Handing over ${results.length} records to secure server...`]);
+      setBulkLog(prev => [...prev, `🚀 SYSTEM ${APP_VERSION}: Handing over ${results.length} records to secure server...`]);
 
       const res = await fetch('/api/bulk-onboard', {
         method: 'POST',

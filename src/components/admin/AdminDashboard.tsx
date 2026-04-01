@@ -171,6 +171,9 @@ export default function AdminDashboard() {
               <span>Logout</span>
             </button>
           </div>
+          <div className="px-4 py-2 bg-slate-50 rounded-lg text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 text-center border border-slate-100">
+            System v1.0.1 (Nuclear Cache-Buster Active)
+          </div>
         </div>
       </aside>
 

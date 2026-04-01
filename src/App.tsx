@@ -18,6 +18,7 @@ function App() {
   const [lockoutFp, setLockoutFp] = useState('');
 
   useEffect(() => {
+    console.log(`SYSTEM ${APP_VERSION} initialized.`);
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchProfileRole(session.user.id, session.user.email || '');
