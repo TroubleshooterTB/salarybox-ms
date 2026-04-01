@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { createClient } from '@supabase/supabase-js';
 import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText, CalendarDays, Trash2 } from 'lucide-react';
 import { calculatePayroll } from '../../lib/payrollEngine';
 import PayslipView from './PayslipView';
@@ -10,6 +9,7 @@ import { useLanguage } from '../../lib/i18n';
 // Server-side onboarding will handle all administrative auth actions
 
 export default function AdminStaff({ selectedBranch }: { selectedBranch: string }) {
+  const APP_VERSION = '1.0.1-FORCE-REFRESH'; // Incrementing and adding comment to bust PWA cache
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -370,7 +370,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         return;
       }
 
-      setBulkLog(prev => [...prev, `⏳ Handing over ${results.length} records to secure server...`]);
+      setBulkLog(prev => [...prev, `🚀 SYSTEM v1.0.1: Handing over ${results.length} records to secure server...`]);
 
       const res = await fetch('/api/bulk-onboard', {
         method: 'POST',
