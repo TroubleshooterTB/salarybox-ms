@@ -327,6 +327,10 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
             Violation: You must be within {nearestBranch?.radius || 'allowed'} meters of a branch to punch. Return to the branch radius to unlock.
           </motion.p>
         )}
+        
+        <div className="absolute bottom-2 right-4 opacity-20 pointer-events-none">
+          <span className="text-[8px] font-mono tracking-tighter">APP STABILIZED API-PUNCH V2.2</span>
+        </div>
       </div>
     </div>
   );

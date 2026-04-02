@@ -12,7 +12,7 @@ import { motion } from 'framer-motion';
 
 function App() {
   const { session, setSession, userRole, setUserRole, setUserProfile, userProfile } = useStore();
-  const APP_VERSION = '1.0.1-FORCE-REFRESH'; // Cache-buster
+  const APP_VERSION = '1.0.5-FINAL-CACHE-CLEAR'; // Nuclear Force-Refresh
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutFp, setLockoutFp] = useState('');
