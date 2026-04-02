@@ -113,8 +113,6 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
 
     setLoadingType(type);
     try {
-      let selfieUrl = null;
-
       // 1. Prepare Selfie Data for Server (Base64)
       let selfieBase64 = null;
       if (allowRemotePunch) {
