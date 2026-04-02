@@ -115,27 +115,12 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     try {
       let selfieUrl = null;
 
-      // 1. Mandatory Selfie for Field Staff Only
+      // 1. Prepare Selfie Data for Server (Base64)
+      let selfieBase64 = null;
       if (allowRemotePunch) {
         if (!webcamRef.current) throw new Error('Webcam not ready');
-        const imageSrc = webcamRef.current.getScreenshot();
-        if (!imageSrc) throw new Error('Failed to capture selfie');
-
-        const res = await fetch(imageSrc);
-        const blob = await res.blob();
-        const fileName = `${session.user.id}_${Date.now()}.jpg`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('attendance-photos')
-          .upload(fileName, blob, { contentType: 'image/jpeg' });
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from('attendance-photos')
-          .getPublicUrl(fileName);
-        
-        selfieUrl = publicUrlData.publicUrl;
+        selfieBase64 = webcamRef.current.getScreenshot();
+        if (!selfieBase64) throw new Error('Failed to capture selfie');
       }
 
       // 2. Reverse geocode location (Only if necessary or fast)
@@ -192,7 +177,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
             latitude: location.lat,
             longitude: location.lng,
             address_string: addressString,
-            selfie_url: selfieUrl,
+            selfie_base64: selfieBase64, // Send raw image string for server upload
             status: status,
             branch: userBranch || (nearestBranch?.name || 'Main')
           }
@@ -329,7 +314,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
         )}
         
         <div className="absolute bottom-4 right-4 opacity-50 pointer-events-none z-50">
-          <span className="text-[10px] font-mono tracking-widest text-white/40 uppercase">V2.2 SERVER-API ACTIVE</span>
+          <span className="text-[10px] font-mono tracking-widest text-emerald-400/60 uppercase">V2.4 NUCLEAR-API ACTIVE</span>
         </div>
       </div>
     </div>
