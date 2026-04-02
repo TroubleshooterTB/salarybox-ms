@@ -178,21 +178,31 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
         }
       }
 
-      // 4. Insert attendance record
-      const { error: insertError } = await supabase
-        .from('attendance')
-        .insert({
-          user_id: session.user.id,
-          type: type,
-          latitude: location.lat,
-          longitude: location.lng,
-          address_string: addressString,
-          selfie_url: selfieUrl,
-          status: status,
-          branch: userBranch || (nearestBranch?.name || 'Main')
-        });
+      // 4. Server-side Punch Handover (Bypasses RLS)
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession) throw new Error('Session expired');
 
-      if (insertError) throw insertError;
+      const punchRes = await fetch('/api/punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: currentSession.access_token,
+          punchData: {
+            type: type,
+            latitude: location.lat,
+            longitude: location.lng,
+            address_string: addressString,
+            selfie_url: selfieUrl,
+            status: status,
+            branch: userBranch || (nearestBranch?.name || 'Main')
+          }
+        })
+      });
+
+      const resultData = await punchRes.json();
+      if (!punchRes.ok) {
+        throw new Error(resultData.error || 'Server-side punch failed');
+      }
 
       setSuccess(true);
       setTimeout(() => { onBack(); }, 2500);
