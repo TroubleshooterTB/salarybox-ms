@@ -328,8 +328,8 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
           </motion.p>
         )}
         
-        <div className="absolute bottom-2 right-4 opacity-20 pointer-events-none">
-          <span className="text-[8px] font-mono tracking-tighter">APP STABILIZED API-PUNCH V2.2</span>
+        <div className="absolute bottom-4 right-4 opacity-50 pointer-events-none z-50">
+          <span className="text-[10px] font-mono tracking-widest text-white/40 uppercase">V2.2 SERVER-API ACTIVE</span>
         </div>
       </div>
     </div>
