@@ -26,12 +26,11 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
   const webcamRef = useRef<Webcam>(null);
   
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [nearestBranch, setNearestBranch] = useState<{name: string, distance: number, radius: number, geofence_enabled: boolean} | null>(null);
-  const [allowRemotePunch, setAllowRemotePunch] = useState(false);
   const [locating, setLocating] = useState(true);
   const [geoError, setGeoError] = useState('');
+  const [userBranch, setUserBranch] = useState<string | null>(null);
   
-  const [loading, setLoading] = useState(false);
+  const [loadingType, setLoadingType] = useState<'In' | 'Out' | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -42,11 +41,14 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
       
       // 1. Fetch user profile and dynamic branches
       const [{ data: profile }, { data: bs }] = await Promise.all([
-        supabase.from('profiles').select('allow_remote_punch').eq('id', session.user.id).single(),
+        supabase.from('profiles').select('allow_remote_punch, branch').eq('id', session.user.id).single(),
         supabase.from('branches').select('*').eq('is_active', true)
       ]);
       
-      if (profile) setAllowRemotePunch(profile.allow_remote_punch);
+      if (profile) {
+        setAllowRemotePunch(profile.allow_remote_punch);
+        setUserBranch(profile.branch);
+      }
       const loadedBranches = bs || [];
 
       // 2. Start GPS tracker
@@ -111,12 +113,10 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     // 2. Branch has geofencing disabled
     const canBypass = allowRemotePunch || (nearestBranch && !nearestBranch.geofence_enabled);
 
-    if (!canBypass && nearestBranch && nearestBranch.distance > nearestBranch.radius) {
-      alert(`PUNCH REJECTED: You are ${Math.round(nearestBranch.distance)}m away from ${nearestBranch.name}. Must be within ${nearestBranch.radius}m.`);
       return;
     }
 
-    setLoading(true);
+    setLoadingType(type);
     try {
       // 1. Reverse geocode the location for human-readable address
       let addressString = `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`;
@@ -184,7 +184,8 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
           longitude: location.lng,
           address_string: addressString,
           selfie_url: publicUrlData.publicUrl,
-          status: status
+          status: status,
+          branch: userBranch || (nearestBranch?.name || 'Main')
         });
 
       if (insertError) throw insertError;
@@ -196,9 +197,9 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
       console.error(err);
       alert('Error during punch: ' + err.message);
     } finally {
-      if (!success) setLoading(false);
+      if (!success) setLoadingType(null);
     }
-  }, [location, nearestBranch, session, success, onBack, allowRemotePunch]);
+  }, [location, nearestBranch, session, success, onBack, allowRemotePunch, userBranch]);
 
   const isViolation = !allowRemotePunch && nearestBranch && nearestBranch.geofence_enabled && nearestBranch.distance > nearestBranch.radius;
 
@@ -262,7 +263,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
               <p className="text-[10px] uppercase tracking-wider font-bold opacity-70 mb-0.5">Nearest Branch Geofence</p>
               <h3 className="text-lg font-bold leading-none">{nearestBranch.name}</h3>
               <p className={`text-sm mt-1 font-semibold ${isViolation ? 'text-red-400' : 'text-brand-400'}`}>
-                {Math.round(nearestBranch.distance)}m away {isViolation ? '(Out of Range)' : '(In Range)'}
+                {allowRemotePunch ? 'Remote Mode Active' : `${Math.round(nearestBranch.distance)}m away ${isViolation ? '(Out of Range)' : '(In Range)'}`}
               </p>
             </div>
           </div>
@@ -270,24 +271,24 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
 
         <div className="grid grid-cols-2 gap-4 mt-6">
           <button
-            disabled={loading || locating || isViolation || !!geoError}
+            disabled={loadingType !== null || locating || isViolation || !!geoError}
             onClick={() => handlePunch('In')}
             className={`py-4 rounded-2xl font-bold flex flex-col items-center justify-center space-y-1 transition-all shadow-lg
               ${isViolation || locating ? 'bg-slate-800 text-slate-500' : 'bg-brand-500 text-white hover:bg-brand-400 hover:-translate-y-1 hover:shadow-brand-500/30'}
             `}
           >
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
+            {loadingType === 'In' ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
             <span className="text-sm uppercase tracking-wide">Punch IN</span>
           </button>
           
           <button
-            disabled={loading || locating || isViolation || !!geoError}
+            disabled={loadingType !== null || locating || isViolation || !!geoError}
             onClick={() => handlePunch('Out')}
             className={`py-4 rounded-2xl font-bold flex flex-col items-center justify-center space-y-1 transition-all shadow-lg
               ${isViolation || locating ? 'bg-slate-800 text-slate-500' : 'bg-rose-500 text-white hover:bg-rose-400 hover:-translate-y-1 hover:shadow-rose-500/30'}
             `}
           >
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
+            {loadingType === 'Out' ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
             <span className="text-sm uppercase tracking-wide">Punch OUT</span>
           </button>
         </div>
