@@ -106,23 +106,39 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
   }, [session]);
 
   const handlePunch = useCallback(async (type: 'In' | 'Out') => {
-    if (!webcamRef.current) return;
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc || !location || !session) return;
-
-    // Bypass conditions: 
-    // 1. Profile allows remote/field punch
-    // 2. Branch has geofencing disabled
-    const canBypass = allowRemotePunch || (nearestBranch && !nearestBranch.geofence_enabled);
-
-    if (!canBypass && nearestBranch && nearestBranch.distance > nearestBranch.radius) {
-      alert(`PUNCH REJECTED: You are ${Math.round(nearestBranch.distance)}m away from ${nearestBranch.name}. Must be within ${nearestBranch.radius}m.`);
+    if (!location || !session) {
+      alert('Location or Session not ready. Please wait a moment.');
       return;
     }
 
     setLoadingType(type);
     try {
-      // 1. Reverse geocode the location
+      let selfieUrl = null;
+
+      // 1. Mandatory Selfie for Field Staff Only
+      if (allowRemotePunch) {
+        if (!webcamRef.current) throw new Error('Webcam not ready');
+        const imageSrc = webcamRef.current.getScreenshot();
+        if (!imageSrc) throw new Error('Failed to capture selfie');
+
+        const res = await fetch(imageSrc);
+        const blob = await res.blob();
+        const fileName = `${session.user.id}_${Date.now()}.jpg`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('attendance-photos')
+          .upload(fileName, blob, { contentType: 'image/jpeg' });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('attendance-photos')
+          .getPublicUrl(fileName);
+        
+        selfieUrl = publicUrlData.publicUrl;
+      }
+
+      // 2. Reverse geocode location (Only if necessary or fast)
       let addressString = `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`;
       try {
         const geoRes = await fetch(
@@ -140,21 +156,6 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
       } catch {
         // Fallback to lat/lng
       }
-
-      // 2. Upload selfie
-      const res = await fetch(imageSrc);
-      const blob = await res.blob();
-      const fileName = `${session.user.id}_${Date.now()}.jpg`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('attendance-photos')
-        .upload(fileName, blob, { contentType: 'image/jpeg' });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('attendance-photos')
-        .getPublicUrl(fileName);
 
       // 3. Auto half-day check
       let status = 'Present';
@@ -186,7 +187,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
           latitude: location.lat,
           longitude: location.lng,
           address_string: addressString,
-          selfie_url: publicUrlData.publicUrl,
+          selfie_url: selfieUrl,
           status: status,
           branch: userBranch || (nearestBranch?.name || 'Main')
         });
@@ -228,21 +229,36 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="flex-1 relative bg-black pt-16 flex items-center justify-center overflow-hidden">
-        <Webcam
-          audio={false}
-          ref={webcamRef}
-          screenshotFormat="image/jpeg"
-          videoConstraints={{ facingMode: "user" }}
-          className="w-full h-full object-cover"
-        />
-        
-        <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-          <motion.div 
-            animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.6, 0.3] }} 
-            transition={{ repeat: Infinity, duration: 2 }}
-            className="w-64 h-64 border-[3px] border-white/30 rounded-full"
-          />
-        </div>
+        {allowRemotePunch ? (
+          <>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{ facingMode: "user" }}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+              <motion.div 
+                animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.6, 0.3] }} 
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="w-64 h-64 border-[3px] border-white/30 rounded-full"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center space-y-6 px-8 text-center">
+            <div className="w-24 h-24 bg-brand-500/10 rounded-full flex items-center justify-center border border-brand-500/20">
+              <MapPin className="w-10 h-10 text-brand-500" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Geo-Location Locked</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Branch authentication verified. You can now punch in without a selfie.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-slate-900 p-6 rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20 pb-10 border-t border-white/5">
