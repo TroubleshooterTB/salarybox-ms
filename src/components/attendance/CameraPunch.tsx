@@ -26,9 +26,11 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
   const webcamRef = useRef<Webcam>(null);
   
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [nearestBranch, setNearestBranch] = useState<{name: string, distance: number, radius: number, geofence_enabled: boolean} | null>(null);
+  const [allowRemotePunch, setAllowRemotePunch] = useState(false);
+  const [userBranch, setUserBranch] = useState<string | null>(null);
   const [locating, setLocating] = useState(true);
   const [geoError, setGeoError] = useState('');
-  const [userBranch, setUserBranch] = useState<string | null>(null);
   
   const [loadingType, setLoadingType] = useState<'In' | 'Out' | null>(null);
   const [success, setSuccess] = useState(false);
@@ -101,7 +103,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
     };
-  }, []);
+  }, [session]);
 
   const handlePunch = useCallback(async (type: 'In' | 'Out') => {
     if (!webcamRef.current) return;
@@ -113,12 +115,14 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     // 2. Branch has geofencing disabled
     const canBypass = allowRemotePunch || (nearestBranch && !nearestBranch.geofence_enabled);
 
+    if (!canBypass && nearestBranch && nearestBranch.distance > nearestBranch.radius) {
+      alert(`PUNCH REJECTED: You are ${Math.round(nearestBranch.distance)}m away from ${nearestBranch.name}. Must be within ${nearestBranch.radius}m.`);
       return;
     }
 
     setLoadingType(type);
     try {
-      // 1. Reverse geocode the location for human-readable address
+      // 1. Reverse geocode the location
       let addressString = `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`;
       try {
         const geoRes = await fetch(
@@ -128,14 +132,13 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
         if (geoRes.ok) {
           const geoData = await geoRes.json();
           if (geoData.display_name) {
-            // Trim to road + suburb + city for brevity
             const a = geoData.address;
             const parts = [a.road, a.suburb, a.city || a.town || a.village].filter(Boolean);
             addressString = parts.join(', ') || geoData.display_name.split(',').slice(0, 3).join(',').trim();
           }
         }
       } catch {
-        // Geocoding failure is non-fatal, use lat/lng fallback
+        // Fallback to lat/lng
       }
 
       // 2. Upload selfie
@@ -153,7 +156,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
         .from('attendance-photos')
         .getPublicUrl(fileName);
 
-      // 3. Auto half-day check on OUT punch
+      // 3. Auto half-day check
       let status = 'Present';
       if (type === 'Out') {
         const startOfDay = new Date();
@@ -174,7 +177,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
         }
       }
 
-      // 4. Insert attendance record with real address
+      // 4. Insert attendance record
       const { error: insertError } = await supabase
         .from('attendance')
         .insert({
@@ -210,7 +213,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
           <CheckCircle2 className="w-16 h-16 text-white" />
         </motion.div>
         <h2 className="text-3xl font-bold mb-2">Punch Successful!</h2>
-        <p className="text-emerald-200">Your attendance has been automatically recorded.</p>
+        <p className="text-emerald-200">Your attendance has been recorded.</p>
       </div>
     );
   }
