@@ -181,7 +181,7 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
                 <div 
                   key={day} 
                   onDoubleClick={() => {
-                    if (data?.raw?.[0] && (userRole === 'Admin' || userRole === 'Super Admin')) {
+                    if (data?.raw?.[0] && (userRole !== 'Employee' && userRole !== null)) {
                         setEditingPunch(data.raw[0]);
                     }
                   }}

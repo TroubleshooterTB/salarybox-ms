@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
   User, Clock, 
@@ -32,7 +32,7 @@ const menuItems = [
 
 export default function StaffDashboard() {
   const { session, userRole } = useStore();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [todayPunches, setTodayPunches] = useState<any[]>([]);
 
@@ -117,7 +117,7 @@ export default function StaffDashboard() {
             {(userRole && userRole !== 'Employee' || session?.user?.email?.toLowerCase().startsWith('admin')) && (
               <motion.button 
                 whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/admin')}
+                onClick={() => router.push('/admin')}
                 className="px-4 py-2 bg-gradient-to-tr from-brand-600 to-cyan-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/20 hover:brightness-110 transition shrink-0"
               >
                 Admin Panel

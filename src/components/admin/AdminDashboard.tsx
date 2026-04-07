@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../../lib/supabase';
@@ -48,7 +48,7 @@ const createSelfieIcon = (url: string) => L.divIcon({
 });
 
 export default function AdminDashboard() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
   const { userRole, userProfile } = useStore();
   const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'branches'|'leaves'|'audit'|'payroll'>('daily');
@@ -165,7 +165,7 @@ export default function AdminDashboard() {
         </nav>
 
         <div className="p-6 border-t border-slate-50 space-y-2">
-          <button onClick={() => navigate('/')} className="w-full py-3 text-slate-400 hover:text-slate-700 font-bold text-xs transition text-center">
+          <button onClick={() => router.push('/')} className="w-full py-3 text-slate-400 hover:text-slate-700 font-bold text-xs transition text-center">
             Return to App
           </button>
           <div className="flex items-center space-x-3 pr-4">
