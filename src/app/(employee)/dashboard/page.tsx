@@ -151,7 +151,7 @@ export default function EmployeeDashboard() {
             })}
           </div>
             <div className="mt-8 mb-10 text-center opacity-30 select-none">
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white">Minimal Stroke v1.1.0 • April 07, 2026</p>
+          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white">Minimal Stroke v1.1.1 • April 07, 2026</p>
         </div>
     </div>
     </div>
