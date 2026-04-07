@@ -1,4 +1,6 @@
-const withPWA = require('next-pwa')({
+import withPWAFunc from 'next-pwa';
+
+const withPWA = withPWAFunc({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development',
   register: true,
@@ -10,8 +12,8 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   images: {
-    unoptimized: true, // For PWA/Static compatibility if needed
+    unoptimized: true, 
   },
 };
 
-module.exports = withPWA(nextConfig);
+export default withPWA(nextConfig);
