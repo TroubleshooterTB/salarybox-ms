@@ -12,6 +12,8 @@ export default function AdminSettings() {
   const [formData, setFormData] = useState({
     name: '', latitude: '', longitude: '', radius_meters: '100'
   });
+  const [globalRadius, setGlobalRadius] = useState(150);
+  const [isUpdatingGlobal, setIsUpdatingGlobal] = useState(false);
 
   const fetchBranches = async () => {
     setLoading(true);
@@ -20,7 +22,15 @@ export default function AdminSettings() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchBranches(); }, []);
+  const fetchSettings = async () => {
+    const { data } = await supabase.from('company_settings').select('global_geofence_radius').eq('id', 1).single();
+    if (data) setGlobalRadius(data.global_geofence_radius);
+  }
+
+  useEffect(() => { 
+    fetchBranches(); 
+    fetchSettings();
+  }, []);
 
   const handleOpenModal = (branch?: any) => {
     if (branch) {
@@ -69,6 +79,14 @@ export default function AdminSettings() {
       await supabase.from('branches').delete().eq('id', id);
       fetchBranches();
     }
+  };
+
+  const handleUpdateGlobalRadius = async (val: number) => {
+    setGlobalRadius(val);
+    setIsUpdatingGlobal(true);
+    const { error } = await supabase.from('company_settings').update({ global_geofence_radius: val }).eq('id', 1);
+    if (error) alert('Error updating global radius: ' + error.message);
+    setIsUpdatingGlobal(false);
   };
 
   return (
@@ -149,7 +167,7 @@ export default function AdminSettings() {
                   WHERE email = 'employee_email@minimalstroke.com';
                 </code>
                 <a 
-                  href={`https://supabase.com/dashboard/project/${(import.meta.env.VITE_SUPABASE_URL || '').split('.')[0].split('//')[1] || 'default'}/sql`} 
+                  href={`https://supabase.com/dashboard/project/${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').split('.')[0].split('//')[1] || 'default'}/sql`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="inline-flex items-center space-x-2 text-xs font-black text-brand-400 hover:text-brand-300 transition uppercase tracking-widest"
@@ -160,15 +178,30 @@ export default function AdminSettings() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-3xl border border-white/5 flex flex-col justify-center text-center">
-              <p className="text-sm font-bold text-slate-300 mb-6">Need to change your own Admin Passcode?</p>
-              <button 
-                onClick={() => window.location.href = '/'}
-                className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-black rounded-2xl text-xs uppercase tracking-widest border border-white/10 transition-all"
-              >
-                Go to "My Profile" on Mobile App
-              </button>
-              <p className="mt-4 text-[10px] font-bold text-slate-500">Note: Profile & password settings are managed via the staff-facing employee portal.</p>
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-3xl border border-white/5 flex flex-col justify-center">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Global Geofence Calibration</p>
+                {isUpdatingGlobal && <Loader2 className="w-4 h-4 animate-spin text-brand-500" />}
+              </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                   <span className="text-4xl font-black text-white">{globalRadius}<span className="text-sm font-bold text-slate-500 ml-1">meters</span></span>
+                   <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Active System Override</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="50" 
+                  max="500" 
+                  step="10" 
+                  value={globalRadius} 
+                  onChange={(e) => handleUpdateGlobalRadius(parseInt(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-500"
+                />
+                <div className="flex justify-between text-[8px] font-black uppercase text-slate-600 tracking-tighter">
+                   <span>High Precision (50m)</span>
+                   <span>Massive Campus (500m)</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

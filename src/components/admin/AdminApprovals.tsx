@@ -26,7 +26,18 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     }
 
     const { data } = await query;
-    if (data) setLeaves(data);
+    if (data) {
+      // Fetch clashes for each pending leave
+      const leavesWithClashes = await Promise.all(data.map(async (l: any) => {
+        const { data: clashCount } = await supabase.rpc('check_leave_clashes', {
+          target_start_date: l.start_date,
+          target_end_date: l.end_date,
+          target_dept: l.profiles?.department
+        });
+        return { ...l, clash_count: clashCount || 0 };
+      }));
+      setLeaves(leavesWithClashes);
+    }
     setLoading(false);
   };
 
@@ -107,8 +118,32 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     else fetchBalances();
   }, [activeTab, selectedBranch]);
 
-  const handleLeaveAction = async (id: string, newStatus: 'Approved' | 'Rejected') => {
-    const { error } = await supabase.from('leave_requests').update({ status: newStatus }).eq('id', id);
+  const handleLeaveAction = async (leave: any, newStatus: 'Approved' | 'Rejected') => {
+    const { error } = await supabase.from('leave_requests').update({ status: newStatus }).eq('id', leave.id);
+    
+    if (!error && newStatus === 'Approved') {
+        // 2. Deduct from Leave Quotas
+        const start = new Date(leave.start_date);
+        const end = new Date(leave.end_date);
+        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        const quotaType = leave.leave_type === 'Statutory' ? 'pl_used' : leave.leave_type === 'Medical' ? 'sl_used' : 'cl_used';
+        
+        // This assumes a schema where leave_quotas exists and has these columns.
+        // We use an incrementing update.
+        const { error: quotaError } = await supabase.rpc('increment_leave_usage', {
+            target_user_id: leave.user_id,
+            target_year: start.getFullYear(),
+            column_name: quotaType,
+            increment_by: days
+        });
+        
+        if (quotaError) {
+            console.error('Quota deduction failed:', quotaError);
+            alert('Leave approved but quota deduction failed. Please check manually.');
+        }
+    }
+    
     if (!error) fetchLeaves();
   };
 
@@ -212,14 +247,20 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                         <div className="flex items-center space-x-2">
                            <span className="px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-lg border border-amber-100">{l.leave_type}</span>
                            <p className="text-sm font-bold text-slate-600 line-clamp-1">{l.reason}</p>
+                           {l.clash_count > 0 && (
+                             <span className="flex items-center space-x-1 px-2 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-black uppercase rounded-md border border-rose-100 animate-pulse">
+                               <XCircle className="w-3 h-3" />
+                               <span>⚠️ {l.clash_count} Others on leave</span>
+                             </span>
+                           )}
                         </div>
                       </td>
                       <td className="px-8 py-6">
                         <p className="text-xs font-black text-slate-700">{new Date(l.start_date).toLocaleDateString()} {'->'} {new Date(l.end_date).toLocaleDateString()}</p>
                       </td>
                       <td className="px-8 py-6 text-right space-x-3">
-                        <button onClick={() => handleLeaveAction(l.id, 'Rejected')} className="p-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition"><XCircle className="w-6 h-6" /></button>
-                        <button onClick={() => handleLeaveAction(l.id, 'Approved')} className="p-3 text-emerald-500 hover:bg-emerald-50 rounded-2xl transition"><CheckCircle2 className="w-6 h-6" /></button>
+                        <button onClick={() => handleLeaveAction(l, 'Rejected')} className="p-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition"><XCircle className="w-6 h-6" /></button>
+                        <button onClick={() => handleLeaveAction(l, 'Approved')} className="p-3 text-emerald-500 hover:bg-emerald-50 rounded-2xl transition"><CheckCircle2 className="w-6 h-6" /></button>
                       </td>
                     </tr>
                   ))}

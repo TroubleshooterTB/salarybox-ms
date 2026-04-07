@@ -5,10 +5,13 @@ import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight } from 'luci
 import { motion } from 'framer-motion';
 
 export default function AttendanceCalendar({ onBack, userId, userName }: { onBack: () => void, userId?: string, userName?: string }) {
-  const { session } = useStore();
+  const { session, userRole } = useStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingPunch, setEditingPunch] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reason, setReason] = useState('');
 
   const targetUserId = userId || session?.user?.id;
 
@@ -42,6 +45,37 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const padding = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+
+  const handleOverride = async () => {
+    if (!reason) return alert('Reason for change is required');
+    if (!window.confirm('Are you sure you want to override this attendance record?')) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/attendance-override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session?.access_token,
+          attendanceId: editingPunch.id,
+          newStatus: editingPunch.status,
+          newTimestamp: editingPunch.timestamp,
+          reason
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert('Override successful!');
+      setEditingPunch(null);
+      setReason('');
+      // Trigger refresh
+      setCurrentDate(new Date(currentDate));
+    } catch (err: any) {
+      alert('Override failed: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const getDayData = (day: number) => {
     const dayPunches = attendance.filter(a => new Date(a.timestamp).getDate() === day);
@@ -146,6 +180,11 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
               return (
                 <div 
                   key={day} 
+                  onDoubleClick={() => {
+                    if (data?.raw?.[0] && (userRole === 'Admin' || userRole === 'Super Admin')) {
+                        setEditingPunch(data.raw[0]);
+                    }
+                  }}
                   className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-transform active:scale-95 ${
                     config ? config.color : 'bg-slate-100'
                   }`}
@@ -162,6 +201,58 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
               );
             })}
           </div>
+        )}
+
+        {editingPunch && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                    <div className="p-6 border-b border-slate-100 bg-slate-50">
+                        <h3 className="text-lg font-bold text-slate-800">Attendance Override</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Editing record for {new Date(editingPunch.timestamp).toLocaleDateString()}</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time Override</label>
+                            <input 
+                                type="datetime-local" 
+                                value={new Date(new Date(editingPunch.timestamp).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} 
+                                onChange={(e) => setEditingPunch({ ...editingPunch, timestamp: new Date(e.target.value).toISOString() })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" 
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">New Status</label>
+                            <select 
+                                value={editingPunch.status} 
+                                onChange={(e) => setEditingPunch({ ...editingPunch, status: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700"
+                            >
+                                <option value="Present">Present</option>
+                                <option value="Absent">Absent</option>
+                                <option value="Half Day">Half Day</option>
+                                <option value="Late">Late</option>
+                                <option value="Paid Leave">Paid Leave</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reason for Change</label>
+                            <textarea 
+                                required
+                                value={reason} 
+                                onChange={(e) => setReason(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 h-24"
+                                placeholder="e.g. Employee forgot to punch out due to system outage"
+                            />
+                        </div>
+                        <div className="flex space-x-2 pt-2">
+                            <button onClick={() => setEditingPunch(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+                            <button onClick={handleOverride} disabled={isSubmitting} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition disabled:opacity-50">
+                                {isSubmitting ? 'Saving...' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         )}
       </div>
     </motion.div>

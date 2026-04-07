@@ -114,7 +114,37 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       allow_remote_punch: profile.allow_remote_punch || false,
       employee_categories: profile.employee_categories || []
     });
+    setNewPass('');
     setShowModal(true);
+  };
+
+  const [newPass, setNewPass] = useState('');
+
+  const handleResetPassword = async () => {
+    if (!newPass) return alert('Please enter a new password');
+    if (!window.confirm(`Are you sure you want to force reset the password for ${formData.full_name}?`)) return;
+
+    setIsSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/admin-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session?.access_token,
+          userId: editingId,
+          newPassword: newPass
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert('Password reset successful!');
+      setNewPass('');
+    } catch (err: any) {
+      alert('Reset failed: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -763,24 +793,29 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
               {/* Passcode Reset Link (Existing Employees) */}
               {editingId && (
-                <div className="bg-rose-50 border border-rose-100 p-6 rounded-3xl mt-8">
-                  <div className="flex items-center justify-between">
+                <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl mt-8">
+                  <div className="flex flex-col space-y-4">
                     <div>
-                      <h5 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-1">Security Reset</h5>
-                      <p className="text-xs font-bold text-slate-600">Send a password reset link to the employee's system email.</p>
+                      <h5 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-1">Administrative Password Override</h5>
+                      <p className="text-xs font-bold text-slate-500">Instantly set a new password for this employee without email verification.</p>
                     </div>
-                    <button 
-                      type="button"
-                      onClick={async () => {
-                        const email = `${formData.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
-                        const { error } = await supabase.auth.resetPasswordForEmail(email);
-                        if (error) alert(error.message);
-                        else alert('Reset link sent to ' + email);
-                      }}
-                      className="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-rose-500/20 hover:bg-rose-700 transition"
-                    >
-                      Reset Password
-                    </button>
+                    <div className="flex space-x-2">
+                        <input 
+                            type="text" 
+                            value={newPass}
+                            onChange={(e) => setNewPass(e.target.value)}
+                            placeholder="Enter New Password..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700" 
+                        />
+                        <button 
+                            type="button"
+                            onClick={handleResetPassword}
+                            disabled={isSubmitting}
+                            className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-black transition disabled:opacity-50"
+                        >
+                            Force Reset
+                        </button>
+                    </div>
                   </div>
                 </div>
               )}
