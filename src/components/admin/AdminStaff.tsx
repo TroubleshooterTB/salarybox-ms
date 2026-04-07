@@ -5,10 +5,12 @@ import { calculatePayroll } from '../../lib/payrollEngine';
 import PayslipView from './PayslipView';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 import { useLanguage } from '../../lib/i18n';
+import useStore from '../../store';
 
 // Server-side onboarding will handle all administrative auth actions
 
 export default function AdminStaff({ selectedBranch }: { selectedBranch: string }) {
+  const { userRole } = useStore();
   const APP_VERSION = '1.0.1-FORCE-REFRESH'; // Incrementing and adding comment to bust PWA cache
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +18,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [branchesConfig, setBranchesConfig] = useState<any[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('All');
   
   // Adjustments State
   const [showAdjustmentsModal, setShowAdjustmentsModal] = useState(false);
@@ -49,7 +52,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     pf_enabled: false, esi_enabled: false,
     bank_name: '', bank_ifsc: '', salary_type: 'Monthly',
     allow_remote_punch: false,
-    employee_category: ''
+    employee_categories: [] as string[]
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -64,12 +67,18 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       query = query.eq('branch', selectedBranch);
     }
 
+    if (categoryFilter === 'Q1' || categoryFilter === 'Q2') {
+      query = query.contains('employee_categories', [categoryFilter]);
+    } else if (categoryFilter === 'Unassigned') {
+      query = query.or('employee_categories.is.null,employee_categories.eq.{}');
+    }
+
     const { data } = await query;
     if (data) setStaff(data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [selectedBranch]);
+  useEffect(() => { fetchData(); }, [selectedBranch, categoryFilter]);
 
   const openAdd = () => {
     setEditingId(null);
@@ -103,7 +112,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       bank_ifsc: profile.bank_ifsc || '',
       salary_type: profile.salary_type || 'Monthly',
       allow_remote_punch: profile.allow_remote_punch || false,
-      employee_category: profile.employee_category || ''
+      employee_categories: profile.employee_categories || []
     });
     setShowModal(true);
   };
@@ -136,7 +145,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         bank_ifsc: formData.bank_ifsc,
         salary_type: formData.salary_type,
         allow_remote_punch: formData.allow_remote_punch,
-        employee_category: formData.employee_category || null,
+        employee_categories: formData.employee_categories || [],
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
@@ -433,9 +442,25 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       </div>
 
       <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center space-x-3">
-          <Search className="w-5 h-5 text-slate-400 ml-4" />
-          <input type="text" placeholder="Search employees by ID or Name..." className="bg-transparent border-none outline-none text-sm font-semibold text-slate-700 w-full placeholder-slate-400" />
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+           <div className="flex items-center space-x-3 grow">
+            <Search className="w-5 h-5 text-slate-400 ml-4" />
+            <input type="text" placeholder="Search employees by ID or Name..." className="bg-transparent border-none outline-none text-sm font-semibold text-slate-700 w-full placeholder-slate-400" />
+           </div>
+           
+           <div className="flex items-center space-x-2 mr-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter:</span>
+              <select 
+                value={categoryFilter} 
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 outline-none focus:border-brand-500 transition"
+              >
+                <option value="All">All Categories</option>
+                <option value="Q1">Only Q1</option>
+                <option value="Q2">Only Q2</option>
+                <option value="Unassigned">Unassigned</option>
+              </select>
+           </div>
         </div>
         <div className="overflow-x-auto">
         <table className="w-full text-left whitespace-nowrap">
@@ -459,11 +484,13 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                     <div className={`w-2 h-10 rounded-full ${s.is_active ? 'bg-brand-500' : 'bg-slate-300'}`}></div>
                     <div>
                       <p className="font-bold text-slate-800">{s.full_name}</p>
-                      {s.employee_category && (
-                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${s.employee_category === 'Q1' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
-                          {s.employee_category}
-                        </span>
-                      )}
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {s.employee_categories?.map((cat: string) => (
+                          <span key={cat} className={`text-[7px] font-black px-1 py-0.5 rounded uppercase tracking-tighter ${cat === 'Q1' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -664,14 +691,43 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                       <option value="Purchase">Purchase</option>
                     </select>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Category</label>
-                    <select value={formData.employee_category} onChange={e=>setFormData({...formData, employee_category: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 appearance-none">
-                      <option value="">None / Unassigned</option>
-                      <option value="Q1">Q1</option>
-                      <option value="Q2">Q2</option>
-                    </select>
-                  </div>
+                  {(userRole as any === 'Admin' || userRole === 'Super Admin') && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Categories</label>
+                      <div className="flex items-center space-x-4 pt-2">
+                        <label className="flex items-center space-x-2 cursor-pointer group">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.employee_categories?.includes('Q1')} 
+                            onChange={e => {
+                              const cats = formData.employee_categories || [];
+                              setFormData({
+                                ...formData, 
+                                employee_categories: e.target.checked ? [...cats, 'Q1'] : cats.filter(c => c !== 'Q1')
+                              });
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500" 
+                          />
+                          <span className="text-xs font-bold text-slate-600 group-hover:text-slate-900 transition">Q1</span>
+                        </label>
+                        <label className="flex items-center space-x-2 cursor-pointer group">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.employee_categories?.includes('Q2')} 
+                            onChange={e => {
+                              const cats = formData.employee_categories || [];
+                              setFormData({
+                                ...formData, 
+                                employee_categories: e.target.checked ? [...cats, 'Q2'] : cats.filter(c => c !== 'Q2')
+                              });
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-purple-500 focus:ring-purple-500" 
+                          />
+                          <span className="text-xs font-bold text-slate-600 group-hover:text-slate-900 transition">Q2</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
