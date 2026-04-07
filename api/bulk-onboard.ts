@@ -75,6 +75,7 @@ export default async function handler(req: any, res: any) {
         esi_enabled: staff.esi_enabled || false,
         professional_tax_applicable: staff.professional_tax_applicable !== false,
         allow_remote_punch: staff.allow_remote_punch || false,
+        employee_category: staff.employee_category || null,
         needs_password_reset: true
       });
 

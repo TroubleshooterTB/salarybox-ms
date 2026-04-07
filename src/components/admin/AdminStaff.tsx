@@ -48,7 +48,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     pan_no: '', uan_no: '', pf_no: '', esi_no: '',
     pf_enabled: false, esi_enabled: false,
     bank_name: '', bank_ifsc: '', salary_type: 'Monthly',
-    allow_remote_punch: false
+    allow_remote_punch: false,
+    employee_category: ''
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -101,7 +102,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       bank_name: profile.bank_name || '',
       bank_ifsc: profile.bank_ifsc || '',
       salary_type: profile.salary_type || 'Monthly',
-      allow_remote_punch: profile.allow_remote_punch || false
+      allow_remote_punch: profile.allow_remote_punch || false,
+      employee_category: profile.employee_category || ''
     });
     setShowModal(true);
   };
@@ -134,6 +136,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         bank_ifsc: formData.bank_ifsc,
         salary_type: formData.salary_type,
         allow_remote_punch: formData.allow_remote_punch,
+        employee_category: formData.employee_category || null,
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
@@ -454,7 +457,14 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                 <td className="px-6 py-4">
                   <div className="flex items-center space-x-3">
                     <div className={`w-2 h-10 rounded-full ${s.is_active ? 'bg-brand-500' : 'bg-slate-300'}`}></div>
-                    <p className="font-bold text-slate-800">{s.full_name}</p>
+                    <div>
+                      <p className="font-bold text-slate-800">{s.full_name}</p>
+                      {s.employee_category && (
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${s.employee_category === 'Q1' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {s.employee_category}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
                 <td className="px-6 py-4">
@@ -652,6 +662,14 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                       <option value="Digital Marketing">Digital Marketing</option>
                       <option value="Office Help Staff">Office Help Staff</option>
                       <option value="Purchase">Purchase</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Category</label>
+                    <select value={formData.employee_category} onChange={e=>setFormData({...formData, employee_category: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 appearance-none">
+                      <option value="">None / Unassigned</option>
+                      <option value="Q1">Q1</option>
+                      <option value="Q2">Q2</option>
                     </select>
                   </div>
                 </div>

@@ -134,7 +134,10 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     async function fetch() {
       if (!session) return;
-      const { data: p } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      const { data: p } = await supabase.from('profiles')
+        .select('id, full_name, employee_id, job_title, department, role, phone_number, joining_date, salary_type, branch, multiple_branches, profile_photo_url, ctc_amount, pf_enabled, esi_enabled, professional_tax_applicable, pan_no, uan_no, pf_no, esi_no, bank_name, bank_ifsc, bank_account_details, allow_remote_punch')
+        .eq('id', session.user.id)
+        .single();
       if (p) setProfile(p);
       setLoading(false);
     }
