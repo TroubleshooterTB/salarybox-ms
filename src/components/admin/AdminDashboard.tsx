@@ -176,7 +176,7 @@ export default function AdminDashboard() {
             </button>
           </div>
           <div className="px-4 py-2 bg-slate-50 rounded-lg text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 text-center border border-slate-100">
-            System v1.0.1 (Nuclear Cache-Buster Active)
+            System v1.1.0 • April 07, 2026
           </div>
         </div>
       </aside>
