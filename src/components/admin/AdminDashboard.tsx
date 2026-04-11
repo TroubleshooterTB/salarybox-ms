@@ -25,9 +25,13 @@ import NotificationBell from '../common/NotificationBell';
 import { useLanguage } from '../../lib/i18n';
 import useStore from '../../store';
 
-import iconMarkerURL from 'leaflet/dist/images/marker-icon.png';
-import iconRetinaURL from 'leaflet/dist/images/marker-icon-2x.png';
-import iconShadowURL from 'leaflet/dist/images/marker-shadow.png';
+import iconMarkerSrc from 'leaflet/dist/images/marker-icon.png';
+import iconRetinaSrc from 'leaflet/dist/images/marker-icon-2x.png';
+import iconShadowSrc from 'leaflet/dist/images/marker-shadow.png';
+
+const iconMarkerURL = typeof iconMarkerSrc === 'string' ? iconMarkerSrc : (iconMarkerSrc as any).src;
+const iconRetinaURL = typeof iconRetinaSrc === 'string' ? iconRetinaSrc : (iconRetinaSrc as any).src;
+const iconShadowURL = typeof iconShadowSrc === 'string' ? iconShadowSrc : (iconShadowSrc as any).src;
 
 const DefaultIcon = L.icon({
   iconUrl: iconMarkerURL,

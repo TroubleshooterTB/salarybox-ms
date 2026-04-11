@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight, Clock, MapPin, X, FileText } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-export default function AttendanceCalendar({ onBack, userId, userName }: { onBack: () => void, userId?: string, userName?: string }) {
+export default function AttendanceCalendar({ onBack, userId, userName, onRegularize }: { 
+  onBack: () => void, 
+  userId?: string, 
+  userName?: string,
+  onRegularize?: (date: string) => void
+}) {
   const { session, userRole } = useStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingPunch, setEditingPunch] = useState<any>(null);
+  const [selectedDayData, setSelectedDayData] = useState<{ day: number; punches: any[] } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reason, setReason] = useState('');
 
+  const isEmployee = userRole === 'Employee' || userRole === null;
   const targetUserId = userId || session?.user?.id;
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -37,7 +44,7 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
       setLoading(false);
     }
     fetchAttendance();
-  }, [session, currentDate]);
+  }, [session, currentDate, targetUserId]);
 
   const changeMonth = (delta: number) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + delta, 1));
@@ -68,7 +75,6 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
       alert('Override successful!');
       setEditingPunch(null);
       setReason('');
-      // Trigger refresh
       setCurrentDate(new Date(currentDate));
     } catch (err: any) {
       alert('Override failed: ' + err.message);
@@ -80,7 +86,6 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
   const getDayData = (day: number) => {
     const dayPunches = attendance.filter(a => new Date(a.timestamp).getDate() === day);
     if (dayPunches.length === 0) {
-      // Check if it's a weekend (Sunday = 0)
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       if (date.getDay() === 0) return { status: 'Week Off' };
       return null;
@@ -113,6 +118,19 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
     'Paid Leave': { color: 'bg-[#a855f7]', text: 'text-white' },
     'Week Off': { color: 'bg-[#94a3b8]', text: 'text-white' },
     'Holiday': { color: 'bg-[#64748b]', text: 'text-white' }
+  };
+
+  const formatTime = (ts: string) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatDate = (day: number) => new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+    .toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+
+  // Compute duration between In and Out pairs
+  const getDuration = (punches: any[]) => {
+    const inPunch = punches.find(p => p.type === 'In');
+    const outPunch = punches.find(p => p.type === 'Out');
+    if (!inPunch || !outPunch) return null;
+    const mins = Math.floor((new Date(outPunch.timestamp).getTime() - new Date(inPunch.timestamp).getTime()) / 60000);
+    return `${Math.floor(mins / 60)}h ${mins % 60}m`;
   };
 
   return (
@@ -158,6 +176,13 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
            <StatBox label="Week Off" count={stats.weekOff} border="border-l-4 border-l-[#94a3b8] bg-[#f8fafc]" />
         </div>
 
+        {/* Employee help text */}
+        {isEmployee && (
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center mb-4">
+            Tap a date to view details
+          </p>
+        )}
+
         {/* Days Header */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
@@ -176,18 +201,26 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
             {days.map(day => {
               const data = getDayData(day);
               const config = data ? statusMap[data.status] : null;
-              
+              const hasPunches = (data?.raw?.length ?? 0) > 0;
+
               return (
                 <div 
-                  key={day} 
-                  onDoubleClick={() => {
-                    if (data?.raw?.[0] && (userRole !== 'Employee' && userRole !== null)) {
-                        setEditingPunch(data.raw[0]);
+                  key={day}
+                  // Single click → Employee detail view
+                  onClick={() => {
+                    if (isEmployee && hasPunches) {
+                      setSelectedDayData({ day, punches: data?.raw ?? [] });
                     }
                   }}
-                  className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-transform active:scale-95 ${
+                  // Double click → Admin override
+                  onDoubleClick={() => {
+                    if (data?.raw?.[0] && !isEmployee) {
+                      setEditingPunch(data.raw[0]);
+                    }
+                  }}
+                  className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-transform active:scale-95 cursor-pointer ${
                     config ? config.color : 'bg-slate-100'
-                  }`}
+                  } ${isEmployee && hasPunches ? 'ring-2 ring-offset-1 ring-white/30' : ''}`}
                 >
                   <span className={`text-sm font-bold ${config ? config.text : 'text-slate-400'}`}>
                     {day < 10 ? `0${day}` : day}
@@ -203,6 +236,111 @@ export default function AttendanceCalendar({ onBack, userId, userName }: { onBac
           </div>
         )}
 
+        {/* ── Employee Day Detail Bottom Sheet ── */}
+        <AnimatePresence>
+          {isEmployee && selectedDayData && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-end"
+              onClick={() => setSelectedDayData(null)}
+            >
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-t-[2.5rem] w-full max-w-lg mx-auto p-6 pb-10 shadow-2xl"
+              >
+                {/* Sheet Handle */}
+                <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-6" />
+
+                {/* Header */}
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">{formatDate(selectedDayData.day)}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                      {selectedDayData.punches.length} punch record{selectedDayData.punches.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <button onClick={() => setSelectedDayData(null)} className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
+                    <X className="w-4 h-4 text-slate-500" />
+                  </button>
+                </div>
+
+                {/* Duration badge */}
+                {getDuration(selectedDayData.punches) && (
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 flex items-center space-x-3 mb-5">
+                    <Clock className="w-4 h-4 text-emerald-600" />
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Total Duration</p>
+                      <p className="text-base font-black text-emerald-700">{getDuration(selectedDayData.punches)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Punch Timeline */}
+                <div className="space-y-3 mb-6">
+                  {selectedDayData.punches.map((p, i) => (
+                    <div key={p.id || i} className={`flex items-start space-x-4 p-4 rounded-2xl border ${
+                      p.type === 'In' 
+                        ? 'bg-emerald-50 border-emerald-100' 
+                        : 'bg-rose-50 border-rose-100'
+                    }`}>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
+                        p.type === 'In' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                      }`}>
+                        {p.type === 'In' ? 'IN' : 'OUT'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-black text-slate-900">{formatTime(p.timestamp)}</p>
+                        {p.address_string ? (
+                          <div className="flex items-start space-x-1 mt-1">
+                            <MapPin className="w-3 h-3 text-slate-400 mt-0.5 shrink-0" />
+                            <p className="text-[10px] font-medium text-slate-500 leading-tight truncate">{p.address_string}</p>
+                          </div>
+                        ) : p.latitude ? (
+                          <div className="flex items-center space-x-1 mt-1">
+                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                            <p className="text-[10px] font-medium text-slate-500">{p.latitude?.toFixed(4)}, {p.longitude?.toFixed(4)}</p>
+                          </div>
+                        ) : null}
+                        <span className={`inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                          p.status === 'Present' ? 'bg-emerald-100 text-emerald-700' 
+                          : p.status === 'Half Day' ? 'bg-amber-100 text-amber-700'
+                          : 'bg-slate-100 text-slate-600'
+                        }`}>{p.status}</span>
+                      </div>
+                      {p.selfie_url && (
+                        <a href={p.selfie_url} target="_blank" rel="noreferrer" className="shrink-0">
+                          <img src={p.selfie_url} alt="Selfie" className="w-12 h-12 rounded-xl object-cover border-2 border-white shadow" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Regularization Button */}
+                <button
+                  onClick={() => {
+                    setSelectedDayData(null);
+                    const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day)
+                      .toISOString().split('T')[0];
+                    if (onRegularize) onRegularize(dateStr);
+                  }}
+                  className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl flex items-center justify-center space-x-3 active:scale-[0.98] transition text-xs uppercase tracking-widest"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>File Regularization Request</span>
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Admin Override Modal ── */}
         {editingPunch && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in duration-200">

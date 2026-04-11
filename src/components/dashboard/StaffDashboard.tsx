@@ -35,6 +35,7 @@ export default function StaffDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [todayPunches, setTodayPunches] = useState<any[]>([]);
+  const [correctionDate, setCorrectionDate] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     async function fetchToday() {
@@ -79,10 +80,13 @@ export default function StaffDashboard() {
     return <HolidayCalendar onBack={() => setActiveTab(null)} />;
   }
   if (activeTab === 'corrections') {
-    return <CorrectionRequest onBack={() => setActiveTab(null)} />;
+    return <CorrectionRequest onBack={() => { setActiveTab(null); setCorrectionDate(undefined); }} prefillDate={correctionDate} />;
   }
   if (activeTab === 'history') {
-    return <AttendanceCalendar onBack={() => setActiveTab(null)} />;
+    return <AttendanceCalendar 
+      onBack={() => setActiveTab(null)}
+      onRegularize={(date) => { setCorrectionDate(date); setActiveTab('corrections'); }}
+    />;
   }
   if (activeTab && !['attendance', 'leaves', 'loans', 'history', 'profile', 'holidays', 'corrections'].includes(activeTab)) {
     return (
@@ -138,18 +142,32 @@ export default function StaffDashboard() {
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl mt-2 mb-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
           
+          {(() => {
+            const hasPunches = todayPunches.length > 0;
+            const lastPunch = hasPunches ? todayPunches[todayPunches.length - 1] : null;
+            const shiftCompleted = hasPunches && lastPunch?.type === 'Out';
+            return (
           <div className="flex justify-between items-center mb-4 relative z-10">
             <div>
               <h3 className="text-lg font-black tracking-tight text-white mb-0.5">Today's Attendance</h3>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
             </div>
-            <button 
-              onClick={() => setActiveTab('attendance')}
-              className="bg-brand-500 text-white shadow-lg shadow-brand-500/30 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-brand-400 active:scale-95 transition flex items-center space-x-2"
-            >
-              <Clock className="w-4 h-4" /> <span>{todayPunches.length % 2 === 0 ? 'Punch IN' : 'Punch OUT'}</span>
-            </button>
+            {shiftCompleted ? (
+              <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/30 px-4 py-2 rounded-xl">
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400">Shift Completed</span>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setActiveTab('attendance')}
+                className="bg-brand-500 text-white shadow-lg shadow-brand-500/30 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-brand-400 active:scale-95 transition flex items-center space-x-2"
+              >
+                <Clock className="w-4 h-4" /> <span>{todayPunches.length % 2 === 0 ? 'Punch IN' : 'Punch OUT'}</span>
+              </button>
+            )}
           </div>
+            );
+          })()}
 
           <div className="space-y-3 relative z-10">
             {todayPunches.length === 0 ? (

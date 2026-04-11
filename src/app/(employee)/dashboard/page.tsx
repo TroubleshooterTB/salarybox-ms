@@ -98,13 +98,20 @@ export default function EmployeeDashboard() {
                 {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
               </p>
             </div>
-            <button 
-              onClick={() => setActiveTab('attendance')}
-              className="bg-sky-500 text-white shadow-lg shadow-sky-500/30 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-sky-400 active:scale-95 transition flex items-center space-x-2"
-            >
-              <Clock className="w-4 h-4" /> 
-              <span>{todayPunches.length % 2 === 0 ? 'Punch IN' : 'Punch OUT'}</span>
-            </button>
+            {todayPunches.length > 0 && todayPunches[todayPunches.length - 1]?.type === 'Out' ? (
+              <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/30 px-4 py-2 rounded-xl">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400">Shift Completed</span>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setActiveTab('attendance')}
+                className="bg-sky-500 text-white shadow-lg shadow-sky-500/30 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-sky-400 active:scale-95 transition flex items-center space-x-2"
+              >
+                <Clock className="w-4 h-4" /> 
+                <span>{todayPunches.length % 2 === 0 ? 'Punch IN' : 'Punch OUT'}</span>
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 relative z-10">

@@ -13,9 +13,9 @@ const nextConfig = {
   images: {
     unoptimized: true, 
   },
-  experimental: {
-    turbopack: {},
-  },
+  // Turbopack is default in Next.js 16 — no config needed.
+  // Empty turbopack key silences the webpack conflict warning.
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);

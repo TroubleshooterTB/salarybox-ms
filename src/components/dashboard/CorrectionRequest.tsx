@@ -6,9 +6,10 @@ import { useLanguage } from '../../lib/i18n';
 
 interface CorrectionRequestProps {
   onBack: () => void;
+  prefillDate?: string;
 }
 
-export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
+export default function CorrectionRequest({ onBack, prefillDate }: CorrectionRequestProps) {
   const { session, userProfile } = useStore();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ export default function CorrectionRequest({ onBack }: CorrectionRequestProps) {
   const [error, setError] = useState<string | null>(null);
   
   const [form, setForm] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: prefillDate || new Date().toISOString().split('T')[0],
     requested_punch_in: '09:00',
     requested_punch_out: '18:00',
     reason: '',
