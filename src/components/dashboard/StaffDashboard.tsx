@@ -210,6 +210,12 @@ export default function StaffDashboard() {
             })}
           </div>
         </div>
+        {/* Version Stamp */}
+        <div className="text-center pb-6 pt-2">
+          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600/40">
+            Version: v1.1.0 • Last Updated: Apr 11, 2026 12:48
+          </span>
+        </div>
       </div>
     </div>
   );
