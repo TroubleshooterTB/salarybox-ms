@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight, Clock, MapPin, X, FileText } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight, Clock, MapPin, X, FileText, Edit2, MessageSquare, Send, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AttendanceCalendar({ onBack, userId, userName, onRegularize }: { 
@@ -18,6 +18,9 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
   const [selectedDayData, setSelectedDayData] = useState<{ day: number; punches: any[] } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reason, setReason] = useState('');
+  const [dayNotes, setDayNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [isNoteLoading, setIsNoteLoading] = useState(false);
 
   const isEmployee = userRole === 'Employee' || userRole === null;
   const targetUserId = userId || session?.user?.id;
@@ -45,6 +48,48 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     }
     fetchAttendance();
   }, [session, currentDate, targetUserId]);
+
+  const fetchDayNotes = async (day: number) => {
+    if (!targetUserId || !session?.access_token) return;
+    setIsNoteLoading(true);
+    try {
+      const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toISOString().split('T')[0];
+      const res = await fetch(`/api/date-note?userId=${targetUserId}&date=${dateStr}`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      const data = await res.json();
+      setDayNotes(data.notes || []);
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+    } finally {
+      setIsNoteLoading(false);
+    }
+  };
+
+  const handleSaveNote = async (day: number) => {
+    if (!newNote.trim()) return;
+    setIsNoteLoading(true);
+    try {
+      const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toISOString().split('T')[0];
+      const res = await fetch('/api/date-note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session?.access_token,
+          userId: targetUserId,
+          date: dateStr,
+          note: newNote
+        })
+      });
+      if (!res.ok) throw new Error('Failed to save note');
+      setNewNote('');
+      fetchDayNotes(day);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsNoteLoading(false);
+    }
+  };
 
   const changeMonth = (delta: number) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + delta, 1));
@@ -206,21 +251,15 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
               return (
                 <div 
                   key={day}
-                  // Single click → Employee detail view
+                  // Unified Click Handler: Opens detail sheet for everyone
                   onClick={() => {
-                    if (isEmployee && hasPunches) {
-                      setSelectedDayData({ day, punches: data?.raw ?? [] });
-                    }
-                  }}
-                  // Double click → Admin override
-                  onDoubleClick={() => {
-                    if (data?.raw?.[0] && !isEmployee) {
-                      setEditingPunch(data.raw[0]);
-                    }
+                    const data = getDayData(day);
+                    setSelectedDayData({ day, punches: data?.raw ?? [] });
+                    fetchDayNotes(day);
                   }}
                   className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-transform active:scale-95 cursor-pointer ${
                     config ? config.color : 'bg-slate-100'
-                  } ${isEmployee && hasPunches ? 'ring-2 ring-offset-1 ring-white/30' : ''}`}
+                  } ${hasPunches ? 'ring-2 ring-offset-1 ring-white/30 shadow-md shadow-slate-200' : ''}`}
                 >
                   <span className={`text-sm font-bold ${config ? config.text : 'text-slate-400'}`}>
                     {day < 10 ? `0${day}` : day}
@@ -238,12 +277,12 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
         {/* ── Employee Day Detail Bottom Sheet ── */}
         <AnimatePresence>
-          {isEmployee && selectedDayData && (
+          {selectedDayData && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-end"
+              className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-end md:items-center justify-center"
               onClick={() => setSelectedDayData(null)}
             >
               <motion.div
@@ -283,8 +322,13 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
                 {/* Punch Timeline */}
                 <div className="space-y-3 mb-6">
-                  {selectedDayData.punches.map((p, i) => (
-                    <div key={p.id || i} className={`flex items-start space-x-4 p-4 rounded-2xl border ${
+                  {selectedDayData.punches.length === 0 ? (
+                    <div className="py-8 text-center bg-slate-50 border border-slate-100 rounded-2xl">
+                       <Clock className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Punches for this date</p>
+                    </div>
+                  ) : selectedDayData.punches.map((p, i) => (
+                    <div key={p.id || i} className={`flex items-start space-x-4 p-4 rounded-2xl border relative ${
                       p.type === 'In' 
                         ? 'bg-emerald-50 border-emerald-100' 
                         : 'bg-rose-50 border-rose-100'
@@ -313,13 +357,68 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                           : 'bg-slate-100 text-slate-600'
                         }`}>{p.status}</span>
                       </div>
+                      
+                      {/* Admin Controls */}
+                      {!isEmployee && (
+                        <button 
+                          onClick={() => setEditingPunch(p)}
+                          className="absolute top-4 right-4 p-2 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-brand-500 hover:border-brand-200 transition shadow-sm"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+
                       {p.selfie_url && (
-                        <a href={p.selfie_url} target="_blank" rel="noreferrer" className="shrink-0">
+                        <a href={p.selfie_url} target="_blank" rel="noreferrer" className="shrink-0 ml-2">
                           <img src={p.selfie_url} alt="Selfie" className="w-12 h-12 rounded-xl object-cover border-2 border-white shadow" />
                         </a>
                       )}
                     </div>
                   ))}
+                </div>
+
+                {/* Date Notes Section */}
+                <div className="mb-6">
+                   <div className="flex items-center justify-between mb-3 px-1">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Activity Notes</h4>
+                      <MessageSquare className="w-3 h-3 text-slate-300" />
+                   </div>
+                   
+                   <div className="space-y-3 mb-4 max-h-[150px] overflow-y-auto custom-scrollbar">
+                      {isNoteLoading && dayNotes.length === 0 ? (
+                        <div className="py-4 flex items-center justify-center">
+                           <Loader2 className="w-4 h-4 animate-spin text-slate-300" />
+                        </div>
+                      ) : dayNotes.length === 0 ? (
+                        <p className="text-[10px] text-slate-400 font-bold italic text-center py-2">No notes added for this date yet.</p>
+                      ) : dayNotes.map((note) => (
+                        <div key={note.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                           <div className="flex justify-between items-start mb-1">
+                              <span className="text-[9px] font-black text-brand-500 uppercase">{note.author?.full_name || 'System'}</span>
+                              <span className="text-[8px] font-bold text-slate-400">{new Date(note.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                           </div>
+                           <p className="text-xs font-bold text-slate-700 leading-relaxed">{note.note}</p>
+                        </div>
+                      ))}
+                   </div>
+
+                   <div className="relative">
+                      <input 
+                        type="text"
+                        placeholder="Add a remark or explanation..."
+                        value={newNote}
+                        onChange={(e) => setNewNote(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSaveNote(selectedDayData.day)}
+                        disabled={isNoteLoading}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-4 pr-12 py-3.5 text-xs font-bold text-slate-700 placeholder:text-slate-400 focus:border-brand-300 focus:ring-4 focus:ring-brand-500/5 outline-none transition"
+                      />
+                      <button 
+                        onClick={() => handleSaveNote(selectedDayData.day)}
+                        className="absolute right-2 top-2 w-9 h-9 bg-brand-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20 active:scale-95 transition"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                   </div>
                 </div>
 
                 {/* Regularization Button */}
@@ -370,6 +469,8 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                                 <option value="Half Day">Half Day</option>
                                 <option value="Late">Late</option>
                                 <option value="Paid Leave">Paid Leave</option>
+                                <option value="Holiday">Holiday</option>
+                                <option value="Week Off">Week Off</option>
                             </select>
                         </div>
                         <div className="space-y-1">
