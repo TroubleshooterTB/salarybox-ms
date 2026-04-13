@@ -365,15 +365,20 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
       </div>
 
       <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center space-x-3">
-          <Search className="w-5 h-5 text-slate-400 ml-4" />
-          <input
-            type="text"
-            placeholder="Search by name or employee ID..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none outline-none text-sm font-semibold text-slate-700 w-full placeholder-slate-400"
-          />
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div className="flex items-center space-x-3 flex-1">
+            <Search className="w-5 h-5 text-slate-400 ml-4" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm font-semibold text-slate-700 w-full placeholder-slate-400"
+            />
+          </div>
+          <div className="md:hidden text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md animate-pulse">
+             Scroll Right →
+          </div>
         </div>
 
         <div className="overflow-x-auto">
