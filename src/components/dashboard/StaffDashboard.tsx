@@ -36,6 +36,7 @@ export default function StaffDashboard() {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [todayPunches, setTodayPunches] = useState<any[]>([]);
   const [correctionDate, setCorrectionDate] = useState<string | undefined>(undefined);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     async function fetchToday() {
@@ -59,6 +60,56 @@ export default function StaffDashboard() {
       fetchToday();
     }
   }, [session, activeTab]);
+
+  useEffect(() => {
+    const syncPunches = async () => {
+      const queue = JSON.parse(localStorage.getItem('attendance_queue') || '[]');
+      if (queue.length === 0 || !navigator.onLine) return;
+
+      setIsSyncing(true);
+      const remainingQueue = [];
+
+      for (const punch of queue) {
+        try {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (!currentSession) throw new Error('No session');
+
+          const res = await fetch('/api/punch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: currentSession.access_token,
+              punchData: punch
+            })
+          });
+
+          if (!res.ok) throw new Error('Sync failed');
+        } catch (err) {
+          remainingQueue.push(punch);
+        }
+      }
+
+      localStorage.setItem('attendance_queue', JSON.stringify(remainingQueue));
+      setIsSyncing(false);
+      
+      // Refresh punches after sync
+      const startOfDay = new Date();
+      startOfDay.setHours(0,0,0,0);
+      const { data } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('user_id', session?.user?.id)
+        .gte('timestamp', startOfDay.toISOString())
+        .order('timestamp', { ascending: true });
+      if (data) setTodayPunches(data);
+    };
+
+    if (session) {
+      syncPunches();
+      window.addEventListener('online', syncPunches);
+      return () => window.removeEventListener('online', syncPunches);
+    }
+  }, [session]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -137,6 +188,18 @@ export default function StaffDashboard() {
             </motion.div>
           </div>
         </header>
+
+        {/* Offline Sync Status */}
+        {isSyncing && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.2em] py-1.5 px-4 rounded-full mb-4 self-center flex items-center space-x-2 shadow-lg shadow-emerald-500/20"
+          >
+            <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+            <span>Syncing Offline Punches...</span>
+          </motion.div>
+        )}
 
         {/* Daily Punches UI */}
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl mt-2 mb-6 relative overflow-hidden">
@@ -231,7 +294,7 @@ export default function StaffDashboard() {
         {/* Version Stamp */}
         <div className="text-center pb-6 pt-2">
           <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600/40">
-            Version: v1.1.0 • Last Updated: Apr 11, 2026 12:48
+            Version: v1.2.0 • Last Updated: Apr 13, 2026 12:20
           </span>
         </div>
       </div>

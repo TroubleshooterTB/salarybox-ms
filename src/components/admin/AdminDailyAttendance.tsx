@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Clock, Search, Loader2, AlertTriangle, ShieldCheck, RefreshCw, Timer, Calendar } from 'lucide-react';
+import { Clock, Search, Loader2, AlertTriangle, ShieldCheck, RefreshCw, Timer, Calendar, FileText, Plus, X } from 'lucide-react';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 
 interface PunchGroup {
@@ -17,6 +17,9 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
   const [searchQuery, setSearchQuery] = useState('');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [selectedUser, setSelectedUser] = useState<{ id: string, name: string } | null>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkLog, setBulkLog] = useState<string[]>([]);
 
   const fetchDailyPunches = async () => {
     const startOfDay = new Date();
@@ -112,14 +115,157 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
             Real-time IN/OUT pair feed • Refreshed {lastRefresh.toLocaleTimeString()}
           </p>
         </div>
-        <button
-          onClick={fetchDailyPunches}
-          className="flex items-center space-x-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition shadow-sm"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowBulkImport(true)}
+            className="flex items-center space-x-2 px-4 py-2.5 bg-indigo-600 text-white border border-indigo-700 rounded-xl font-bold text-sm hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Bulk Import (CSV)</span>
+          </button>
+          <button
+            onClick={fetchDailyPunches}
+            className="flex items-center space-x-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition shadow-sm"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">Bulk Attendance Import</h3>
+              <button onClick={() => setShowBulkImport(false)} className="text-slate-400 hover:text-slate-600 transition"><X /></button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl">
+                <p className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-widest">Instructions</p>
+                <ul className="text-xs text-slate-500 space-y-1 ml-4 list-disc font-medium">
+                  <li>CSV format: <code className="bg-slate-200 px-1 rounded">employee_id, date, in_time, out_time</code></li>
+                  <li>Date format: <code className="bg-slate-200 px-1 rounded">YYYY-MM-DD</code></li>
+                  <li>Time format: <code className="bg-slate-200 px-1 rounded">HH:MM</code> (24h)</li>
+                </ul>
+              </div>
+
+              {!isBulkProcessing ? (
+                <div className="space-y-4">
+                  <label className="block w-full cursor-pointer">
+                    <div className="border-2 border-dashed border-slate-200 hover:border-brand-400 rounded-2xl p-8 flex flex-col items-center justify-center transition group">
+                      <div className="w-12 h-12 bg-slate-100 group-hover:bg-brand-50 rounded-full flex items-center justify-center mb-3 transition">
+                        <Plus className="w-6 h-6 text-slate-400 group-hover:text-brand-500" />
+                      </div>
+                      <span className="text-sm font-bold text-slate-500 group-hover:text-brand-600 transition">Select CSV File</span>
+                      <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        
+                        setIsBulkProcessing(true);
+                        setBulkLog(["Starting process..."]);
+                        
+                        const reader = new FileReader();
+                        reader.onload = async (event) => {
+                          try {
+                            const csv = event.target?.result as string;
+                            const lines = csv.split('\n').filter(l => l.trim());
+                            const headerRows = lines[0].split(',').map(h => h.trim().toLowerCase());
+                            
+                            const records = [];
+                            for (let i = 1; i < lines.length; i++) {
+                              const columns = lines[i].split(',').map(c => c.trim());
+                              if (columns.length < 3) continue;
+                              
+                              const row: any = {};
+                              headerRows.forEach((h, idx) => row[h] = columns[idx]);
+                              records.push(row);
+                            }
+
+                            setBulkLog(prev => [...prev, `Found ${records.length} records. Processing...`]);
+
+                            // Match Employee IDs to UUIDs
+                            const { data: profiles } = await supabase.from('profiles').select('id, employee_id, branch');
+                            const idMap = new Map(profiles?.map(p => [p.employee_id, { id: p.id, branch: p.branch }]));
+
+                            let successCount = 0;
+                            let errorCount = 0;
+
+                            for (const rec of records) {
+                              const prof = idMap.get(rec.employee_id);
+                              if (!prof) {
+                                setBulkLog(prev => [...prev, `❌ Skip: Employee ID ${rec.employee_id} not found.`]);
+                                errorCount++;
+                                continue;
+                              }
+
+                              const punches = [];
+                              if (rec.in_time) {
+                                punches.push({
+                                  user_id: prof.id,
+                                  type: 'In',
+                                  timestamp: `${rec.date}T${rec.in_time}:00`,
+                                  status: 'Present',
+                                  branch: prof.branch,
+                                  address_string: 'Bulk Import'
+                                });
+                              }
+                              if (rec.out_time) {
+                                punches.push({
+                                  user_id: prof.id,
+                                  type: 'Out',
+                                  timestamp: `${rec.date}T${rec.out_time}:00`,
+                                  status: 'Present',
+                                  branch: prof.branch,
+                                  address_string: 'Bulk Import'
+                                });
+                              }
+
+                              const { error } = await supabase.from('attendance').insert(punches);
+                              if (error) {
+                                setBulkLog(prev => [...prev, `❌ Error ${rec.employee_id}: ${error.message}`]);
+                                errorCount++;
+                              } else {
+                                successCount++;
+                              }
+                            }
+
+                            setBulkLog(prev => [...prev, `🎉 Done! Success: ${successCount}, Errors: ${errorCount}`]);
+                            fetchDailyPunches();
+                          } catch (err: any) {
+                            setBulkLog(prev => [...prev, `❌ Fatal Error: ${err.message}`]);
+                          } finally {
+                            setIsBulkProcessing(false);
+                          }
+                        };
+                        reader.readAsText(file);
+                      }} />
+                    </div>
+                  </label>
+                  <button onClick={() => setShowBulkImport(false)} className="w-full py-3 text-slate-500 font-bold text-sm hover:text-slate-800 transition">Maybe later</button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-slate-950 p-4 rounded-2xl min-h-[200px] max-h-[300px] overflow-y-auto custom-scrollbar">
+                    {bulkLog.map((log, i) => (
+                      <p key={i} className="text-[10px] font-mono text-emerald-400 mb-1 leading-relaxed">{log}</p>
+                    ))}
+                    {isBulkProcessing && <div className="flex items-center space-x-2 mt-2">
+                      <Loader2 className="w-3 h-3 text-brand-500 animate-spin" />
+                      <span className="text-[10px] font-mono text-brand-500 animate-pulse">SYSTEM PROCESSING...</span>
+                    </div>}
+                  </div>
+                  {!isBulkProcessing && (
+                    <button onClick={() => setShowBulkImport(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl active:scale-95 transition">Close & Refresh</button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* High-Fidelity Analytics Row */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">

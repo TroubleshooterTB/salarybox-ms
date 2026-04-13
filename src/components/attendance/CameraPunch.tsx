@@ -112,17 +112,19 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
     }
 
     setLoadingType(type);
+    let addressString = `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`;
+    let selfieBase64: string | null = null;
+    let status = 'Present';
+
     try {
       // 1. Prepare Selfie Data for Server (Base64)
-      let selfieBase64 = null;
       if (allowRemotePunch) {
         if (!webcamRef.current) throw new Error('Webcam not ready');
         selfieBase64 = webcamRef.current.getScreenshot();
         if (!selfieBase64) throw new Error('Failed to capture selfie');
       }
 
-      // 2. Reverse geocode location (Only if necessary or fast)
-      let addressString = `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`;
+      // 2. Reverse geocode location
       try {
         const geoRes = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=16&addressdetails=1`,
@@ -141,7 +143,6 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
       }
 
       // 3. Auto half-day check
-      let status = 'Present';
       if (type === 'Out') {
         const startOfDay = new Date();
         startOfDay.setHours(0, 0, 0, 0);
@@ -192,6 +193,30 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
 
     } catch (err: any) {
       console.error(err);
+      
+      // OFFLINE QUEUE LOGIC
+      if (!navigator.onLine || err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        const offlinePunch = {
+          type,
+          latitude: location.lat,
+          longitude: location.lng,
+          address_string: addressString,
+          selfie_base64: selfieBase64,
+          status,
+          branch: userBranch || (nearestBranch?.name || 'Main'),
+          timestamp: new Date().toISOString(),
+          id: crypto.randomUUID()
+        };
+        
+        const existingQueue = JSON.parse(localStorage.getItem('attendance_queue') || '[]');
+        localStorage.setItem('attendance_queue', JSON.stringify([...existingQueue, offlinePunch]));
+        
+        setSuccess(true); // Treat as success for the UI, but tell them it's queued
+        alert('You are offline. Punch saved locally and will sync when connection returns.');
+        setTimeout(() => { onBack(); }, 2500);
+        return;
+      }
+
       alert('Error during punch: ' + err.message);
     } finally {
       if (!success) setLoadingType(null);

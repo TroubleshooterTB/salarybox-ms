@@ -151,6 +151,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const payload = {
         full_name: formData.full_name,
         phone_number: formData.phone_number,
@@ -183,6 +184,15 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         // Update existing
         const { error } = await supabase.from('profiles').update(payload).eq('id', editingId);
         if (error) throw error;
+
+        // Logging the update
+        await supabase.from('audit_logs').insert({
+          admin_id: session?.user?.id,
+          employee_id: editingId,
+          action_type: 'PROFILE_UPDATE',
+          reason: `Admin updated profile for ${formData.full_name}. Fields: ${Object.keys(payload).join(', ')}`,
+          timestamp: new Date().toISOString()
+        });
       } else {
         // 1. First, check if the employee ID already exists in profiles
         const { data: existingProfile } = await supabase
@@ -198,7 +208,6 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         }
 
         // 2. Offload User Registration to Secure Server-Side API
-        const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("Unauthorized: Super Admin session required.");
 
         const res = await fetch('/api/bulk-onboard', {
