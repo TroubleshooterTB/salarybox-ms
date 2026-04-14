@@ -76,6 +76,15 @@ export default function EmployeeDashboard() {
             <p className="text-sm font-medium text-sky-400 mt-0.5">Welcome, {session?.user?.email?.split('@')?.[0]?.toUpperCase() || 'STAFF'}</p>
           </div>
           <div className="flex items-center space-x-3">
+             {userRole !== 'Employee' && (
+               <motion.button 
+                 whileTap={{ scale: 0.9 }}
+                 onClick={() => router.push('/admin')}
+                 className="px-4 py-2 bg-brand-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition"
+               >
+                 Admin Panel
+               </motion.button>
+             )}
              <NotificationBell />
              <motion.button 
                whileTap={{ scale: 0.9 }}

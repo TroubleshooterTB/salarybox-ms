@@ -169,7 +169,7 @@ export default function AdminDashboard() {
         </nav>
 
         <div className="p-6 border-t border-slate-50 space-y-2">
-          <button onClick={() => router.push('/')} className="w-full py-3 text-slate-400 hover:text-slate-700 font-bold text-xs transition text-center">
+          <button onClick={() => router.push('/dashboard')} className="w-full py-3 text-slate-400 hover:text-slate-700 font-bold text-xs transition text-center">
             Return to App
           </button>
           <div className="flex items-center space-x-3 pr-4">
