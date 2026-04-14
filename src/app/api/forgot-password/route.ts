@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://gxekdcwwzebvtxdlddkb.supabase.co',
       process.env.SUPABASE_SERVICE_ROLE_KEY || '',
       { auth: { persistSession: false, autoRefreshToken: false } }
     );
@@ -38,16 +38,50 @@ export async function POST(req: NextRequest) {
 
     if (requestError) throw requestError;
 
-    // 3. TODO: Send Email Notification to business@minimalstroke.com
-    // For now, we log it. You'll need to configure an SMTP or service like Resend here.
-    console.log(`[PASSWORD RESET REQUEST] Employee: ${profile.full_name} (${profile.employee_id})`);
+    // 3. Send Email Notification to business@minimalstroke.com using Resend API (via fetch)
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
     
-    // In a production environment, you would use something like:
-    // await sendEmail({
-    //   to: 'business@minimalstroke.com',
-    //   subject: 'Password Reset Request',
-    //   text: `Employee ${profile.full_name} ID: ${profile.employee_id} has requested a password reset.`
-    // });
+    if (RESEND_API_KEY) {
+      const emailResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'SalaryBOX Admin <onboarding@resend.dev>', // Note: standard from address for unverified domains in Resend
+          to: ['business@minimalstroke.com'],
+          subject: `Password Reset Request: ${profile.full_name}`,
+          html: `
+            <div style="font-family: sans-serif; padding: 20px; color: #333;">
+              <h2 style="color: #0ea5e9;">Password Reset Request</h2>
+              <p>A password reset has been requested for the following employee:</p>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">Employee Name:</td>
+                  <td style="padding: 10px; border: 1px solid #ddd;">${profile.full_name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">Employee ID:</td>
+                  <td style="padding: 10px; border: 1px solid #ddd;">${profile.employee_id}</td>
+                </tr>
+              </table>
+              <p>Please log in to the <strong>Staff Management</strong> dashboard to approve this request.</p>
+              <p style="font-size: 12px; color: #777; margin-top: 30px;">
+                This is an automated notification from the Minimal Stroke ERP.
+              </p>
+            </div>
+          `,
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        const errorData = await emailResponse.json();
+        console.error('Resend Email Error:', errorData);
+      }
+    } else {
+      console.warn('RESEND_API_KEY not found in environment variables.');
+    }
 
     return NextResponse.json({ success: true, message: 'Reset request submitted to Super Admin.' });
   } catch (err: any) {
