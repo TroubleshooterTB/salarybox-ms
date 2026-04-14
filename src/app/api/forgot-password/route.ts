@@ -86,15 +86,17 @@ export async function POST(req: NextRequest) {
         if (!emailResponse.ok) {
           const errorData = await emailResponse.json();
           console.error('Resend Email Provider Error:', errorData);
-          // Still return 200/success to the UI but log the email failure carefully server-side
-          // Or if you want to notify the user of email failure:
-          // return NextResponse.json({ error: `Request recorded, but notification email failed to send: ${errorData.message}` }, { status: 500 });
+          return NextResponse.json({ 
+            error: `Request recorded, but notification email failed to send: ${errorData.message || 'Unknown Provider Error'}. Please check if business@minimalstroke.com is a verified recipient in your Resend dashboard.` 
+          }, { status: 500 });
         }
       } catch (e: any) {
         console.error('Resend Fetch Exception:', e.message);
+        return NextResponse.json({ error: `Request recorded, but email service connection failed: ${e.message}` }, { status: 500 });
       }
     } else {
       console.warn('RESEND_API_KEY not found in environment variables.');
+      return NextResponse.json({ error: 'Request recorded, but email service is not configured (RESEND_API_KEY missing).' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'Reset request submitted to Super Admin.' });
