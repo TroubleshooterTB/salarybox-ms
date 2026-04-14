@@ -22,6 +22,11 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
   const [newNote, setNewNote] = useState('');
   const [isNoteLoading, setIsNoteLoading] = useState(false);
 
+  const [isAddingManualPunch, setIsAddingManualPunch] = useState(false);
+  const [manualPunchType, setManualPunchType] = useState<'In' | 'Out'>('In');
+  const [manualPunchTime, setManualPunchTime] = useState('09:00');
+  const [manualPunchStatus, setManualPunchStatus] = useState('Present');
+
   const isEmployee = userRole === 'Employee' || userRole === null;
   const targetUserId = userId || session?.user?.id;
 
@@ -123,6 +128,44 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       setCurrentDate(new Date(currentDate));
     } catch (err: any) {
       alert('Override failed: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddManualPunch = async () => {
+    if (!manualPunchTime || !reason) return alert('Time and reason are required');
+    if (!selectedDayData) return;
+
+    setIsSubmitting(true);
+    try {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day);
+      // Format as ISO string but with local time
+      const dateStr = date.toISOString().split('T')[0];
+      const timestamp = `${dateStr}T${manualPunchTime}:00`;
+
+      const res = await fetch('/api/admin-add-punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session?.access_token,
+          userId: targetUserId,
+          type: manualPunchType,
+          timestamp,
+          status: manualPunchStatus,
+          reason
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      alert('Manual punch added successfully!');
+      setIsAddingManualPunch(false);
+      setReason('');
+      setSelectedDayData(null);
+      setCurrentDate(new Date(currentDate)); // Trigger refresh
+    } catch (err: any) {
+      alert('Failed to add punch: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -421,23 +464,110 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                    </div>
                 </div>
 
-                {/* Regularization Button */}
-                <button
-                  onClick={() => {
-                    setSelectedDayData(null);
-                    const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day)
-                      .toISOString().split('T')[0];
-                    if (onRegularize) onRegularize(dateStr);
-                  }}
-                  className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl flex items-center justify-center space-x-3 active:scale-[0.98] transition text-xs uppercase tracking-widest"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>File Regularization Request</span>
-                </button>
+                {/* Action Button: Regularization for staff, Manual Add for Admin */}
+                {isEmployee ? (
+                  <button
+                    onClick={() => {
+                      setSelectedDayData(null);
+                      const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day)
+                        .toISOString().split('T')[0];
+                      if (onRegularize) onRegularize(dateStr);
+                    }}
+                    className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl flex items-center justify-center space-x-3 active:scale-[0.98] transition text-xs uppercase tracking-widest"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>File Regularization Request</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setIsAddingManualPunch(true)}
+                    className="w-full py-4 bg-brand-500 text-white font-black rounded-2xl flex items-center justify-center space-x-3 active:scale-[0.98] transition text-xs uppercase tracking-widest shadow-lg shadow-brand-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Manual Punch Record</span>
+                  </button>
+                )}
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── Admin Add Manual Punch Modal ── */}
+        {isAddingManualPunch && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                <div className="bg-white rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                    <div className="p-8 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight">Add Manual Punch</h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{formatDate(selectedDayData!.day)}</p>
+                        </div>
+                        <button onClick={() => setIsAddingManualPunch(false)} className="w-8 h-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <div className="p-8 space-y-5">
+                        <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                            <button 
+                                onClick={() => setManualPunchType('In')}
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${manualPunchType === 'In' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Punch IN
+                            </button>
+                            <button 
+                                onClick={() => setManualPunchType('Out')}
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${manualPunchType === 'Out' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Punch OUT
+                            </button>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Time</label>
+                            <input 
+                                type="time" 
+                                value={manualPunchTime}
+                                onChange={(e) => setManualPunchTime(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:border-brand-300 focus:ring-4 focus:ring-brand-500/5 outline-none transition" 
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Attendance Status</label>
+                            <select 
+                                value={manualPunchStatus} 
+                                onChange={(e) => setManualPunchStatus(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:border-brand-300 focus:ring-4 focus:ring-brand-500/5 outline-none transition appearance-none"
+                            >
+                                <option value="Present">Present</option>
+                                <option value="Late">Late</option>
+                                <option value="Half Day">Half Day</option>
+                                <option value="Paid Leave">Paid Leave</option>
+                                <option value="Holiday">Holiday</option>
+                                <option value="Week Off">Week Off</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Reason for Manual Entry</label>
+                            <textarea 
+                                required
+                                value={reason} 
+                                onChange={(e) => setReason(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 h-28 focus:border-brand-300 focus:ring-4 focus:ring-brand-500/5 outline-none transition resize-none"
+                                placeholder="e.g. Employee forgot to punch out due to client meeting"
+                            />
+                        </div>
+
+                        <div className="flex space-x-3 pt-2">
+                            <button onClick={() => setIsAddingManualPunch(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition">Cancel</button>
+                            <button onClick={handleAddManualPunch} disabled={isSubmitting} className="flex-2 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition disabled:opacity-50 shadow-xl shadow-slate-900/20 active:scale-95">
+                                {isSubmitting ? 'Adding...' : 'Confirm Entry'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* ── Admin Override Modal ── */}
         {editingPunch && (
