@@ -45,12 +45,13 @@ export default function LoginForm() {
         body: JSON.stringify({ employeeId })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || 'Request failed');
       
-      alert('Reset request submitted successfully. Please wait for Super Admin approval.');
+      alert(`Reset request for "${employeeId}" submitted successfully. A notification has been sent to business@minimalstroke.com. Please wait for Super Admin approval.`);
       setShowForgot(false);
+      setEmployeeId(''); // Clear for security
     } catch (err: any) {
-      setError(err.message);
+      alert('Error: ' + err.message);
     } finally {
       setLoading(false);
     }
