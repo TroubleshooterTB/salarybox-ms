@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight, Clock, MapPin, X, FileText, Edit2, MessageSquare, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight, Clock, MapPin, X, FileText, Edit2, MessageSquare, Send, Trash2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AttendanceCalendar({ onBack, userId, userName, onRegularize }: { 
