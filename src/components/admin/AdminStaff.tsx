@@ -39,6 +39,10 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkLog, setBulkLog] = useState<string[]>([]);
   
+  // Reset Requests State
+  const [resetRequests, setResetRequests] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useState<'staff' | 'requests'>('staff');
+  
   const {} = useLanguage();
 
   const initialForm = {
@@ -75,6 +79,11 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
     const { data } = await query;
     if (data) setStaff(data);
+
+    // Fetch Reset Requests
+    const { data: rData } = await supabase.from('password_reset_requests').select('*').eq('status', 'pending').order('created_at', { ascending: false });
+    if (rData) setResetRequests(rData);
+
     setLoading(false);
   };
 
@@ -142,6 +151,45 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       setNewPass('');
     } catch (err: any) {
       alert('Reset failed: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleApproveResetRequest = async (request: any) => {
+    if (!window.confirm(`Approve password reset for ${request.full_name}? Password will be set to "demopass123".`)) return;
+    
+    setIsSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // 1. Find user by employee_id to get UUID
+      const { data: profile } = await supabase.from('profiles').select('id').eq('employee_id', request.employee_id).single();
+      if (!profile) throw new Error("Employee profile not found");
+
+      // 2. Call admin reset API
+      const res = await fetch('/api/admin-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session?.access_token,
+          userId: profile.id,
+          newPassword: 'demopass123'
+        })
+      });
+
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || "Reset failed");
+      }
+
+      // 3. Update request status
+      await supabase.from('password_reset_requests').update({ status: 'approved' }).eq('id', request.id);
+
+      alert('Password reset approved successfully.');
+      fetchData();
+    } catch (err: any) {
+      alert('Approval failed: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -468,7 +516,25 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       <div className="flex justify-between items-center mb-8">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-800">Staff Management V2</h2>
-          <p className="text-slate-500 font-medium text-sm">Add, edit, or toggle employment status.</p>
+          <div className="flex items-center mt-2 space-x-6">
+            <button 
+              onClick={() => setViewMode('staff')}
+              className={`text-sm font-bold transition-all ${viewMode === 'staff' ? 'text-brand-500 underline underline-offset-8 decoration-2' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              All Employees ({staff.length})
+            </button>
+            <button 
+              onClick={() => setViewMode('requests')}
+              className={`text-sm font-bold transition-all flex items-center space-x-2 ${viewMode === 'requests' ? 'text-brand-500 underline underline-offset-8 decoration-2' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <span>Reset Requests</span>
+              {resetRequests.length > 0 && (
+                <span className="bg-rose-500 text-white text-[8px] h-4 w-4 flex items-center justify-center rounded-full animate-pulse">
+                  {resetRequests.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
         <div className="flex items-center space-x-3">
           <button onClick={() => setShowBulkImport(true)} className="flex items-center space-x-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition border border-indigo-700 shadow-lg shadow-indigo-500/20">
@@ -501,85 +567,128 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
               </select>
            </div>
         </div>
-        <div className="overflow-x-auto">
-        <table className="w-full text-left whitespace-nowrap">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Name</th>
-              <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Employee ID</th>
-              <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Role & Dept</th>
-              <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Assigned Branches</th>
-              <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Status</th>
-              <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr><td colSpan={7} className="py-12 text-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Loading records...</td></tr>
-            ) : staff.map((s) => (
-              <tr key={s.id} className={`transition ${!s.is_active ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'}`}>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-2 h-10 rounded-full ${s.is_active ? 'bg-brand-500' : 'bg-slate-300'}`}></div>
-                    <div>
-                      <p className="font-bold text-slate-800">{s.full_name}</p>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {s.employee_categories?.map((cat: string) => (
-                          <span key={cat} className={`text-[7px] font-black px-1 py-0.5 rounded uppercase tracking-tighter ${cat === 'Q1' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
-                            {cat}
-                          </span>
-                        ))}
+        {viewMode === 'staff' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left whitespace-nowrap">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Name</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Employee ID</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Role & Dept</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Assigned Branches</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Status</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  <tr><td colSpan={7} className="py-12 text-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Loading records...</td></tr>
+                ) : staff.map((s) => (
+                  <tr key={s.id} className={`transition ${!s.is_active ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'}`}>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-2 h-10 rounded-full ${s.is_active ? 'bg-brand-500' : 'bg-slate-300'}`}></div>
+                        <div>
+                          <p className="font-bold text-slate-800">{s.full_name}</p>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {s.employee_categories?.map((cat: string) => (
+                              <span key={cat} className={`text-[7px] font-black px-1 py-0.5 rounded uppercase tracking-tighter ${cat === 'Q1' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{s.employee_id}</p>
-                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">{s.phone_number}</p>
-                </td>
-                <td className="px-6 py-4">
-                  <p className="text-sm font-bold text-slate-700">{s.role}</p>
-                  <span className="px-2 mt-1 inline-block py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-black tracking-widest uppercase rounded-full">{s.department}</span>
-                </td>
-                <td className="px-6 py-4">
-                  {s.multiple_branches && s.multiple_branches.length > 0 ? (
-                    <div className="flex space-x-1">
-                      {s.multiple_branches.map((b: string) => <span key={b} className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md">{b}</span>)}
-                    </div>
-                  ) : <span className="text-xs font-bold text-rose-400">Unassigned</span>}
-                </td>
-                <td className="px-6 py-4">
-                  {s.is_active ? (
-                    <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-widest uppercase rounded-full">Active</span>
-                  ) : (
-                    <span className="px-3 py-1 bg-slate-200 text-slate-600 text-[10px] font-black tracking-widest uppercase rounded-full">Inactive</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-right space-x-2">
-                  <button onClick={() => setViewingAttendance({ id: s.id, name: s.full_name })} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="View Attendance History">
-                    <CalendarDays className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleGeneratePayslip(s)} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition" title="Generate Payslip">
-                    <FileText className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => openAdjustments(s)} className="p-2 bg-brand-50 text-brand-600 rounded-lg hover:bg-brand-100 transition" title="Salary Adjustments">
-                    <Coins className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => openEdit(s)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition" title="Edit Employee">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleToggleActive(s.id, s.is_active !== false)} className={`p-2 rounded-lg transition ${s.is_active !== false ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`} title={s.is_active !== false ? "Deactivate Employee" : "Reactivate Employee"}>
-                    {s.is_active !== false ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </button>
-                  <button onClick={() => handleDeleteEmployee(s.id, s.full_name)} className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-100 transition" title="Delete Employee Record">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{s.employee_id}</p>
+                      <p className="text-[10px] font-bold text-slate-400 mt-0.5">{s.phone_number}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-bold text-slate-700">{s.role}</p>
+                      <span className="px-2 mt-1 inline-block py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-black tracking-widest uppercase rounded-full">{s.department}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {s.multiple_branches && s.multiple_branches.length > 0 ? (
+                        <div className="flex space-x-1">
+                          {s.multiple_branches.map((b: string) => <span key={b} className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md">{b}</span>)}
+                        </div>
+                      ) : <span className="text-xs font-bold text-rose-400">Unassigned</span>}
+                    </td>
+                    <td className="px-6 py-4">
+                      {s.is_active ? (
+                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-widest uppercase rounded-full">Active</span>
+                      ) : (
+                        <span className="px-3 py-1 bg-slate-200 text-slate-600 text-[10px] font-black tracking-widest uppercase rounded-full">Inactive</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right space-x-2">
+                      <button onClick={() => setViewingAttendance({ id: s.id, name: s.full_name })} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="View Attendance History">
+                        <CalendarDays className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleGeneratePayslip(s)} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition" title="Generate Payslip">
+                        <FileText className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => openAdjustments(s)} className="p-2 bg-brand-50 text-brand-600 rounded-lg hover:bg-brand-100 transition" title="Salary Adjustments">
+                        <Coins className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => openEdit(s)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition" title="Edit Employee">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleToggleActive(s.id, s.is_active !== false)} className={`p-2 rounded-lg transition ${s.is_active !== false ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`} title={s.is_active !== false ? "Deactivate Employee" : "Reactivate Employee"}>
+                        {s.is_active !== false ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      </button>
+                      <button onClick={() => handleDeleteEmployee(s.id, s.full_name)} className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-100 transition" title="Delete Employee Record">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left whitespace-nowrap">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Employee Details</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Employee ID</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase">Request Time</th>
+                  <th className="px-6 py-4 text-[11px] font-black tracking-widest text-slate-400 uppercase text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {resetRequests.length === 0 ? (
+                  <tr><td colSpan={4} className="py-20 text-center text-slate-400 font-bold">No pending password reset requests.</td></tr>
+                ) : resetRequests.map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4">
+                      <p className="font-bold text-slate-800">{r.full_name}</p>
+                      <p className="text-[10px] lowercase text-slate-400">{r.employee_id.toLowerCase()}@minimalstroke.com</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{r.employee_id}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-xs font-bold text-slate-600">{new Date(r.created_at).toLocaleString()}</p>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => handleApproveResetRequest(r)}
+                        disabled={isSubmitting}
+                        className="px-6 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition flex items-center space-x-2 ml-auto"
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        <span>Approve Reset</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {showModal && (

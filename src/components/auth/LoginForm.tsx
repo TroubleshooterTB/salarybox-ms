@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { KeyRound, Smartphone, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { KeyRound, Smartphone, AlertCircle, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 
 export default function LoginForm() {
   const [employeeId, setEmployeeId] = useState('');
@@ -9,6 +9,7 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusText, setStatusText] = useState('Secure Access Initializing...');
+  const [showForgot, setShowForgot] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +31,27 @@ export default function LoginForm() {
       
     } catch (err: any) {
       setError(err.message || 'Verification failed. Please check your ID and Passcode.');
+      setLoading(false);
+    }
+  };
+
+  const handleRequestReset = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      alert('Reset request submitted successfully. Please wait for Super Admin approval.');
+      setShowForgot(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setLoading(false);
     }
   };
@@ -110,7 +132,16 @@ export default function LoginForm() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Secure Passcode</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Secure Passcode</label>
+              <button 
+                type="button" 
+                onClick={() => setShowForgot(true)}
+                className="text-[10px] font-black text-cyan-500/80 hover:text-cyan-400 uppercase tracking-widest transition"
+              >
+                Forgot Password?
+              </button>
+            </div>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                 <KeyRound className="h-5 w-5 text-slate-600 group-focus-within:text-cyan-400" />
@@ -146,7 +177,6 @@ export default function LoginForm() {
                 </>
               )}
               
-              {/* Animated gleam effect on button */}
               <motion.div 
                 animate={{ x: ['100%', '-100%'] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
@@ -155,6 +185,57 @@ export default function LoginForm() {
             </div>
           </motion.button>
         </form>
+
+        {/* Forgot Password Modal/Overlay */}
+        <AnimatePresence>
+          {showForgot && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950 z-[100] p-10 flex flex-col justify-center rounded-[2.5rem]"
+            >
+              <div className="text-center mb-10">
+                <div className="w-16 h-16 bg-cyan-500/10 rounded-2xl mx-auto flex items-center justify-center mb-6">
+                  <ShieldCheck className="w-8 h-8 text-cyan-400" />
+                </div>
+                <h3 className="text-xl font-black text-white mb-2">Password Assistance</h3>
+                <p className="text-slate-400 text-xs font-medium leading-relaxed">
+                  Enter your Employee ID. A reset request will be sent to the Super Admin for approval.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Employee ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={employeeId}
+                    onChange={(e) => setEmployeeId(e.target.value)}
+                    className="w-full px-6 py-4 bg-slate-900 border border-white/5 rounded-2xl text-white placeholder-slate-700 outline-none focus:border-cyan-500/50 transition font-bold"
+                    placeholder="e.g. MS001"
+                  />
+                </div>
+
+                <button
+                  onClick={handleRequestReset}
+                  disabled={loading || !employeeId}
+                  className="w-full py-4 bg-cyan-500 text-slate-950 font-black rounded-2xl shadow-xl hover:bg-cyan-400 transition disabled:opacity-50 uppercase tracking-widest text-xs"
+                >
+                  {loading ? 'Processing...' : 'Send Reset Request'}
+                </button>
+
+                <button
+                  onClick={() => setShowForgot(false)}
+                  className="w-full py-4 text-slate-500 font-bold hover:text-white transition text-xs uppercase tracking-widest"
+                >
+                  Back to Login
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         <div className="mt-12 text-center pointer-events-none">
           <p className="text-[9px] font-black text-slate-700 uppercase tracking-[0.3em]">

@@ -32,14 +32,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    // 2. Force-reset the password
     const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: newPassword,
     });
 
     if (resetError) throw resetError;
 
-    // 3. Write to audit log
+    // 3. Mark profile as needing reset
+    await supabaseAdmin
+      .from('profiles')
+      .update({ needs_password_reset: true })
+      .eq('id', userId);
+
+    // 4. Write to audit log
     await supabaseAdmin.from('audit_logs').insert({
       admin_id: user.id,
       employee_id: userId,
