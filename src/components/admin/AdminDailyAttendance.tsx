@@ -129,7 +129,7 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
           <button
             onClick={async () => {
               // Load all profiles for Quick Add
-              let query = supabase.from('profiles').select('id, full_name, employee_id, branch').neq('is_active', false);
+              let query = supabase.from('profiles').select('id, full_name, employee_id, branch').or('is_active.is.null,is_active.eq.true');
               if (selectedBranch && selectedBranch !== 'All Branches') {
                 query = query.eq('branch', selectedBranch);
               }
