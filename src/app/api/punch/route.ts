@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     let finalSelfieUrl = null;
 
     const [{ data: profile }, { data: settings }] = await Promise.all([
-      supabaseAdmin.from('profiles').select('branch, allow_remote_punch').eq('id', user.id).single(),
+      supabaseAdmin.from('profiles').select('branch, allow_remote_punch, full_name, employee_id').eq('id', user.id).single(),
       supabaseAdmin.from('company_settings').select('global_geofence_radius').eq('id', 1).single(),
     ]);
 
@@ -150,6 +150,8 @@ export async function POST(req: NextRequest) {
         selfie_url: finalSelfieUrl,
         status: punchData.status,
         branch: profile.branch,
+        employee_name: profile.full_name || '',
+        employee_id: profile.employee_id || '',
       })
       .select()
       .single();
