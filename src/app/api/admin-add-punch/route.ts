@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch the target employee's profile for branch info
     const { data: employeeProfile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('full_name, branch')
+      .select('full_name, branch, employee_id')
       .eq('id', userId)
       .single();
 
@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
         address_string: `Admin Manual Entry (${reason})`,
         latitude: 0,
         longitude: 0,
+        employee_name: employeeProfile.full_name || '',
+        employee_id: employeeProfile.employee_id || '',
       })
       .select()
       .single();
