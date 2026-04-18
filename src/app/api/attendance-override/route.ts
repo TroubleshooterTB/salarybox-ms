@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       reason,
     });
 
-    if (auditError) throw auditError;
+    if (auditError) console.error('Failed to write audit log:', auditError);
 
     return NextResponse.json({ message: 'Attendance updated and logged successfully' });
   } catch (err: any) {
