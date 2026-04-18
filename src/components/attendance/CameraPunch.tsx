@@ -185,7 +185,12 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
 
       const resultData = await punchRes.json();
       if (!punchRes.ok) {
-        throw new Error(resultData.error || 'Server-side punch failed');
+        let errorMsg = resultData.error || 'Server-side punch failed';
+        if (resultData.debug) {
+          const d = resultData.debug;
+          errorMsg += `\n\nDEBUG:\nBranch: ${d.branch} (${d.branchLat}, ${d.branchLng})\nYour GPS: (${d.yourLat}, ${d.yourLng})\nDistance: ${d.distance_m}m | Allowed: ${d.allowed_radius_m}m\nField Punch: ${d.allow_remote_punch}\nGeofence: ${d.geofence_enabled}`;
+        }
+        throw new Error(errorMsg);
       }
 
       setSuccess(true);

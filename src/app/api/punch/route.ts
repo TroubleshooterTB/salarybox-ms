@@ -80,7 +80,20 @@ export async function POST(req: NextRequest) {
 
       if (distance > radius) {
         return NextResponse.json(
-          { error: `OUT_OF_RANGE: You are ${Math.round(distance)}m away from ${profile.branch}. Allowed radius: ${radius}m. Please move closer to your branch location.` },
+          { 
+            error: `OUT_OF_RANGE: You are ${Math.round(distance)}m away from ${profile.branch}. Allowed radius: ${radius}m.`,
+            debug: {
+              branch: profile.branch,
+              branchLat: branchData.latitude,
+              branchLng: branchData.longitude,
+              yourLat: punchData.latitude,
+              yourLng: punchData.longitude,
+              distance_m: Math.round(distance),
+              allowed_radius_m: radius,
+              allow_remote_punch: profile.allow_remote_punch,
+              geofence_enabled: branchData.geofence_enabled,
+            }
+          },
           { status: 403 }
         );
       }
