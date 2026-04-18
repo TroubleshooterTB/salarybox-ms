@@ -44,7 +44,24 @@ export async function POST(req: NextRequest) {
 
     // Geofence check (skip if remote punch allowed or geofence disabled)
     let distance = 0;
-    if (branchData && branchData.geofence_enabled !== false && !profile.allow_remote_punch) {
+    const isRemoteAllowed = profile.allow_remote_punch === true;
+    const isGeofenceActive = branchData && branchData.geofence_enabled !== false;
+
+    console.log('Punch Debug:', {
+      userId: user.id,
+      branch: profile.branch,
+      allow_remote_punch: profile.allow_remote_punch,
+      isRemoteAllowed,
+      isGeofenceActive,
+      branchLat: branchData?.latitude,
+      branchLng: branchData?.longitude,
+      punchLat: punchData.latitude,
+      punchLng: punchData.longitude,
+      branchRadius: branchData?.radius_meters,
+      globalRadius: settings?.global_geofence_radius,
+    });
+
+    if (isGeofenceActive && !isRemoteAllowed) {
       const toRad = (val: number) => (val * Math.PI) / 180;
       const R = 6371e3;
       const phi1 = toRad(branchData.latitude);
@@ -59,9 +76,11 @@ export async function POST(req: NextRequest) {
       distance = R * c;
 
       const radius = settings?.global_geofence_radius || branchData.radius_meters || 100;
+      console.log('Geofence Result:', { distance: Math.round(distance), radius, passed: distance <= radius });
+
       if (distance > radius) {
         return NextResponse.json(
-          { error: `OUT_OF_RANGE: You are ${Math.round(distance)}m away. Allowed radius: ${radius}m.` },
+          { error: `OUT_OF_RANGE: You are ${Math.round(distance)}m away from ${profile.branch}. Allowed radius: ${radius}m. Please move closer to your branch location.` },
           { status: 403 }
         );
       }
