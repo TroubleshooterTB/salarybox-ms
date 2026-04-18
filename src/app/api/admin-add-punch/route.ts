@@ -59,7 +59,6 @@ export async function POST(req: NextRequest) {
         address_string: `Admin Manual Entry (${reason})`,
         latitude: 0,
         longitude: 0,
-        distance_from_branch: 0
       })
       .select()
       .single();

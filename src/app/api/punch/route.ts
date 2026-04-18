@@ -109,7 +109,6 @@ export async function POST(req: NextRequest) {
         selfie_url: finalSelfieUrl,
         status: punchData.status,
         branch: profile.branch,
-        distance_from_branch: Math.round(distance),
       })
       .select()
       .single();
