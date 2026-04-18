@@ -112,21 +112,29 @@ export async function POST(req: NextRequest) {
       distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
-    // Server-side selfie upload
+    // Server-side selfie upload (non-fatal — punch should succeed even if upload fails)
     if (punchData.selfie_base64) {
-      const base64Data = punchData.selfie_base64.replace(/^data:image\/\w+;base64,/, '');
-      const buffer = Buffer.from(base64Data, 'base64');
-      const fileName = `${user.id}_${Date.now()}.jpg`;
+      try {
+        console.log('Processing server-side selfie upload...');
+        const base64Data = punchData.selfie_base64.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const fileName = `${user.id}_${Date.now()}.jpg`;
 
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from('attendance-photos')
-        .upload(fileName, buffer, { contentType: 'image/jpeg', upsert: true });
-
-      if (!uploadError) {
-        const { data: { publicUrl } } = supabaseAdmin.storage
+        const { error: uploadError } = await supabaseAdmin.storage
           .from('attendance-photos')
-          .getPublicUrl(fileName);
-        finalSelfieUrl = publicUrl;
+          .upload(fileName, buffer, { contentType: 'image/jpeg', upsert: true });
+
+        if (uploadError) {
+          console.error('Selfie upload failed (non-fatal):', uploadError.message);
+        } else {
+          const { data: { publicUrl } } = supabaseAdmin.storage
+            .from('attendance-photos')
+            .getPublicUrl(fileName);
+          finalSelfieUrl = publicUrl;
+        }
+      } catch (selfieErr: any) {
+        console.error('Selfie upload crashed (non-fatal):', selfieErr.message);
+        // Continue without selfie — punch should still succeed
       }
     }
 
