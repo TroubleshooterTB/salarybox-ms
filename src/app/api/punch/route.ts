@@ -143,6 +143,7 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id: user.id,
         type: punchData.type,
+        timestamp: new Date().toISOString(),
         latitude: punchData.latitude,
         longitude: punchData.longitude,
         address_string: punchData.address_string,
