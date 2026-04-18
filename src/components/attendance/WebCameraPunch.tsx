@@ -16,7 +16,7 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
   const [locating, setLocating] = useState(true);
   const [geoError, setGeoError] = useState('');
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [isPunching, setIsPunching] = useState(false);
+  const [punchingType, setPunchingType] = useState<'In' | 'Out' | null>(null);
   const [success, setSuccess] = useState(false);
 
   // 1. Initialize Camera
@@ -82,7 +82,7 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
   const handleCaptureAndPunch = async (type: 'In' | 'Out') => {
     if (!videoRef.current || !canvasRef.current || !location) return;
     
-    setIsPunching(true);
+    setPunchingType(type);
     try {
       // Capture frame to canvas
       const canvas = canvasRef.current;
@@ -104,6 +104,7 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
             type,
             latitude: location.lat,
             longitude: location.lng,
+            address_string: `${nearestBranch?.name || 'Office'} vicinity`,
             selfie_base64: selfieBase64,
             status: 'Present',
             branch: nearestBranch?.name || 'Main'
@@ -111,14 +112,22 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
         })
       });
 
-      if (!res.ok) throw new Error("Punch failed");
+      const resultData = await res.json();
+      if (!res.ok) {
+        let errorMsg = resultData.error || 'Punch failed';
+        if (resultData.debug) {
+          const d = resultData.debug;
+          errorMsg += `\n\nBranch: ${d.branch} (${d.branchLat}, ${d.branchLng})\nYour GPS: (${d.yourLat}, ${d.yourLng})\nDistance: ${d.distance_m}m | Allowed: ${d.allowed_radius_m}m`;
+        }
+        throw new Error(errorMsg);
+      }
 
       setSuccess(true);
       setTimeout(onBack, 2000);
     } catch (err: any) {
       alert(err.message);
     } finally {
-      setIsPunching(false);
+      setPunchingType(null);
     }
   };
 
@@ -158,18 +167,18 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
       <div className="p-8 bg-slate-950 border-t border-white/10">
         <div className="grid grid-cols-2 gap-4">
            <button 
-             disabled={isPunching || locating}
+             disabled={punchingType !== null || locating}
              onClick={() => handleCaptureAndPunch('In')}
-             className="bg-sky-500 py-6 rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-sky-500/20 active:scale-95 transition"
+             className="bg-sky-500 py-6 rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-sky-500/20 active:scale-95 transition disabled:opacity-50"
            >
-             {isPunching ? 'Processing...' : 'Punch IN'}
+             {punchingType === 'In' ? 'Processing...' : 'Punch IN'}
            </button>
            <button 
-             disabled={isPunching || locating}
+             disabled={punchingType !== null || locating}
              onClick={() => handleCaptureAndPunch('Out')}
-             className="bg-rose-500 py-6 rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-500/20 active:scale-95 transition"
+             className="bg-rose-500 py-6 rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-500/20 active:scale-95 transition disabled:opacity-50"
            >
-             {isPunching ? 'Processing...' : 'Punch OUT'}
+             {punchingType === 'Out' ? 'Processing...' : 'Punch OUT'}
            </button>
         </div>
       </div>
