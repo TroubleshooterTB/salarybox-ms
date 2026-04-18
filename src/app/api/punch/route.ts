@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     const { data: branchData } = await supabaseAdmin
       .from('branches')
-      .select('latitude, longitude, geofence_radius_meters, geofence_enabled')
+      .select('latitude, longitude, radius_meters, geofence_enabled')
       .eq('name', profile.branch)
       .single();
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       distance = R * c;
 
-      const radius = settings?.global_geofence_radius || branchData.geofence_radius_meters || 100;
+      const radius = settings?.global_geofence_radius || branchData.radius_meters || 100;
       if (distance > radius) {
         return NextResponse.json(
           { error: `OUT_OF_RANGE: You are ${Math.round(distance)}m away. Allowed radius: ${radius}m.` },

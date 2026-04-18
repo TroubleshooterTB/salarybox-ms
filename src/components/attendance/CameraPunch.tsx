@@ -48,7 +48,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
       ]);
       
       if (profile) {
-        setAllowRemotePunch(profile.allow_remote_punch);
+        setAllowRemotePunch(profile.allow_remote_punch === true);
         setUserBranch(profile.branch);
       }
       const loadedBranches = bs || [];
@@ -337,7 +337,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
         )}
         
         <div className="absolute bottom-4 right-4 opacity-50 pointer-events-none z-50">
-          <span className="text-[10px] font-mono tracking-widest text-emerald-400/60 uppercase">V2.4 NUCLEAR-API ACTIVE</span>
+          <span className="text-[10px] font-mono tracking-widest text-emerald-400/60 uppercase">V2.5 LIVE-AUDIT BUILD</span>
         </div>
       </div>
     </div>

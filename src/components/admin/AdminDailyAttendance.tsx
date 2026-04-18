@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Clock, Search, Loader2, AlertTriangle, ShieldCheck, RefreshCw, Timer, Calendar, FileText, Plus, X } from 'lucide-react';
+import { Clock, Search, Loader2, AlertTriangle, ShieldCheck, RefreshCw, Timer, Calendar, FileText, Plus, X, UserPlus } from 'lucide-react';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 
 interface PunchGroup {
@@ -20,6 +20,16 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkLog, setBulkLog] = useState<string[]>([]);
+
+  // Quick Add Punch State
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [quickAddUserId, setQuickAddUserId] = useState('');
+  const [quickAddType, setQuickAddType] = useState<'In' | 'Out'>('In');
+  const [quickAddTime, setQuickAddTime] = useState('09:00');
+  const [quickAddStatus, setQuickAddStatus] = useState('Present');
+  const [quickAddReason, setQuickAddReason] = useState('');
+  const [isQuickAddSubmitting, setIsQuickAddSubmitting] = useState(false);
 
   const fetchDailyPunches = async () => {
     const startOfDay = new Date();
@@ -117,6 +127,22 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
         </div>
         <div className="flex items-center space-x-3">
           <button
+            onClick={async () => {
+              // Load all profiles for Quick Add
+              let query = supabase.from('profiles').select('id, full_name, employee_id, branch').eq('is_active', true);
+              if (selectedBranch && selectedBranch !== 'All Branches') {
+                query = query.eq('branch', selectedBranch);
+              }
+              const { data } = await query.order('full_name');
+              if (data) setAllProfiles(data);
+              setShowQuickAdd(true);
+            }}
+            className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600 text-white border border-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/20"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Quick Add Punch</span>
+          </button>
+          <button
             onClick={() => setShowBulkImport(true)}
             className="flex items-center space-x-2 px-4 py-2.5 bg-indigo-600 text-white border border-indigo-700 rounded-xl font-bold text-sm hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20"
           >
@@ -190,6 +216,14 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                             const { data: profiles } = await supabase.from('profiles').select('id, employee_id, branch');
                             const idMap = new Map(profiles?.map(p => [p.employee_id, { id: p.id, branch: p.branch }]));
 
+                            // Get session for server-side API calls
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (!session) {
+                              setBulkLog(prev => [...prev, '❌ Session expired. Please login again.']);
+                              setIsBulkProcessing(false);
+                              return;
+                            }
+
                             let successCount = 0;
                             let errorCount = 0;
 
@@ -201,35 +235,34 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                                 continue;
                               }
 
-                              const punches = [];
-                              if (rec.in_time) {
-                                punches.push({
-                                  user_id: prof.id,
-                                  type: 'In',
-                                  timestamp: `${rec.date}T${rec.in_time}:00`,
-                                  status: 'Present',
-                                  branch: prof.branch,
-                                  address_string: 'Bulk Import'
+                              // Insert via server-side API to bypass RLS
+                              const punchTypes: { type: 'In' | 'Out'; time: string }[] = [];
+                              if (rec.in_time) punchTypes.push({ type: 'In', time: rec.in_time });
+                              if (rec.out_time) punchTypes.push({ type: 'Out', time: rec.out_time });
+
+                              let hasError = false;
+                              for (const pt of punchTypes) {
+                                const res = await fetch('/api/admin-add-punch', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    token: session.access_token,
+                                    userId: prof.id,
+                                    type: pt.type,
+                                    timestamp: `${rec.date}T${pt.time}:00`,
+                                    status: 'Present',
+                                    reason: 'Bulk CSV Import'
+                                  })
                                 });
-                              }
-                              if (rec.out_time) {
-                                punches.push({
-                                  user_id: prof.id,
-                                  type: 'Out',
-                                  timestamp: `${rec.date}T${rec.out_time}:00`,
-                                  status: 'Present',
-                                  branch: prof.branch,
-                                  address_string: 'Bulk Import'
-                                });
+                                if (!res.ok) {
+                                  const errData = await res.json();
+                                  setBulkLog(prev => [...prev, `❌ Error ${rec.employee_id} (${pt.type}): ${errData.error}`]);
+                                  hasError = true;
+                                }
                               }
 
-                              const { error } = await supabase.from('attendance').insert(punches);
-                              if (error) {
-                                setBulkLog(prev => [...prev, `❌ Error ${rec.employee_id}: ${error.message}`]);
-                                errorCount++;
-                              } else {
-                                successCount++;
-                              }
+                              if (hasError) errorCount++;
+                              else successCount++;
                             }
 
                             setBulkLog(prev => [...prev, `🎉 Done! Success: ${successCount}, Errors: ${errorCount}`]);
@@ -507,6 +540,134 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                userName={selectedUser.name} 
                onBack={() => setSelectedUser(null)} 
              />
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Punch Modal */}
+      {showQuickAdd && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">Quick Add Punch</h3>
+                <p className="text-xs font-bold text-slate-400">Add manual punch for any employee</p>
+              </div>
+              <button onClick={() => { setShowQuickAdd(false); setQuickAddReason(''); }} className="text-slate-400 hover:text-slate-600 transition"><X /></button>
+            </div>
+            
+            <div className="p-6 space-y-5">
+              {/* Employee Selector */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Employee</label>
+                <select 
+                  value={quickAddUserId} 
+                  onChange={(e) => setQuickAddUserId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition appearance-none"
+                >
+                  <option value="">-- Choose Employee --</option>
+                  {allProfiles.map(p => (
+                    <option key={p.id} value={p.id}>{p.full_name} ({p.employee_id}) — {p.branch}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type Toggle */}
+              <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                <button 
+                  onClick={() => setQuickAddType('In')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${quickAddType === 'In' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-700'}`}
+                >Punch IN</button>
+                <button 
+                  onClick={() => setQuickAddType('Out')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition ${quickAddType === 'Out' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'text-slate-500 hover:text-slate-700'}`}
+                >Punch OUT</button>
+              </div>
+
+              {/* Time */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Punch Time</label>
+                <input 
+                  type="time" 
+                  value={quickAddTime}
+                  onChange={(e) => setQuickAddTime(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition" 
+                />
+              </div>
+
+              {/* Status */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
+                <select 
+                  value={quickAddStatus} 
+                  onChange={(e) => setQuickAddStatus(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition appearance-none"
+                >
+                  <option value="Present">Present</option>
+                  <option value="Late">Late</option>
+                  <option value="Half Day">Half Day</option>
+                  <option value="Paid Leave">Paid Leave</option>
+                </select>
+              </div>
+
+              {/* Reason */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Reason</label>
+                <textarea 
+                  value={quickAddReason}
+                  onChange={(e) => setQuickAddReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 min-h-[80px] outline-none focus:border-brand-500 transition resize-none"
+                  placeholder="e.g. Employee forgot device, biometric issue..."
+                />
+              </div>
+
+              {/* Submit */}
+              <div className="flex space-x-3 pt-2">
+                <button onClick={() => { setShowQuickAdd(false); setQuickAddReason(''); }} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition">Cancel</button>
+                <button 
+                  disabled={isQuickAddSubmitting || !quickAddUserId || !quickAddReason}
+                  onClick={async () => {
+                    if (!quickAddUserId || !quickAddReason) return alert('Please select an employee and provide a reason.');
+                    setIsQuickAddSubmitting(true);
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session) throw new Error('Session expired');
+
+                      const now = new Date();
+                      const timestamp = `${now.toISOString().split('T')[0]}T${quickAddTime}:00`;
+
+                      const res = await fetch('/api/admin-add-punch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          token: session.access_token,
+                          userId: quickAddUserId,
+                          type: quickAddType,
+                          timestamp,
+                          status: quickAddStatus,
+                          reason: quickAddReason
+                        })
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || 'Failed to add punch');
+
+                      alert('Punch added successfully!');
+                      setShowQuickAdd(false);
+                      setQuickAddReason('');
+                      setQuickAddUserId('');
+                      fetchDailyPunches();
+                    } catch (err: any) {
+                      alert('Error: ' + err.message);
+                    } finally {
+                      setIsQuickAddSubmitting(false);
+                    }
+                  }}
+                  className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition disabled:opacity-50 shadow-xl shadow-slate-900/20 active:scale-95"
+                >
+                  {isQuickAddSubmitting ? 'Adding...' : 'Confirm Entry'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

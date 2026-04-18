@@ -54,8 +54,19 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
         // Fetch nearest branch logic
         const { data: bs } = await supabase.from('branches').select('*').eq('is_active', true);
         if (bs && bs.length > 0) {
-           // Simple nearest logic (could reuse getDistance from before)
-           setNearestBranch(bs[0]); // Placeholder for now
+           // Calculate actual nearest branch using haversine
+           const toRad = (val: number) => (val * Math.PI) / 180;
+           let minDist = Infinity;
+           let closest = bs[0];
+           for (const b of bs) {
+             const R = 6371e3;
+             const dp = toRad(b.latitude - latitude);
+             const dl = toRad(b.longitude - longitude);
+             const a = Math.sin(dp/2)*Math.sin(dp/2) + Math.cos(toRad(latitude))*Math.cos(toRad(b.latitude))*Math.sin(dl/2)*Math.sin(dl/2);
+             const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+             if (dist < minDist) { minDist = dist; closest = b; }
+           }
+           setNearestBranch(closest);
         }
       },
       (err) => {

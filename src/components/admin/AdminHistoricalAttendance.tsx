@@ -96,33 +96,66 @@ export default function AdminHistoricalAttendance({ selectedBranch }: { selected
     if (!editTarget) return;
     setSaving(true);
 
-    const [h, m] = editTime.split(':').map(Number);
-    const newTs = new Date(editTarget.punch.timestamp);
-    newTs.setHours(h, m, 0, 0);
+    try {
+      const [h, m] = editTime.split(':').map(Number);
+      const newTs = new Date(editTarget.punch.timestamp);
+      newTs.setHours(h, m, 0, 0);
 
-    await supabase.from('attendance').update({
-      status: editStatus,
-      timestamp: newTs.toISOString(),
-    }).eq('id', editTarget.punch.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Session expired. Please login again.');
 
-    setEditTarget(null);
-    setSaving(false);
-    fetchDay(selectedDate);
+      const res = await fetch('/api/attendance-override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.access_token,
+          attendanceId: editTarget.punch.id,
+          newStatus: editStatus,
+          newTimestamp: newTs.toISOString(),
+          reason: `Admin override from Historical Attendance: Status changed to ${editStatus}, time adjusted`
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Override failed');
+
+      setEditTarget(null);
+      fetchDay(selectedDate);
+    } catch (err: any) {
+      alert('Override failed: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const manualPunch = async (userId: string, type: 'In' | 'Out') => {
-    const ts = new Date(selectedDate);
-    ts.setHours(type === 'In' ? 9 : 18, 0, 0, 0);
-    await supabase.from('attendance').insert({
-      user_id: userId,
-      type,
-      timestamp: ts.toISOString(),
-      latitude: 0,
-      longitude: 0,
-      address_string: 'Admin Manual Insert',
-      status: 'Present',
-    });
-    fetchDay(selectedDate);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Session expired. Please login again.');
+
+      const ts = new Date(selectedDate);
+      ts.setHours(type === 'In' ? 9 : 18, 0, 0, 0);
+
+      const res = await fetch('/api/admin-add-punch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.access_token,
+          userId,
+          type,
+          timestamp: ts.toISOString(),
+          status: 'Present',
+          reason: 'Admin manual insert from Historical Attendance'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Manual punch failed');
+
+      fetchDay(selectedDate);
+    } catch (err: any) {
+      alert('Manual punch failed: ' + err.message);
+    }
   };
 
   const filtered = groups.filter(g =>

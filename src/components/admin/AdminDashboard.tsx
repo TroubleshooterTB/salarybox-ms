@@ -180,7 +180,7 @@ export default function AdminDashboard() {
             </button>
           </div>
           <div className="px-4 py-2 bg-brand-50 rounded-lg text-[8px] font-black uppercase tracking-[0.2em] text-brand-400 text-center border border-brand-100">
-            Version: v1.1.0 • Last Updated: Apr 11, 2026 12:48
+            Version: v2.5.0 • Last Updated: Apr 18, 2026 17:30
           </div>
         </div>
       </aside>
