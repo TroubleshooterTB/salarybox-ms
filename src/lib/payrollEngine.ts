@@ -21,6 +21,13 @@ export interface PayrollInput {
   otherDeductions?: number;     
   pfEnabled?: boolean;
   esiEnabled?: boolean;
+  // V2.5: Weekly off overtime
+  weeklyOffOTDays?: number;     // Full days worked on weekly off
+  weeklyOffOTHalfDays?: number; // Half days worked on weekly off (<5 hrs)
+  // V2.5: Branch-level hourly overtime
+  branchOvertimeApplicable?: boolean;
+  branchOvertimeHourlyRate?: number;   // ₹ per hour
+  branchOvertimeHours?: number;         // Extra hours worked beyond standard shift
 }
 
 export interface PayrollOutput {
@@ -35,6 +42,8 @@ export interface PayrollOutput {
   overtimeHours: number;        // Total OT hours
   hourlyRate: number;           // Per hour rate used for OT
   isExcessiveOT: boolean;       // Flag for HR review (>50 hours)
+  weeklyOffOTPay: number;       // Extra pay for working on weekly off
+  branchOTPay: number;          // Hourly OT from branch rate
   bonus: number;
   incentive: number;
   lateFine: number;
@@ -69,12 +78,15 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     loanDeduction, professionalTaxApplicable,
     joiningDate, dateOfLeaving,
     bonus = 0, incentive = 0, fines = 0, otherDeductions = 0,
-    pfEnabled = false, esiEnabled = false
+    pfEnabled = false, esiEnabled = false,
+    weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0,
+    branchOvertimeApplicable = false, branchOvertimeHourlyRate = 0, branchOvertimeHours = 0
   } = input;
 
   const monthDays = getDaysInMonth(year, month);
   const perMonthCtc = baseSalary / 12;
   const baseMonthSalary = perMonthCtc;
+  const perDaySalary = baseMonthSalary / monthDays;
 
   // 1. Prorated Salary Calculation (Tenure-based)
   let tenureDays = monthDays;
@@ -101,28 +113,38 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     }
   }
 
-  const proratedBaseSalary = (baseMonthSalary / monthDays) * tenureDays;
+  const proratedBaseSalary = perDaySalary * tenureDays;
 
   // 2. Attendance-based Pay
   const payableDays = Math.min(tenureDays, presentDays + paidLeaves + publicHolidays + (halfDays * 0.5));
-  const grossEarned = payableDays * (baseMonthSalary / monthDays);
+  const grossEarned = payableDays * perDaySalary;
 
-  // 3. Overtime Pay
+  // 3. Standard Overtime Pay (Hourly / Day Basic)
   let overtimePay = 0;
-  const perHourPay = (baseMonthSalary / monthDays) / standardShiftHours;
+  const perHourPay = perDaySalary / standardShiftHours;
   
   if (overtimeType === 'Hourly') {
     overtimePay = overtimeHours * perHourPay;
   } else if (overtimeType === 'Day Basic') {
-    overtimePay = (overtimeHours / standardShiftHours) * (baseMonthSalary / monthDays);
+    overtimePay = (overtimeHours / standardShiftHours) * perDaySalary;
   }
 
   const isExcessiveOT = overtimeHours > 50;
 
-  const lateFine = lateDays * ((baseMonthSalary / monthDays) * 0.5);
-  const totalEarnings = grossEarned + bonus + incentive + overtimePay;
+  // 4. Weekly Off OT Pay (V2.5)
+  // Full day on weekly off = 1 day salary; half day (<5 hrs) = 0.5 day salary
+  const weeklyOffOTPay = (weeklyOffOTDays * perDaySalary) + (weeklyOffOTHalfDays * perDaySalary * 0.5);
 
-  // 4. Statutory Deductions
+  // 5. Branch Hourly OT Pay (V2.5)
+  // Applied only if branch has overtime_applicable = true
+  const branchOTPay = (branchOvertimeApplicable && branchOvertimeHourlyRate > 0)
+    ? branchOvertimeHours * branchOvertimeHourlyRate
+    : 0;
+
+  const lateFine = lateDays * (perDaySalary * 0.5);
+  const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay + branchOTPay;
+
+  // 6. Statutory Deductions
   const isFeb = month === 1;
   const pt = (professionalTaxApplicable && totalEarnings > 10000) ? (isFeb ? 300 : 200) : 0;
   const epfWage = Math.min(totalEarnings, 15000);
@@ -130,7 +152,7 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   const esi = (esiEnabled && totalEarnings <= 21000) ? Math.ceil(totalEarnings * 0.0075) : 0;
   const lwf = (month === 5 || month === 11) ? 25 : 0;
 
-  // 5. Statutory Contributions
+  // 7. Statutory Contributions
   const employerEpf = pfEnabled ? Math.round(epfWage * 0.13) : 0;
   const employerEsi = (esiEnabled && totalEarnings <= 21000) ? Math.ceil(totalEarnings * 0.0325) : 0;
   const employerLwf = (month === 5 || month === 11) ? 25 : 0;
@@ -151,6 +173,8 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     overtimeHours,
     hourlyRate: perHourPay,
     isExcessiveOT,
+    weeklyOffOTPay,
+    branchOTPay,
     bonus,
     incentive,
     lateFine,

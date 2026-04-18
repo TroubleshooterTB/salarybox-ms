@@ -638,7 +638,11 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                       if (!session) throw new Error('Session expired');
 
                       const now = new Date();
-                      const timestamp = `${now.toISOString().split('T')[0]}T${quickAddTime}:00`;
+                      // Build local date string to avoid UTC shift (Monday → Sunday bug in IST)
+                      const yyyy = now.getFullYear();
+                      const mm = String(now.getMonth() + 1).padStart(2, '0');
+                      const dd = String(now.getDate()).padStart(2, '0');
+                      const timestamp = `${yyyy}-${mm}-${dd}T${quickAddTime}:00`;
 
                       const res = await fetch('/api/admin-add-punch', {
                         method: 'POST',

@@ -139,9 +139,11 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
     setIsSubmitting(true);
     try {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day);
-      // Format as ISO string but with local time
-      const dateStr = date.toISOString().split('T')[0];
+      // Build local date string (avoid UTC shift bug that put Monday punches on Sunday)
+      const y = currentDate.getFullYear();
+      const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const d = String(selectedDayData.day).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
       const timestamp = `${dateStr}T${manualPunchTime}:00`;
 
       const res = await fetch('/api/admin-add-punch', {
@@ -200,11 +202,13 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
   const statusMap: any = {
     'Present': { color: 'bg-[#22c55e]', text: 'text-white' },
-    'Late': { color: 'bg-[#22c55e]', text: 'text-white', badge: 'LATE' },
+    'Late': { color: 'bg-[#22c55e]', text: 'text-white', badge: 'LATE' },         // ≤30 min late → green
+    'Late Half Day': { color: 'bg-[#ef4444]', text: 'text-white', badge: 'LATE HD' }, // >30 min late → red half day
     'Absent': { color: 'bg-[#ef4444]', text: 'text-white' },
-    'Half Day': { color: 'bg-[#f59e0b]', text: 'text-white' },
+    'Half Day': { color: 'bg-[#f59e0b]', text: 'text-white', badge: 'HD' },       // orange for manual half day
     'Paid Leave': { color: 'bg-[#a855f7]', text: 'text-white' },
     'Week Off': { color: 'bg-[#94a3b8]', text: 'text-white' },
+    'Week Off OT': { color: 'bg-[#0ea5e9]', text: 'text-white', badge: 'WO OT' }, // worked on weekly off
     'Holiday': { color: 'bg-[#64748b]', text: 'text-white' }
   };
 

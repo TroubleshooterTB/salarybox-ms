@@ -56,7 +56,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     pf_enabled: false, esi_enabled: false,
     bank_name: '', bank_ifsc: '', salary_type: 'Monthly',
     allow_remote_punch: false,
-    employee_categories: [] as string[]
+    employee_categories: [] as string[],
+    weekly_off_day: 0 // 0=Sunday, 1=Monday, ..., 6=Saturday, -1=No Weekly Off
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -121,7 +122,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       bank_ifsc: profile.bank_ifsc || '',
       salary_type: profile.salary_type || 'Monthly',
       allow_remote_punch: profile.allow_remote_punch || false,
-      employee_categories: profile.employee_categories || []
+      employee_categories: profile.employee_categories || [],
+      weekly_off_day: profile.weekly_off_day ?? 0
     });
     setNewPass('');
     setShowModal(true);
@@ -225,6 +227,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         salary_type: formData.salary_type,
         allow_remote_punch: formData.allow_remote_punch,
         employee_categories: formData.employee_categories || [],
+        weekly_off_day: formData.weekly_off_day ?? 0,
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
@@ -907,6 +910,29 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   <input type="checkbox" checked={formData.allow_remote_punch} onChange={e=>setFormData({...formData, allow_remote_punch: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-brand-500 focus:ring-brand-500" />
                   <span className="text-sm font-bold text-brand-600 group-hover:text-brand-700 transition font-black">Allow Field Punch</span>
                 </label>
+              </div>
+
+              {/* Weekly Off Day */}
+              <div className="bg-violet-50 p-5 rounded-[2rem] border border-violet-100">
+                <h4 className="text-[10px] font-black text-violet-600 uppercase tracking-widest mb-3 flex items-center space-x-2">
+                  <span>🗓️</span>
+                  <span>Weekly Off Day</span>
+                </h4>
+                <select
+                  value={formData.weekly_off_day}
+                  onChange={e => setFormData({ ...formData, weekly_off_day: parseInt(e.target.value) })}
+                  className="w-full bg-white border border-violet-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-violet-300 outline-none"
+                >
+                  <option value={-1}>No Weekly Off</option>
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+                <p className="text-[9px] text-violet-500 font-bold mt-2">If employee works on their weekly off, they receive one day’s extra salary (or half-day if &lt;5 hrs worked)</p>
               </div>
 
               {/* Passcode Reset Link (Existing Employees) */}

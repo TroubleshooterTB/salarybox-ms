@@ -28,7 +28,11 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       const { data: profiles, error: pError } = await profileQuery;
       if (pError) throw pError;
 
-      // 2. Fetch attendance, adjustments, and loans for all profiles in parallel
+      // 2. Fetch branches for OT settings
+      const { data: branchesData } = await supabase.from('branches').select('name, overtime_applicable, overtime_hourly_rate, shift_start, shift_end');
+      const branchMap = new Map((branchesData || []).map((b: any) => [b.name, b]));
+
+      // 3. Fetch attendance, adjustments, and loans for all profiles in parallel
       const profileIds = profiles.map(p => p.id);
       
       const [
@@ -41,24 +45,90 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         supabase.from('loan_schedules').select('*').in('user_id', profileIds).eq('target_month', monthYear)
       ]);
 
-      // 3. Process each employee
+      // 4. Process each employee
       const calculatedData = profiles.map(p => {
         const att = allAttendance?.filter(a => a.user_id === p.id) || [];
         const adj = allAdjustments?.find(a => a.user_id === p.id);
         const l = allLoans?.find(a => a.user_id === p.id);
+        const branchInfo = branchMap.get(p.branch) as any;
 
-        // Simple attendance aggregation
-        const dayMap = new Map();
+        // Get branch shift start time for late calculation
+        const shiftStartStr = branchInfo?.shift_start || '09:00';
+        const [shiftH, shiftM] = shiftStartStr.split(':').map(Number);
+        const graceLimitMinutes = shiftH * 60 + shiftM + 30; // 30-min grace
+
+        // Group by calendar day
+        const dayMap = new Map<number, any[]>();
         att.forEach(r => {
           const d = new Date(r.timestamp).getDate();
-          if (!dayMap.has(d)) dayMap.set(d, r);
+          if (!dayMap.has(d)) dayMap.set(d, []);
+          dayMap.get(d)!.push(r);
         });
-        
+
         let presentDays = 0, halfDays = 0, lateDays = 0;
-        dayMap.forEach(r => {
-          if (r.status === 'Present') presentDays++;
-          else if (r.status === 'Half Day') halfDays++;
-          else if (r.status === 'Late') { presentDays++; lateDays++; }
+        let weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0;
+        let totalOvertimeHours = 0; // hours worked beyond standard shift
+
+        const weeklyOffDay = p.weekly_off_day ?? 0; // default Sunday
+        const monthDaysCount = new Date(year, month + 1, 0).getDate();
+
+        dayMap.forEach((records, day) => {
+          const dayOfWeek = new Date(year, month, day).getDay();
+          const inRecord = records.find(r => r.type === 'In');
+          const outRecord = records.find(r => r.type === 'Out');
+
+          // Duration in minutes
+          let durationMins: number | null = null;
+          if (inRecord && outRecord) {
+            durationMins = Math.round(
+              (new Date(outRecord.timestamp).getTime() - new Date(inRecord.timestamp).getTime()) / 60000
+            );
+          }
+
+          const isWeeklyOff = weeklyOffDay >= 0 && dayOfWeek === weeklyOffDay;
+
+          if (isWeeklyOff && inRecord) {
+            // Worked on weekly off - grant OT pay
+            const durationHrs = (durationMins ?? 0) / 60;
+            if (durationHrs < 5 || !outRecord) {
+              weeklyOffOTHalfDays++;
+            } else {
+              weeklyOffOTDays++;
+            }
+            // Don't count as present day (it's their off day)
+            return;
+          }
+
+          // Determine late arrival for regular days
+          if (inRecord) {
+            const inTime = new Date(inRecord.timestamp);
+            const inMinutes = inTime.getHours() * 60 + inTime.getMinutes();
+            const minsLate = inMinutes - (shiftH * 60 + shiftM);
+
+            if (minsLate > 30) {
+              // More than 30 min late = Half Day (Late Half Day)
+              halfDays++;
+            } else if (minsLate > 0) {
+              // Within 30-min grace = Late but Present
+              presentDays++;
+              lateDays++;
+            } else {
+              presentDays++;
+            }
+
+            // Calculate OT hours (time beyond standard 8-hr shift)
+            if (outRecord && durationMins !== null) {
+              const overtimeMins = Math.max(0, durationMins - 480); // 480 = 8*60
+              totalOvertimeHours += overtimeMins / 60;
+            }
+          } else {
+            // No punch-in: check if status record exists
+            const lastRecord = records[records.length - 1];
+            if (lastRecord?.status === 'Present') presentDays++;
+            else if (lastRecord?.status === 'Half Day') halfDays++;
+            else if (lastRecord?.status === 'Late') { presentDays++; lateDays++; }
+            else if (lastRecord?.status === 'Paid Leave') presentDays++;
+          }
         });
 
         const payroll = calculatePayroll({
@@ -75,10 +145,16 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           fines: adj?.fines || 0,
           otherDeductions: adj?.other_deductions || 0,
           pfEnabled: p.pf_enabled,
-          esiEnabled: p.esi_enabled
+          esiEnabled: p.esi_enabled,
+          // V2.5 new fields
+          weeklyOffOTDays,
+          weeklyOffOTHalfDays,
+          branchOvertimeApplicable: branchInfo?.overtime_applicable || false,
+          branchOvertimeHourlyRate: branchInfo?.overtime_hourly_rate || 0,
+          branchOvertimeHours: totalOvertimeHours
         });
 
-        return { ...p, payroll };
+        return { ...p, payroll, weeklyOffOTDays, weeklyOffOTHalfDays, branchOTHours: Math.round(totalOvertimeHours * 10) / 10 };
       });
 
       setPayrollData(calculatedData);
@@ -88,6 +164,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       setProcessing(false);
     }
   };
+
 
   const handleLockAndExport = async () => {
     if (!payrollData.length) return alert('Calculate payroll first');
@@ -181,6 +258,8 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Days</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Basic</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">OT/Earned</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-violet-500">Weekly Off OT</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-amber-500">Branch OT</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-rose-500">Deductions</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-emerald-600">Net Pay</th>
                 </tr>
@@ -202,6 +281,28 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                     <td className="px-6 py-5 text-right">
                        <p className="text-xs font-bold text-slate-800">₹{Math.round(p.payroll.totalEarnings).toLocaleString()}</p>
                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-tighter">OT: ₹{Math.round(p.payroll.overtimePay)}</p>
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                       {(p.weeklyOffOTDays > 0 || p.weeklyOffOTHalfDays > 0) ? (
+                         <div>
+                           <p className="text-xs font-black text-violet-700">₹{Math.round(p.payroll.weeklyOffOTPay).toLocaleString()}</p>
+                           <p className="text-[9px] font-bold text-violet-400">
+                             {p.weeklyOffOTDays}d + {p.weeklyOffOTHalfDays}½d
+                           </p>
+                         </div>
+                       ) : (
+                         <span className="text-[10px] text-slate-300 font-bold">—</span>
+                       )}
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                       {p.payroll.branchOTPay > 0 ? (
+                         <div>
+                           <p className="text-xs font-black text-amber-700">₹{Math.round(p.payroll.branchOTPay).toLocaleString()}</p>
+                           <p className="text-[9px] font-bold text-amber-400">{p.branchOTHours}h OT</p>
+                         </div>
+                       ) : (
+                         <span className="text-[10px] text-slate-300 font-bold">—</span>
+                       )}
                     </td>
                     <td className="px-6 py-5 text-right">
                        <p className="text-xs font-bold text-rose-500">₹{Math.round(p.payroll.totalDeductions).toLocaleString()}</p>
