@@ -138,29 +138,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const insertPayload = {
+      user_id: user.id,
+      type: punchData.type,
+      timestamp: new Date().toISOString(),
+      latitude: punchData.latitude,
+      longitude: punchData.longitude,
+      address_string: punchData.address_string,
+      selfie_url: finalSelfieUrl,
+      status: punchData.status,
+      branch: profile.branch,
+      employee_name: profile.full_name || '',
+      employee_id: profile.employee_id || '',
+    };
+
+    console.log('INSERT PAYLOAD:', JSON.stringify(insertPayload));
+
     const { data, error: insertError } = await supabaseAdmin
       .from('attendance')
-      .insert({
-        user_id: user.id,
-        type: punchData.type,
-        timestamp: new Date().toISOString(),
-        latitude: punchData.latitude,
-        longitude: punchData.longitude,
-        address_string: punchData.address_string,
-        selfie_url: finalSelfieUrl,
-        status: punchData.status,
-        branch: profile.branch,
-        employee_name: profile.full_name || '',
-        employee_id: profile.employee_id || '',
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.log('INSERT ERROR:', JSON.stringify(insertError));
+      throw insertError;
+    }
 
+    console.log('PUNCH SUCCESS:', data?.id);
     return NextResponse.json({ success: true, data });
   } catch (err: any) {
-    console.error('Punch API Error:', err.message);
+    console.log('PUNCH FATAL ERROR:', err.message, err.code, err.details, err.hint);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
