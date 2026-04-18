@@ -128,12 +128,16 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
         <div className="flex items-center space-x-3">
           <button
             onClick={async () => {
-              // Load all profiles for Quick Add
-              let query = supabase.from('profiles').select('id, full_name, employee_id, branch').or('is_active.is.null,is_active.eq.true');
+              // Load all profiles for Quick Add — match AdminStaff fetch pattern (no is_active filter)
+              let query = supabase.from('profiles').select('id, full_name, employee_id, branch').order('full_name');
               if (selectedBranch && selectedBranch !== 'All Branches') {
                 query = query.eq('branch', selectedBranch);
               }
-              const { data } = await query.order('full_name');
+              const { data, error } = await query;
+              if (error) {
+                console.error('Failed to load profiles:', error);
+                alert('Failed to load employee list: ' + error.message);
+              }
               if (data) setAllProfiles(data);
               setShowQuickAdd(true);
             }}
