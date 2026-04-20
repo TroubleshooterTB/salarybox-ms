@@ -139,12 +139,10 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
     setIsSubmitting(true);
     try {
-      // Build local date string (avoid UTC shift bug that put Monday punches on Sunday)
-      const y = currentDate.getFullYear();
-      const m = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const d = String(selectedDayData.day).padStart(2, '0');
-      const dateStr = `${y}-${m}-${d}`;
-      const timestamp = `${dateStr}T${manualPunchTime}:00`;
+      // Create an explicit local Date object to properly handle timezones when converting to ISO
+      const [h, m] = manualPunchTime.split(':').map(Number);
+      const localDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day, h, m, 0, 0);
+      const timestamp = localDate.toISOString();
 
       const res = await fetch('/api/admin-add-punch', {
         method: 'POST',

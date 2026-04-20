@@ -638,11 +638,10 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                       if (!session) throw new Error('Session expired');
 
                       const now = new Date();
-                      // Build local date string to avoid UTC shift (Monday → Sunday bug in IST)
-                      const yyyy = now.getFullYear();
-                      const mm = String(now.getMonth() + 1).padStart(2, '0');
-                      const dd = String(now.getDate()).padStart(2, '0');
-                      const timestamp = `${yyyy}-${mm}-${dd}T${quickAddTime}:00`;
+                      // Create an explicit local Date object to properly handle timezones when converting to ISO
+                      const [h, m] = quickAddTime.split(':').map(Number);
+                      const localDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+                      const timestamp = localDate.toISOString();
 
                       const res = await fetch('/api/admin-add-punch', {
                         method: 'POST',
