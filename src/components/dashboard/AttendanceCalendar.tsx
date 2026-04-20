@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight, Clock, MapPin, X, FileText, Edit2, MessageSquare, Send, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, ChevronLeft, ChevronRight, Clock, MapPin, X, FileText, Palmtree, Edit2, MessageSquare, Send, Trash2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function AttendanceCalendar({ onBack, userId, userName, onRegularize }: { 
+export default function AttendanceCalendar({ onBack, userId, userName, onRegularize, onApplyLeave }: { 
   onBack: () => void, 
   userId?: string, 
   userName?: string,
-  onRegularize?: (date: string) => void
+  onRegularize?: (date: string) => void,
+  onApplyLeave?: (date: string) => void
 }) {
   const { session, userRole } = useStore();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -133,12 +134,34 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     }
   };
 
-  const handleAddManualPunch = async () => {
-    if (!manualPunchTime || !reason) return alert('Time and reason are required');
-    if (!selectedDayData) return;
-
+  const handleDeletePunch = async (punchId: string) => {
+    if (!window.confirm('Are you sure you want to completely delete this punch record? This action cannot be undone.')) return;
     setIsSubmitting(true);
     try {
+      const res = await fetch('/api/attendance-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session?.access_token,
+          punchId
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert('Punch deleted successfully!');
+      
+      // Update local state by removing from attendance
+      setAttendance(prev => prev.filter(p => p.id !== punchId));
+      setSelectedDayData(prev => prev ? { ...prev, punches: prev.punches.filter(p => p.id !== punchId) } : null);
+      setCurrentDate(new Date(currentDate)); // trigger refresh
+    } catch (err: any) {
+      alert('Failed to delete punch: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddManualPunch = async () => {
       // Create an explicit local Date object to properly handle timezones when converting to ISO
       const [h, m] = manualPunchTime.split(':').map(Number);
       const localDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day, h, m, 0, 0);
@@ -405,12 +428,20 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                       
                       {/* Admin Controls */}
                       {!isEmployee && (
-                        <button 
-                          onClick={() => setEditingPunch(p)}
-                          className="absolute top-4 right-4 p-2 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-brand-500 hover:border-brand-200 transition shadow-sm"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                        <div className="absolute top-4 right-4 flex space-x-2">
+                          <button 
+                            onClick={() => setEditingPunch(p)}
+                            className="p-2 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-brand-500 hover:border-brand-200 transition shadow-sm"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeletePunch(p.id)}
+                            className="p-2 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-rose-500 hover:border-rose-200 transition shadow-sm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
 
                       {p.selfie_url && (
@@ -468,18 +499,32 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
                 {/* Action Button: Regularization for staff, Manual Add for Admin */}
                 {isEmployee ? (
-                  <button
-                    onClick={() => {
-                      setSelectedDayData(null);
-                      const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day)
-                        .toISOString().split('T')[0];
-                      if (onRegularize) onRegularize(dateStr);
-                    }}
-                    className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl flex items-center justify-center space-x-3 active:scale-[0.98] transition text-xs uppercase tracking-widest"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>File Regularization Request</span>
-                  </button>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => {
+                        setSelectedDayData(null);
+                        const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day)
+                          .toISOString().split('T')[0];
+                        if (onRegularize) onRegularize(dateStr);
+                      }}
+                      className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl flex items-center justify-center space-x-3 active:scale-[0.98] transition text-xs uppercase tracking-widest shadow-xl shadow-slate-900/10"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>File Regularization Request</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedDayData(null);
+                        const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDayData.day)
+                          .toISOString().split('T')[0];
+                        if (onApplyLeave) onApplyLeave(dateStr);
+                      }}
+                      className="w-full py-4 bg-emerald-50 text-emerald-600 font-black rounded-2xl flex items-center justify-center space-x-3 active:scale-[0.98] transition text-xs uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100"
+                    >
+                      <Palmtree className="w-4 h-4" />
+                      <span>Apply for Paid Leave</span>
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={() => setIsAddingManualPunch(true)}
@@ -541,6 +586,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:border-brand-300 focus:ring-4 focus:ring-brand-500/5 outline-none transition appearance-none"
                             >
                                 <option value="Present">Present</option>
+                                <option value="Absent">Absent</option>
                                 <option value="Late">Late</option>
                                 <option value="Half Day">Half Day</option>
                                 <option value="Paid Leave">Paid Leave</option>

@@ -3,15 +3,15 @@ import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
 import { ArrowLeft, PlusCircle, Loader2 } from 'lucide-react';
 
-export default function LeaveManagement({ onBack }: { onBack: () => void }) {
+export default function LeaveManagement({ onBack, prefillDate }: { onBack: () => void, prefillDate?: string }) {
   const { session } = useStore();
   const [quotas, setQuotas] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'balances' | 'request'>('balances');
+  const [view, setView] = useState<'balances' | 'request'>(prefillDate ? 'request' : 'balances');
   const [formData, setFormData] = useState({
     leave_type: 'PL',
-    start_date: new Date().toISOString().split('T')[0],
-    end_date: new Date().toISOString().split('T')[0],
+    start_date: prefillDate || new Date().toISOString().split('T')[0],
+    end_date: prefillDate || new Date().toISOString().split('T')[0],
     reason: '',
     is_half_day: false
   });

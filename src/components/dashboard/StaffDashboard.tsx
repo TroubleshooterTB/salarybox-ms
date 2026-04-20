@@ -119,7 +119,7 @@ export default function StaffDashboard() {
     return <CameraPunch onBack={() => setActiveTab(null)} />;
   }
   if (activeTab === 'leaves') {
-    return <LeaveManagement onBack={() => setActiveTab(null)} />;
+    return <LeaveManagement onBack={() => { setActiveTab(null); setCorrectionDate(undefined); }} prefillDate={correctionDate} />;
   }
   if (activeTab === 'loans') {
     return <LoanLedger onBack={() => setActiveTab(null)} />;
@@ -137,6 +137,7 @@ export default function StaffDashboard() {
     return <AttendanceCalendar 
       onBack={() => setActiveTab(null)}
       onRegularize={(date) => { setCorrectionDate(date); setActiveTab('corrections'); }}
+      onApplyLeave={(date) => { setCorrectionDate(date); setActiveTab('leaves'); }}
     />;
   }
   if (activeTab && !['attendance', 'leaves', 'loans', 'history', 'profile', 'holidays', 'corrections'].includes(activeTab)) {

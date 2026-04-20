@@ -608,6 +608,7 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition appearance-none"
                 >
                   <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
                   <option value="Late">Late</option>
                   <option value="Half Day">Half Day</option>
                   <option value="Paid Leave">Paid Leave</option>
