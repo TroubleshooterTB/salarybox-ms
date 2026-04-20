@@ -38,11 +38,15 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       const [
         { data: allAttendance },
         { data: allAdjustments },
-        { data: allLoans }
+        { data: allLoans },
+        { data: allLeaves },
+        { data: allHolidays }
       ] = await Promise.all([
         supabase.from('attendance').select('*').in('user_id', profileIds).gte('timestamp', startDate).lte('timestamp', endDate),
         supabase.from('payroll_adjustments').select('*').in('user_id', profileIds).eq('month_year', monthYear),
-        supabase.from('loan_schedules').select('*').in('user_id', profileIds).eq('target_month', monthYear)
+        supabase.from('loan_schedules').select('*').in('user_id', profileIds).eq('target_month', monthYear),
+        supabase.from('leave_requests').select('*').in('user_id', profileIds).eq('status', 'Approved').lte('start_date', endDate.split('T')[0]),
+        supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0])
       ]);
 
       // 4. Process each employee
@@ -50,91 +54,127 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         const att = allAttendance?.filter(a => a.user_id === p.id) || [];
         const adj = allAdjustments?.find(a => a.user_id === p.id);
         const l = allLoans?.find(a => a.user_id === p.id);
+        const lvs = allLeaves?.filter(l => l.user_id === p.id) || [];
         const branchInfo = branchMap.get(p.branch) as any;
 
         // Get branch shift start time for late calculation
         const shiftStartStr = branchInfo?.shift_start || '09:00';
         const [shiftH, shiftM] = shiftStartStr.split(':').map(Number);
-        const graceLimitMinutes = shiftH * 60 + shiftM + 30; // 30-min grace
 
-        // Group by calendar day
+        // Group by calendar day securely parsing UTC timestamps
         const dayMap = new Map<number, any[]>();
         att.forEach(r => {
-          const d = new Date(r.timestamp).getDate();
+          const rawDate = new Date(r.timestamp);
+          const istDate = new Date(rawDate.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+          const d = istDate.getDate();
           if (!dayMap.has(d)) dayMap.set(d, []);
           dayMap.get(d)!.push(r);
         });
 
-        let presentDays = 0, halfDays = 0, lateDays = 0;
+        let presentDays = 0, halfDays = 0, lateDays = 0, paidLeaves = 0;
         let weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0;
         let totalOvertimeHours = 0; // hours worked beyond standard shift
+        const publicHolidays = (allHolidays || []).length;
 
         const weeklyOffDay = p.weekly_off_day ?? 0; // default Sunday
         const monthDaysCount = new Date(year, month + 1, 0).getDate();
 
-        dayMap.forEach((records, day) => {
-          const dayOfWeek = new Date(year, month, day).getDay();
-          const inRecord = records.find(r => r.type === 'In');
-          const outRecord = records.find(r => r.type === 'Out');
+        for (let day = 1; day <= monthDaysCount; day++) {
+          const records = dayMap.get(day) || [];
+          const currentDate = new Date(year, month, day);
+          
+          const y = currentDate.getFullYear();
+          const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const d = String(day).padStart(2, '0');
+          const dateStr = `${y}-${m}-${d}`;
+          
+          const dayOfWeek = currentDate.getDay();
+          const approvedLeave = lvs.find(lv => dateStr >= lv.start_date && dateStr <= lv.end_date);
+          const isHolidayRecord = (allHolidays || []).some(h => dateStr === h.date);
 
-          // Duration in minutes
-          let durationMins: number | null = null;
-          if (inRecord && outRecord) {
-            durationMins = Math.round(
-              (new Date(outRecord.timestamp).getTime() - new Date(inRecord.timestamp).getTime()) / 60000
-            );
+          const inPunches = records.filter(r => r.type === 'In').sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          const outPunches = records.filter(r => r.type === 'Out').sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          let durationMins = 0;
+          let firstInTime: Date | null = null;
+          let lastOutRecord: any = null;
+
+          if (inPunches.length > 0) {
+            firstInTime = new Date(inPunches[0].timestamp);
+            for (let i = 0; i < inPunches.length; i++) {
+              const inT = new Date(inPunches[i].timestamp).getTime();
+              const outP = outPunches.find(o => new Date(o.timestamp).getTime() > inT);
+              if (outP && (!lastOutRecord || new Date(outP.timestamp).getTime() > new Date(lastOutRecord.timestamp).getTime())) {
+                lastOutRecord = outP;
+              }
+            }
+            durationMins = lastOutRecord ? Math.round((new Date(lastOutRecord.timestamp).getTime() - firstInTime.getTime()) / 60000) : 0;
           }
 
           const isWeeklyOff = weeklyOffDay >= 0 && dayOfWeek === weeklyOffDay;
 
-          if (isWeeklyOff && inRecord) {
-            // Worked on weekly off - grant OT pay
-            const durationHrs = (durationMins ?? 0) / 60;
-            if (durationHrs < 5 || !outRecord) {
-              weeklyOffOTHalfDays++;
-            } else {
-              weeklyOffOTDays++;
+          if (isWeeklyOff && !isHolidayRecord) {
+            if (inPunches.length > 0) {
+              const durationHrs = durationMins / 60;
+              if (durationHrs < 5 || durationMins === 0) {
+                weeklyOffOTHalfDays++;
+              } else {
+                weeklyOffOTDays++;
+              }
             }
-            // Don't count as present day (it's their off day)
-            return;
+            if (!approvedLeave) {
+               presentDays++; 
+            } else {
+               if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+            }
+            continue;
           }
 
-          // Determine late arrival for regular days
-          if (inRecord) {
-            const inTime = new Date(inRecord.timestamp);
-            const inMinutes = inTime.getHours() * 60 + inTime.getMinutes();
+          if (isHolidayRecord && inPunches.length === 0) {
+            continue;
+          }
+
+          if (inPunches.length > 0) {
+            const istDate = new Date(firstInTime!.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+            const inMinutes = istDate.getHours() * 60 + istDate.getMinutes();
             const minsLate = inMinutes - (shiftH * 60 + shiftM);
+            const durationHrs = durationMins / 60;
+            const forcedStatus = lastOutRecord?.status;
 
-            if (minsLate > 30) {
-              // More than 30 min late = Half Day (Late Half Day)
-              halfDays++;
-            } else if (minsLate > 0) {
-              // Within 30-min grace = Late but Present
-              presentDays++;
-              lateDays++;
+            if (forcedStatus === 'Half Day' || (lastOutRecord && durationHrs > 0 && durationHrs < 4.5)) {
+               halfDays++;
+            } else if (durationHrs > 0 && durationHrs < 1.5) {
+               // Barely present -> effectively absent
             } else {
-              presentDays++;
+               if (minsLate > 30) {
+                 halfDays++;
+               } else {
+                 presentDays++;
+                 if (minsLate > 0) lateDays++;
+               }
             }
 
-            // Calculate OT hours (time beyond standard 8-hr shift)
-            if (outRecord && durationMins !== null) {
-              const overtimeMins = Math.max(0, durationMins - 480); // 480 = 8*60
-              totalOvertimeHours += overtimeMins / 60;
+            if (lastOutRecord && durationMins > 480) {
+              totalOvertimeHours += (durationMins - 480) / 60;
             }
+
           } else {
-            // No punch-in: check if status record exists
-            const lastRecord = records[records.length - 1];
-            if (lastRecord?.status === 'Present') presentDays++;
-            else if (lastRecord?.status === 'Half Day') halfDays++;
-            else if (lastRecord?.status === 'Late') { presentDays++; lateDays++; }
-            else if (lastRecord?.status === 'Paid Leave') presentDays++;
+            if (records.length > 0) {
+              const lastRecord = records[records.length - 1];
+              if (lastRecord.status === 'Present') presentDays++;
+              else if (lastRecord.status === 'Half Day') halfDays++;
+              else if (lastRecord.status === 'Late') { presentDays++; lateDays++; }
+              else if (lastRecord.status === 'Paid Leave') paidLeaves++;
+            } else if (approvedLeave) {
+              if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+            }
           }
-        });
+        }
 
         const payroll = calculatePayroll({
           baseSalary: p.ctc_amount || 0,
           year, month,
-          presentDays, paidLeaves: 0, publicHolidays: 0, halfDays, lateDays,
+          presentDays, paidLeaves, publicHolidays, halfDays, lateDays,
           overtimeHours: 0, overtimeType: 'None', standardShiftHours: 8,
           loanDeduction: l?.deduction_amount || 0,
           professionalTaxApplicable: p.professional_tax_applicable !== false,

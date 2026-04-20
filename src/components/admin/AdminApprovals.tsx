@@ -142,6 +142,33 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
             console.error('Quota deduction failed:', quotaError);
             alert('Leave approved but quota deduction failed. Please check manually.');
         }
+
+        // 3. Inject attendance rows to sync with calendar visually
+        const punchType = leave.leave_type === 'Unpaid' ? 'Absent' : 'Paid Leave';
+        const attendancePayloads = [];
+        for (let d = 0; d < days; d++) {
+           const targetDate = new Date(start);
+           targetDate.setDate(targetDate.getDate() + d);
+           const y = targetDate.getFullYear();
+           const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+           const dd = String(targetDate.getDate()).padStart(2, '0');
+           const localDate = new Date(y, targetDate.getMonth(), targetDate.getDate(), 9, 0, 0, 0);
+           
+           attendancePayloads.push({
+             user_id: leave.user_id,
+             type: 'In',
+             timestamp: localDate.toISOString(),
+             status: leave.is_half_day ? 'Half Day' : punchType,
+             branch: leave.profiles?.branch || 'Main',
+             employee_name: leave.profiles?.full_name || '',
+             employee_id: leave.profiles?.employee_id || '',
+             reason: `Approved ${leave.leave_type} Leave`
+           });
+        }
+        if (attendancePayloads.length > 0) {
+           const { error: attError } = await supabase.from('attendance').insert(attendancePayloads);
+           if (attError) console.error('Failed to inject tracking rows:', attError);
+        }
     }
     
     if (!error) fetchLeaves();
