@@ -336,7 +336,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                     {day < 10 ? `0${day}` : day}
                   </span>
                   
-                  {hasPunches && data && (
+                  {hasPunches && data?.raw && (
                     <div className="flex flex-col items-center mt-0.5 w-full px-1 z-10">
                       {data.raw.find((p: any) => p.type === 'In') && (
                         <span className={`text-[6px] font-bold w-full text-center rounded-[2px] truncate mb-[1px] py-[1px] ${config ? 'text-white bg-black/20' : 'text-emerald-700 bg-emerald-100'}`}>
