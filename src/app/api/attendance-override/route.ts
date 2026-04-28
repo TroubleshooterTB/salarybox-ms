@@ -64,8 +64,7 @@ export async function POST(req: NextRequest) {
           requested_punch_in: oldRecord.type === 'In' ? timeStr : null,
           requested_punch_out: oldRecord.type === 'Out' ? timeStr : null,
           reason: `Admin Edit: ${reason}`,
-          status: 'Pending',
-          admin_id: user.id
+          status: 'Pending'
         });
 
       if (insertError) throw insertError;
