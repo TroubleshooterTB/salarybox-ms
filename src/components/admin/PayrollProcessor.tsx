@@ -167,6 +167,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
               else if (lastRecord.status === 'Half Day') halfDays++;
               else if (lastRecord.status === 'Late') { presentDays++; lateDays++; }
               else if (lastRecord.status === 'Paid Leave') paidLeaves++;
+              else if (lastRecord.status === 'Half Day Leave') { paidLeaves += 0.5; halfDays++; }
             } else if (approvedLeave) {
               if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
             }

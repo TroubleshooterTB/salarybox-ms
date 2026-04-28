@@ -216,6 +216,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       else if (data?.status === 'Absent') stats.absent++;
       else if (data?.status === 'Half Day') stats.halfDay++;
       else if (data?.status === 'Paid Leave') stats.paidLeave++;
+      else if (data?.status === 'Half Day Leave') stats.paidLeave += 0.5;
       else if (data?.status === 'Week Off') stats.weekOff++;
     }
     return stats;
@@ -226,14 +227,15 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
   const statusMap: any = {
     'Present': { color: 'bg-[#22c55e]', text: 'text-white' },
-    'Late': { color: 'bg-[#22c55e]', text: 'text-white', badge: 'LATE' },         // ≤30 min late → green
-    'Late Half Day': { color: 'bg-[#ef4444]', text: 'text-white', badge: 'LATE HD' }, // >30 min late → red half day
+    'Late': { color: 'bg-[#22c55e]', text: 'text-white', badge: 'LATE' },
+    'Late Half Day': { color: 'bg-[#ef4444]', text: 'text-white', badge: 'LATE HD' },
     'Absent': { color: 'bg-[#ef4444]', text: 'text-white' },
-    'Half Day': { color: 'bg-[#f59e0b]', text: 'text-white', badge: 'HD' },       // orange for manual half day
+    'Half Day': { color: 'bg-[#f59e0b]', text: 'text-white', badge: 'HD' },
     'Paid Leave': { color: 'bg-[#a855f7]', text: 'text-white' },
+    'Half Day Leave': { color: 'bg-[linear-gradient(135deg,#a855f7_50%,#f59e0b_50%)]', text: 'text-white', badge: 'HD LVE' },
     'Week Off': { color: 'bg-[#94a3b8]', text: 'text-white' },
-    'Week Off OT': { color: 'bg-[#0ea5e9]', text: 'text-white', badge: 'WO OT' }, // worked on weekly off
-    'Holiday': { color: 'bg-[#64748b]', text: 'text-white' }
+    'Week Off OT': { color: 'bg-[#0ea5e9]', text: 'text-white', badge: 'WO OT' },
+    'Holiday': { color: 'bg-[#94a3b8]', text: 'text-white' }
   };
 
   const formatTime = (ts: string) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -609,6 +611,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                                 <option value="Late">Late</option>
                                 <option value="Half Day">Half Day</option>
                                 <option value="Paid Leave">Paid Leave</option>
+                                <option value="Half Day Leave">Half Day Leave</option>
                                 <option value="Holiday">Holiday</option>
                                 <option value="Week Off">Week Off</option>
                             </select>
@@ -666,6 +669,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                                 <option value="Half Day">Half Day</option>
                                 <option value="Late">Late</option>
                                 <option value="Paid Leave">Paid Leave</option>
+                                <option value="Half Day Leave">Half Day Leave</option>
                                 <option value="Holiday">Holiday</option>
                                 <option value="Week Off">Week Off</option>
                             </select>
