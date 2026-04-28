@@ -135,14 +135,13 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   // Full day on weekly off = 1 day salary; half day (<5 hrs) = 0.5 day salary
   const weeklyOffOTPay = (weeklyOffOTDays * perDaySalary) + (weeklyOffOTHalfDays * perDaySalary * 0.5);
 
-  // 5. Branch Hourly OT Pay (V2.5)
-  // Applied only if branch has overtime_applicable = true
-  const branchOTPay = (branchOvertimeApplicable && branchOvertimeHourlyRate > 0)
-    ? branchOvertimeHours * branchOvertimeHourlyRate
-    : 0;
+  // 5. Branch Hourly OT Pay (V2.5) - Override with calculated hourly OT if needed
+  // If hourly overtime rate is provided by branch, we can use it, but user requested Month Salary / Days / Shift Hours
+  // We will use standard overtimePay calculated above instead of fixed branch rate.
+  const branchOTPay = 0; // Disabled as per new requirement: OT is based on salary
 
   const lateFine = lateDays * (perDaySalary * 0.5);
-  const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay + branchOTPay;
+  const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay;
 
   // 6. Statutory Deductions
   const isFeb = month === 1;

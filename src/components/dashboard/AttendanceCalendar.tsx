@@ -335,8 +335,24 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                   <span className={`text-sm font-bold ${config ? config.text : 'text-slate-400'}`}>
                     {day < 10 ? `0${day}` : day}
                   </span>
+                  
+                  {hasPunches && (
+                    <div className="flex flex-col items-center mt-0.5 w-full px-1 z-10">
+                      {data.raw.find((p: any) => p.type === 'In') && (
+                        <span className={`text-[6px] font-bold w-full text-center rounded-[2px] truncate mb-[1px] py-[1px] ${config ? 'text-white bg-black/20' : 'text-emerald-700 bg-emerald-100'}`}>
+                           I: {formatTime(data.raw.find((p: any) => p.type === 'In').timestamp).replace(' ', '')}
+                        </span>
+                      )}
+                      {data.raw.slice().reverse().find((p: any) => p.type === 'Out') && (
+                         <span className={`text-[6px] font-bold w-full text-center rounded-[2px] truncate py-[1px] ${config ? 'text-white bg-black/20' : 'text-rose-700 bg-rose-100'}`}>
+                           O: {formatTime(data.raw.slice().reverse().find((p: any) => p.type === 'Out').timestamp).replace(' ', '')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {config?.badge && (
-                    <span className="absolute bottom-1.5 text-[6px] font-black uppercase text-white/90 tracking-tighter">
+                    <span className="absolute bottom-1 text-[6px] font-black uppercase text-white/90 tracking-tighter">
                       {config.badge}
                     </span>
                   )}

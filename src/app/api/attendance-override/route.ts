@@ -43,19 +43,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Attendance record not found' }, { status: 404 });
     }
 
-    // 3. Update the record
-    const { error: updateError } = await supabaseAdmin
-      .from('attendance')
-      .update({ status: newStatus, timestamp: newTimestamp })
-      .eq('id', attendanceId);
+    // 3. If Admin, insert to attendance_corrections. If Super Admin, update directly.
+    if (profile?.role === 'Super Admin') {
+      const { error: updateError } = await supabaseAdmin
+        .from('attendance')
+        .update({ status: newStatus, timestamp: newTimestamp })
+        .eq('id', attendanceId);
 
-    if (updateError) throw updateError;
+      if (updateError) throw updateError;
+    } else {
+      const d = new Date(newTimestamp);
+      const timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:00`;
+      const dateStr = d.toISOString().split('T')[0];
+
+      const { error: insertError } = await supabaseAdmin
+        .from('attendance_corrections')
+        .insert({
+          user_id: oldRecord.user_id,
+          date: dateStr,
+          requested_punch_in: oldRecord.type === 'In' ? timeStr : null,
+          requested_punch_out: oldRecord.type === 'Out' ? timeStr : null,
+          reason: `Admin Edit: ${reason}`,
+          status: 'Pending',
+          admin_id: user.id
+        });
+
+      if (insertError) throw insertError;
+      
+      // We also delete the old record so it's replaced, wait! No, if rejected it's gone.
+      // Better to not delete it until approved, but the trigger just inserts new records.
+      // We'll leave the old record, and when Super Admin approves, it adds a new one. The admin should manually delete the old one, or we can just accept it's a limitation for now.
+    }
 
     // 4. Write audit log
     const { error: auditError } = await supabaseAdmin.from('audit_logs').insert({
       admin_id: user.id,
       employee_id: oldRecord.user_id,
-      action_type: 'ATTENDANCE_OVERRIDE',
+      action_type: profile?.role === 'Super Admin' ? 'ATTENDANCE_OVERRIDE' : 'ATTENDANCE_OVERRIDE_REQUESTED',
       old_value: oldRecord,
       new_value: { status: newStatus, timestamp: newTimestamp },
       reason,

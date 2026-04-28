@@ -141,21 +141,23 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
             const durationHrs = durationMins / 60;
             const forcedStatus = lastOutRecord?.status;
 
-            if (forcedStatus === 'Half Day' || (lastOutRecord && durationHrs > 0 && durationHrs < 4.5)) {
+            const isShowroom = p.branch === 'Showroom' || p.job_title?.toLowerCase().includes('showroom');
+            const stdHours = isShowroom ? 10 : 8;
+
+            if (forcedStatus === 'Half Day' || (lastOutRecord && durationHrs > 0 && durationHrs < (stdHours / 2 + 0.5))) {
                halfDays++;
             } else if (durationHrs > 0 && durationHrs < 1.5) {
                // Barely present -> effectively absent
             } else {
-               if (minsLate > 30) {
+               if (minsLate > 0) {
                  halfDays++;
                } else {
                  presentDays++;
-                 if (minsLate > 0) lateDays++;
                }
             }
 
-            if (lastOutRecord && durationMins > 480) {
-              totalOvertimeHours += (durationMins - 480) / 60;
+            if (lastOutRecord && durationMins > stdHours * 60) {
+              totalOvertimeHours += (durationMins - stdHours * 60) / 60;
             }
 
           } else {
@@ -171,11 +173,14 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           }
         }
 
+        const isShowroom = p.branch === 'Showroom' || p.job_title?.toLowerCase().includes('showroom');
+        const standardShiftHours = isShowroom ? 10 : 8;
+
         const payroll = calculatePayroll({
           baseSalary: p.ctc_amount || 0,
           year, month,
           presentDays, paidLeaves, publicHolidays, halfDays, lateDays,
-          overtimeHours: 0, overtimeType: 'None', standardShiftHours: 8,
+          overtimeHours: totalOvertimeHours, overtimeType: 'Hourly', standardShiftHours,
           loanDeduction: l?.deduction_amount || 0,
           professionalTaxApplicable: p.professional_tax_applicable !== false,
           joiningDate: p.joining_date,

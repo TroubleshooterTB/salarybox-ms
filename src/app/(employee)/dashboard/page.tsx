@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import useStore from '@/store';
 import WebCameraPunch from '@/components/attendance/WebCameraPunch';
+import AttendanceCalendar from '@/components/dashboard/AttendanceCalendar';
 import NotificationBell from '@/components/common/NotificationBell';
 
 const menuItems = [
@@ -62,6 +63,10 @@ export default function EmployeeDashboard() {
 
   if (activeTab === 'attendance') {
     return <WebCameraPunch onBack={() => setActiveTab(null)} />;
+  }
+
+  if (activeTab === 'history') {
+    return <AttendanceCalendar onBack={() => setActiveTab(null)} />;
   }
 
   return (
