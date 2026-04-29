@@ -12,6 +12,10 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
   const [disburseAmount, setDisburseAmount] = useState('');
   const [scheduleMonth, setScheduleMonth] = useState('');
   const [scheduleAmount, setScheduleAmount] = useState('');
+  const [correctionAmount, setCorrectionAmount] = useState('');
+  const [correctionDate, setCorrectionDate] = useState('2026-03-31');
+  const [leaveCorrectionBalance, setLeaveCorrectionBalance] = useState('');
+  const [leaveCorrectionDate, setLeaveCorrectionDate] = useState('2026-03-31');
   
   // View Data
   const [userLoans, setUserLoans] = useState<any[]>([]);
@@ -105,6 +109,54 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
   const deleteSchedule = async (id: string) => {
     await supabase.from('loan_schedules').delete().eq('id', id);
     setUserSchedules(prev => prev.filter(s => s.id !== id));
+  };
+
+  const handleBalanceCorrection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || !correctionAmount || !correctionDate) return;
+    const amount = parseFloat(correctionAmount);
+    if (isNaN(amount) || amount < 0) return alert('Invalid balance amount.');
+
+    if (!window.confirm(`This will set the outstanding loan balance to ₹${amount.toLocaleString('en-IN')} as on ${correctionDate}. Proceed?`)) return;
+
+    const { error } = await supabase.from('loans').insert({
+      user_id: selectedUser,
+      type: 'Balance Correction',
+      loan_amount: amount,
+      remaining_balance: amount,
+      transaction_date: new Date(correctionDate + 'T23:59:59').toISOString()
+    });
+
+    if (error) {
+      alert('Error: ' + error.message);
+    } else {
+      setCorrectionAmount('');
+      alert('Balance correction saved successfully. New balance set to ₹' + amount.toLocaleString('en-IN'));
+      const { data } = await supabase.from('loans').select('*').eq('user_id', selectedUser).order('transaction_date', { ascending: false });
+      if (data) setUserLoans(data);
+    }
+  };
+
+  const handleLeaveBalanceCorrection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || !leaveCorrectionBalance || !leaveCorrectionDate) return;
+    const bal = parseFloat(leaveCorrectionBalance);
+    if (isNaN(bal) || bal < 0) return alert('Invalid leave balance.');
+
+    if (!window.confirm(`Set opening leave balance to ${bal} days as on ${leaveCorrectionDate}?`)) return;
+
+    // Upsert into profiles opening_leave_balance column
+    const { error } = await supabase.from('profiles').update({
+      opening_leave_balance: bal,
+      opening_leave_balance_date: leaveCorrectionDate
+    }).eq('id', selectedUser);
+
+    if (error) {
+      alert('Error: ' + error.message);
+    } else {
+      setLeaveCorrectionBalance('');
+      alert('Opening leave balance updated successfully.');
+    }
   };
 
   const filteredProfiles = profiles.filter(p => 
@@ -207,6 +259,83 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
                 </div>
 
                 <button type="submit" className="mt-6 w-full py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition shadow-lg shadow-brand-500/20 active:scale-95">Schedule EMI</button>
+              </form>
+            </div>
+
+            {/* Balance Correction Panel */}
+            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-200 text-amber-700 flex items-center justify-center">
+                  <IndianRupee className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-amber-900">Balance Correction (Loan)</h4>
+                  <p className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">Set outstanding balance as on a date</p>
+                </div>
+              </div>
+              <form onSubmit={handleBalanceCorrection} className="grid grid-cols-3 gap-3 items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-700">As on Date</label>
+                  <input
+                    type="date"
+                    value={correctionDate}
+                    onChange={e => setCorrectionDate(e.target.value)}
+                    className="w-full bg-white border border-amber-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-700">Balance Amount (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={correctionAmount}
+                    onChange={e => setCorrectionAmount(e.target.value)}
+                    placeholder="e.g. 25000"
+                    className="w-full bg-white border border-amber-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition"
+                  />
+                </div>
+                <button type="submit" className="py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition active:scale-95">
+                  Set Balance
+                </button>
+              </form>
+            </div>
+
+            {/* Leave Balance Correction */}
+            <div className="bg-purple-50 border border-purple-200 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-200 text-purple-700 flex items-center justify-center">
+                  <CalendarClock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-purple-900">Opening Leave Balance</h4>
+                  <p className="text-[10px] text-purple-600 font-bold uppercase tracking-widest">Carry-forward balance as on a date</p>
+                </div>
+              </div>
+              <form onSubmit={handleLeaveBalanceCorrection} className="grid grid-cols-3 gap-3 items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-purple-700">As on Date</label>
+                  <input
+                    type="date"
+                    value={leaveCorrectionDate}
+                    onChange={e => setLeaveCorrectionDate(e.target.value)}
+                    className="w-full bg-white border border-purple-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-purple-700">Leave Days Balance</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={leaveCorrectionBalance}
+                    onChange={e => setLeaveCorrectionBalance(e.target.value)}
+                    placeholder="e.g. 12.5"
+                    className="w-full bg-white border border-purple-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+                <button type="submit" className="py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition active:scale-95">
+                  Set Balance
+                </button>
               </form>
             </div>
 

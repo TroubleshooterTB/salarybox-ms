@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     const [{ data: profile }, { data: settings }] = await Promise.all([
       supabaseAdmin.from('profiles').select('branch, allow_remote_punch, full_name, employee_id').eq('id', user.id).single(),
-      supabaseAdmin.from('company_settings').select('global_geofence_radius').eq('id', 1).single(),
+      supabaseAdmin.from('company_settings').select('global_geofence_radius, late_half_day_threshold_mins').eq('id', 1).single(),
     ]);
 
     if (!profile?.branch) {
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     const { data: branchData } = await supabaseAdmin
       .from('branches')
-      .select('latitude, longitude, radius_meters, geofence_enabled')
+      .select('latitude, longitude, radius_meters, geofence_enabled, shift_start')
       .eq('name', profile.branch)
       .single();
 
@@ -138,6 +138,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Server-side Late / Half-Day Detection ──────────────────────────────
+    // Only apply late logic to Punch-In records
+    let resolvedStatus = punchData.status || 'Present';
+    if (punchData.type === 'In' && branchData?.shift_start) {
+      const now = new Date();
+      // Convert current time to IST (Asia/Kolkata)
+      const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const currentMins = istNow.getHours() * 60 + istNow.getMinutes();
+
+      const [shiftH, shiftM] = branchData.shift_start.split(':').map(Number);
+      const shiftMins = shiftH * 60 + shiftM;
+
+      // Grace period before marking Late (default 15 mins)
+      const gracePeriod = 15;
+      // Threshold for Half Day due to late arrival (default 180 mins = 3 hours late)
+      const halfDayThreshold = settings?.late_half_day_threshold_mins ?? 180;
+
+      const minsLate = currentMins - shiftMins;
+
+      if (minsLate > halfDayThreshold) {
+        // Extremely late → mark as Half Day
+        resolvedStatus = 'Half Day';
+      } else if (minsLate > gracePeriod) {
+        // Late but within half-day threshold
+        resolvedStatus = 'Late';
+      } else {
+        resolvedStatus = 'Present';
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     const insertPayload = {
       user_id: user.id,
       type: punchData.type,
@@ -146,7 +177,7 @@ export async function POST(req: NextRequest) {
       longitude: punchData.longitude,
       address_string: punchData.address_string,
       selfie_url: finalSelfieUrl,
-      status: punchData.status,
+      status: resolvedStatus,
       branch: profile.branch,
       employee_name: profile.full_name || '',
       employee_id: profile.employee_id || '',

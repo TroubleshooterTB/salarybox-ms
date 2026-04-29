@@ -51,20 +51,34 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
       const { data: attendance } = await supabase.from('attendance').select('*').gte('timestamp', startDate).lte('timestamp', endDate);
 
+      const formatTime = (ts: string) =>
+        new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
+
       const rows = profiles?.map(p => {
         const pAtt = attendance?.filter(a => a.user_id === p.id) || [];
         const baseRow: any = { 'EMP ID': p.employee_id, 'Name': p.full_name, 'Branch': p.branch };
         const monthDays = getDaysInMonth(exportYear, exportMonth);
         for (let i = 1; i <= monthDays; i++) {
-          const dayRecs = pAtt.filter(a => new Date(a.timestamp).getDate() === i);
-          // Determine status: take the last recorded status for the day
+          // Parse IST day to handle UTC timestamps correctly
+          const dayRecs = pAtt.filter(a => {
+            const d = new Date(new Date(a.timestamp).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+            return d.getDate() === i;
+          });
+
+          const inPunch = dayRecs.filter(a => a.type === 'In').sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
+          const outPunch = dayRecs.filter(a => a.type === 'Out').sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
           const lastRec = dayRecs.filter(a => a.type === 'Out').at(-1) ?? dayRecs.at(-1);
-          if (lastRec?.status === 'Present') baseRow[`D${i}`] = 'P';
-          else if (lastRec?.status === 'Half Day') baseRow[`D${i}`] = 'HD';
-          else if (lastRec?.status === 'Late') baseRow[`D${i}`] = 'L';
-          else if (lastRec?.status === 'Paid Leave') baseRow[`D${i}`] = 'PL';
-          else if (lastRec?.status === 'Absent') baseRow[`D${i}`] = 'A';
-          else baseRow[`D${i}`] = '';
+
+          let statusCode = '';
+          if (lastRec?.status === 'Present') statusCode = 'P';
+          else if (lastRec?.status === 'Half Day') statusCode = 'HD';
+          else if (lastRec?.status === 'Late') statusCode = 'L';
+          else if (lastRec?.status === 'Paid Leave') statusCode = 'PL';
+          else if (lastRec?.status === 'Absent') statusCode = 'A';
+
+          baseRow[`D${i}_Status`] = statusCode;
+          baseRow[`D${i}_IN`] = inPunch ? formatTime(inPunch.timestamp) : '';
+          baseRow[`D${i}_OUT`] = outPunch ? formatTime(outPunch.timestamp) : '';
         }
         return baseRow;
       }) || [];
