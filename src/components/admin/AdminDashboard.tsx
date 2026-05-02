@@ -22,6 +22,7 @@ import AdminLeaveMatrix from './AdminLeaveMatrix';
 import AuditLogs from './AuditLogs';
 import PayrollProcessor from './PayrollProcessor';
 import AdminHolidays from './AdminHolidays';
+import AdminFieldVisits from './AdminFieldVisits';
 import NotificationBell from '../common/NotificationBell';
 import { useLanguage } from '../../lib/i18n';
 import useStore from '../../store';
@@ -56,7 +57,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
   const { userRole, userProfile } = useStore();
-  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'branches'|'leaves'|'audit'|'payroll'|'holidays'>('daily');
+  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'branches'|'leaves'|'audit'|'payroll'|'holidays'|'field'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   
@@ -151,6 +152,7 @@ export default function AdminDashboard() {
             { id: 'map', icon: Map, label: 'Live Map' },
             { id: 'calendar', icon: Calendar, label: 'Calendar' },
             { id: 'payroll', icon: IndianRupee, label: 'Payroll' },
+            { id: 'field', icon: MapPin, label: 'Field Visits' },
             { id: 'audit', icon: History, label: 'Audit Logs' },
             { id: 'holidays', icon: Calendar, label: 'Holiday Manager' },
             { id: 'settings', icon: Settings, label: t('settings') }
@@ -202,6 +204,7 @@ export default function AdminDashboard() {
            {activeTab === 'audit' && <AuditLogs />}
            {activeTab === 'payroll' && <PayrollProcessor selectedBranch={selectedBranch} />}
             {activeTab === 'holidays' && <AdminHolidays />}
+            {activeTab === 'field' && <AdminFieldVisits />}
 
            {activeTab === 'map' && (
              <div className="h-full w-full z-0 relative shadow-inner">
