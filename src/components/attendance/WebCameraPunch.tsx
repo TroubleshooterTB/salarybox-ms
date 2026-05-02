@@ -28,10 +28,17 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
           audio: false 
         });
         setStream(s);
-        if (videoRef.current) videoRef.current.srcObject = s;
-      } catch (err) {
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+          // iOS Safari requires explicit play() and muted for autoplay
+          videoRef.current.play().catch(err => {
+            console.error("Video play failed:", err);
+            setGeoError("Video playback failed. Please tap to enable camera.");
+          });
+        }
+      } catch (err: any) {
         console.error("Camera error:", err);
-        setGeoError("Camera access denied. Please enable camera permissions.");
+        setGeoError("Camera access denied: " + err.message);
       }
     }
     startCamera();
@@ -42,6 +49,7 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (!navigator.geolocation) {
       setGeoError("Geolocation not supported.");
+      setLocating(false);
       return;
     }
 
@@ -50,6 +58,7 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
         const { latitude, longitude } = pos.coords;
         setLocation({ lat: latitude, lng: longitude });
         setLocating(false);
+        setGeoError(''); // Clear any previous errors
 
         // Fetch nearest branch logic
         const { data: bs } = await supabase.from('branches').select('*').eq('is_active', true);
@@ -70,27 +79,47 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
         }
       },
       (err) => {
-        setGeoError(err.message);
+        console.error("Geolocation error:", err);
+        let msg = "GPS Error: ";
+        if (err.code === 1) msg += "Permission Denied. Please enable Location Services.";
+        else if (err.code === 2) msg += "Position Unavailable.";
+        else if (err.code === 3) msg += "Request Timed Out.";
+        else msg += err.message;
+        
+        setGeoError(msg);
         setLocating(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
   const handleCaptureAndPunch = async (type: 'In' | 'Out') => {
-    if (!videoRef.current || !canvasRef.current || !location) return;
+    if (!videoRef.current || !canvasRef.current) {
+      alert("Camera or canvas not ready. Please refresh.");
+      return;
+    }
+    
+    if (!location) {
+      alert(geoError || "Waiting for GPS lock. Please ensure Location is enabled on your iPhone.");
+      return;
+    }
     
     setPunchingType(type);
     try {
       // Capture frame to canvas
       const canvas = canvasRef.current;
       const video = videoRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      
+      // Ensure dimensions are captured correctly
+      canvas.width = video.videoWidth || video.clientWidth;
+      canvas.height = video.videoHeight || video.clientHeight;
+      
       const ctx = canvas.getContext('2d');
-      ctx?.drawImage(video, 0, 0);
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
       const selfieBase64 = canvas.toDataURL('image/jpeg', 0.8);
 
       // Call API
@@ -152,7 +181,9 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
           ref={videoRef} 
           autoPlay 
           playsInline 
+          muted
           className="w-full h-full object-cover grayscale brightness-125"
+          onClick={() => videoRef.current?.play()} // User tap to resume if blocked
         />
         <canvas ref={canvasRef} className="hidden" />
         
@@ -162,19 +193,29 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
              <p className="text-xs font-black uppercase tracking-[0.2em]">Acquiring GPS Lock</p>
           </div>
         )}
+
+        {geoError && (
+          <div className="absolute top-4 left-4 right-4 bg-rose-500/90 backdrop-blur-md p-4 rounded-2xl flex items-start space-x-3 shadow-2xl animate-in slide-in-from-top">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1">Hardware Error</p>
+              <p className="text-xs font-bold leading-tight">{geoError}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-8 bg-slate-950 border-t border-white/10">
         <div className="grid grid-cols-2 gap-4">
            <button 
-             disabled={punchingType !== null || locating}
+             disabled={punchingType !== null || (locating && !location)}
              onClick={() => handleCaptureAndPunch('In')}
              className="bg-sky-500 py-6 rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-sky-500/20 active:scale-95 transition disabled:opacity-50"
            >
              {punchingType === 'In' ? 'Processing...' : 'Punch IN'}
            </button>
            <button 
-             disabled={punchingType !== null || locating}
+             disabled={punchingType !== null || (locating && !location)}
              onClick={() => handleCaptureAndPunch('Out')}
              className="bg-rose-500 py-6 rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-500/20 active:scale-95 transition disabled:opacity-50"
            >

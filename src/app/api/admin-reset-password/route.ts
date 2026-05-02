@@ -38,10 +38,10 @@ export async function POST(req: NextRequest) {
 
     if (resetError) throw resetError;
 
-    // 3. Mark profile as needing reset
+    // 3. Update profile - set needs_password_reset to false so they can use the admin-provided password immediately
     await supabaseAdmin
       .from('profiles')
-      .update({ needs_password_reset: true })
+      .update({ needs_password_reset: false })
       .eq('id', userId);
 
     // 4. Write to audit log

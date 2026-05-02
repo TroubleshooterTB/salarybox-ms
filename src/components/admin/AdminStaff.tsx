@@ -43,6 +43,11 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'staff' | 'requests'>('staff');
   
+  // Quick Password Modal
+  const [showPassModal, setShowPassModal] = useState(false);
+  const [selectedStaffForPass, setSelectedStaffForPass] = useState<any>(null);
+  const [quickPass, setQuickPass] = useState('');
+  
   const {} = useLanguage();
 
   const initialForm = {
@@ -57,7 +62,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     bank_name: '', bank_ifsc: '', salary_type: 'Monthly',
     allow_remote_punch: false,
     employee_categories: [] as string[],
-    weekly_off_day: 0 // 0=Sunday, 1=Monday, ..., 6=Saturday, -1=No Weekly Off
+    weekly_off_day: 0, // 0=Sunday, 1=Monday, ..., 6=Saturday, -1=No Weekly Off
+    password: 'password123'
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -123,7 +129,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       salary_type: profile.salary_type || 'Monthly',
       allow_remote_punch: profile.allow_remote_punch || false,
       employee_categories: profile.employee_categories || [],
-      weekly_off_day: profile.weekly_off_day ?? 0
+      weekly_off_day: profile.weekly_off_day ?? 0,
+      password: '' // Don't show existing password (security)
     });
     setNewPass('');
     setShowModal(true);
@@ -131,9 +138,13 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
   const [newPass, setNewPass] = useState('');
 
-  const handleResetPassword = async () => {
-    if (!newPass) return alert('Please enter a new password');
-    if (!window.confirm(`Are you sure you want to force reset the password for ${formData.full_name}?`)) return;
+  const handleResetPassword = async (userId?: string, password?: string) => {
+    const targetId = userId || editingId;
+    const targetPass = password || newPass;
+    const targetName = userId ? selectedStaffForPass?.full_name : formData.full_name;
+
+    if (!targetPass) return alert('Please enter a new password');
+    if (!window.confirm(`Are you sure you want to set a new password for ${targetName}?`)) return;
 
     setIsSubmitting(true);
     try {
@@ -143,16 +154,18 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: session?.access_token,
-          userId: editingId,
-          newPassword: newPass
+          userId: targetId,
+          newPassword: targetPass
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      alert('Password reset successful!');
+      alert('Password updated successfully!');
       setNewPass('');
+      setQuickPass('');
+      setShowPassModal(false);
     } catch (err: any) {
-      alert('Reset failed: ' + err.message);
+      alert('Failed: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -635,6 +648,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                       <button onClick={() => openAdjustments(s)} className="p-2 bg-brand-50 text-brand-600 rounded-lg hover:bg-brand-100 transition" title="Salary Adjustments">
                         <Coins className="w-4 h-4" />
                       </button>
+                      <button onClick={() => { setSelectedStaffForPass(s); setQuickPass(''); setShowPassModal(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition" title="Quick Set Password">
+                        <ShieldCheck className="w-4 h-4" />
+                      </button>
                       <button onClick={() => openEdit(s)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition" title="Edit Employee">
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -726,6 +742,12 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Joining Date</label>
                     <input required value={formData.joining_date} onChange={e=>setFormData({...formData, joining_date: e.target.value})} type="date" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" />
                   </div>
+                  {!editingId && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Initial Password</label>
+                      <input required value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} type="text" className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="Default: password123" />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1093,6 +1115,41 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   className="px-6 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 transition"
                 >
                   Close
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+      {/* Quick Password Modal */}
+      {showPassModal && selectedStaffForPass && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+             <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <div>
+                   <h3 className="text-lg font-bold text-slate-800">Set Password</h3>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedStaffForPass.full_name}</p>
+                </div>
+                <button onClick={() => setShowPassModal(false)} className="text-slate-400 hover:text-slate-600 font-bold px-3 py-1 rounded-lg">Esc</button>
+             </div>
+             <div className="p-8 space-y-6">
+                <div className="space-y-1">
+                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">New Password</label>
+                   <input 
+                      autoFocus
+                      type="text" 
+                      value={quickPass}
+                      onChange={e => setQuickPass(e.target.value)}
+                      placeholder="e.g. MS123456"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-brand-500 outline-none" 
+                   />
+                   <p className="text-[9px] text-slate-400 font-bold mt-2">The employee can use this password to login immediately.</p>
+                </div>
+                <button 
+                   onClick={() => handleResetPassword(selectedStaffForPass.id, quickPass)}
+                   disabled={isSubmitting}
+                   className="w-full py-4 bg-brand-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-brand-500/20 hover:bg-brand-600 transition disabled:opacity-50"
+                >
+                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Update Password'}
                 </button>
              </div>
           </div>
