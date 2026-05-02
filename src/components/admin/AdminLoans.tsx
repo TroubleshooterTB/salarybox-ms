@@ -107,8 +107,49 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
   };
 
   const deleteSchedule = async (id: string) => {
+    if (!window.confirm('Delete this schedule?')) return;
     await supabase.from('loan_schedules').delete().eq('id', id);
     setUserSchedules(prev => prev.filter(s => s.id !== id));
+  };
+
+  const updateScheduleAmount = async (id: string, newAmount: number) => {
+    const { error } = await supabase.from('loan_schedules').update({ deduction_amount: newAmount, is_skipped: false }).eq('id', id);
+    if (error) alert(error.message);
+    else {
+      setUserSchedules(prev => prev.map(s => s.id === id ? { ...s, deduction_amount: newAmount, is_skipped: false } : s));
+    }
+  };
+
+  const skipSchedules = async (months: number) => {
+    if (!selectedUser) return;
+    if (!window.confirm(`Skip EMI for the next ${months} months?`)) return;
+
+    const startMonth = new Date();
+    const updates = [];
+
+    for (let i = 0; i < months; i++) {
+      const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+      const targetMonth = d.toISOString().slice(0, 7);
+      
+      // Check if exists
+      const existing = userSchedules.find(s => s.target_month === targetMonth);
+      if (existing) {
+        updates.push(supabase.from('loan_schedules').update({ is_skipped: true, deduction_amount: 0 }).eq('id', existing.id));
+      } else {
+        updates.push(supabase.from('loan_schedules').insert({
+          user_id: selectedUser,
+          target_month: targetMonth,
+          deduction_amount: 0,
+          is_skipped: true,
+          is_processed: false
+        }));
+      }
+    }
+
+    await Promise.all(updates);
+    // Refresh
+    const { data } = await supabase.from('loan_schedules').select('*').eq('user_id', selectedUser).order('target_month', { ascending: true });
+    if (data) setUserSchedules(data);
   };
 
   const handleBalanceCorrection = async (e: React.FormEvent) => {
@@ -343,32 +384,64 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
             {userSchedules.length > 0 && (
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                  <h4 className="font-bold text-slate-700 text-sm tracking-wide">Pending EMI Schedules</h4>
+                  <h4 className="font-bold text-slate-700 text-sm tracking-wide">EMI Ledger & Skip Controls</h4>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-black uppercase text-slate-400">Skip For:</span>
+                    <select 
+                      onChange={(e) => skipSchedules(parseInt(e.target.value))}
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Select months</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                        <option key={m} value={m}>{m} Month{m > 1 ? 's' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <table className="w-full text-left">
                   <thead className="bg-white">
                     <tr>
                       <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">Target Month</th>
-                      <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">EMI Deductible</th>
+                      <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">EMI Amount</th>
                       <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">Status</th>
                       <th className="px-6 py-3 text-right"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {userSchedules.map(s => (
-                      <tr key={s.id}>
-                        <td className="px-6 py-3 font-bold text-slate-700 text-sm">{s.target_month}</td>
-                        <td className="px-6 py-3 font-bold text-slate-700 text-sm">₹{s.deduction_amount}</td>
-                        <td className="px-6 py-3">
+                      <tr key={s.id} className={s.is_skipped ? 'bg-slate-50/50' : ''}>
+                        <td className="px-6 py-4">
+                           <p className="font-bold text-slate-700 text-sm">{s.target_month}</p>
+                           {s.is_skipped && <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Skipped</span>}
+                        </td>
+                        <td className="px-6 py-4">
+                           {!s.is_processed ? (
+                             <input 
+                               type="number"
+                               defaultValue={s.deduction_amount}
+                               onBlur={(e) => {
+                                 const val = parseFloat(e.target.value);
+                                 if (val !== s.deduction_amount) updateScheduleAmount(s.id, val);
+                               }}
+                               className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-700 focus:border-brand-500 outline-none"
+                             />
+                           ) : (
+                             <p className="font-bold text-slate-700 text-sm">₹{s.deduction_amount}</p>
+                           )}
+                        </td>
+                        <td className="px-6 py-4">
                           {s.is_processed ? (
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold uppercase">Processed</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Paid</span>
+                          ) : s.is_skipped ? (
+                            <span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Skipped</span>
                           ) : (
-                            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-bold uppercase">Pending Queue</span>
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-bold uppercase tracking-wider">Queue</span>
                           )}
                         </td>
-                        <td className="px-6 py-3 text-right">
+                        <td className="px-6 py-4 text-right">
                           {!s.is_processed && (
-                            <button onClick={() => deleteSchedule(s.id)} className="text-[10px] font-bold text-rose-500 hover:underline">Cancel</button>
+                            <button onClick={() => deleteSchedule(s.id)} className="text-[10px] font-bold text-rose-400 hover:text-rose-600 uppercase tracking-widest">Delete</button>
                           )}
                         </td>
                       </tr>

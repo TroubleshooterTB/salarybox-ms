@@ -77,6 +77,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         const publicHolidays = (allHolidays || []).length;
 
         const weeklyOffDay = p.weekly_off_day ?? 0; // default Sunday
+        const weeklyOffDay2 = p.weekly_off_day_2 ?? -1;
         const monthDaysCount = new Date(year, month + 1, 0).getDate();
 
         for (let day = 1; day <= monthDaysCount; day++) {
@@ -111,7 +112,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
             durationMins = lastOutRecord ? Math.round((new Date(lastOutRecord.timestamp).getTime() - firstInTime.getTime()) / 60000) : 0;
           }
 
-          const isWeeklyOff = weeklyOffDay >= 0 && dayOfWeek === weeklyOffDay;
+          const isWeeklyOff = (weeklyOffDay >= 0 && dayOfWeek === weeklyOffDay) || (weeklyOffDay2 >= 0 && dayOfWeek === weeklyOffDay2);
 
           if (isWeeklyOff && !isHolidayRecord) {
             if (inPunches.length > 0) {
@@ -181,7 +182,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           baseSalary: p.ctc_amount || 0,
           year, month,
           presentDays, paidLeaves, publicHolidays, halfDays, lateDays,
-          overtimeHours: totalOvertimeHours, overtimeType: 'Hourly', standardShiftHours,
+          overtimeHours: totalOvertimeHours, overtimeType: p.overtime_applicable ? 'Hourly' : 'None', standardShiftHours,
           loanDeduction: l?.deduction_amount || 0,
           professionalTaxApplicable: p.professional_tax_applicable !== false,
           joiningDate: p.joining_date,
@@ -195,8 +196,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           // V2.5 new fields
           weeklyOffOTDays,
           weeklyOffOTHalfDays,
-          branchOvertimeApplicable: branchInfo?.overtime_applicable || false,
-          branchOvertimeHourlyRate: branchInfo?.overtime_hourly_rate || 0,
+          overtimeHourlyRate: p.overtime_hourly_rate || 0,
           branchOvertimeHours: totalOvertimeHours
         });
 

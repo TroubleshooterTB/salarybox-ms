@@ -19,10 +19,7 @@ export default function AdminBranches() {
     geofence_enabled: true,
     is_active: true,
     shift_start: '09:00',
-    shift_end: '18:00',
-    overtime_rate: 1.5,
-    overtime_applicable: false,
-    overtime_hourly_rate: 0
+    shift_end: '18:00'
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -51,11 +48,7 @@ export default function AdminBranches() {
       radius_meters: branch.radius_meters,
       geofence_enabled: branch.geofence_enabled,
       is_active: branch.is_active,
-      shift_start: branch.shift_start?.slice(0, 5) || '09:00',
-      shift_end: branch.shift_end?.slice(0, 5) || '18:00',
-      overtime_rate: branch.overtime_rate || 1.5,
-      overtime_applicable: branch.overtime_applicable || false,
-      overtime_hourly_rate: branch.overtime_hourly_rate || 0
+      shift_end: branch.shift_end?.slice(0, 5) || '18:00'
     });
     setShowModal(true);
   };
@@ -142,11 +135,6 @@ export default function AdminBranches() {
                   {b.geofence_enabled ? b.radius_meters + 'm' : 'Disabled'}
                 </p>
               </div>
-              <div className={`col-span-2 p-3 rounded-2xl border ${b.overtime_applicable ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Hourly OT Pay</p>
-                <p className={`text-sm font-black ${b.overtime_applicable ? 'text-amber-700' : 'text-slate-400'}`}>
-                  {b.overtime_applicable ? `₹${b.overtime_hourly_rate || 0}/hr — Active` : 'Not Applicable'}
-                </p>
               </div>
             </div>
 
@@ -217,34 +205,6 @@ export default function AdminBranches() {
                 </div>
               </div>
 
-              {/* Overtime Settings */}
-              <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 space-y-4">
-                <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center space-x-2">
-                  <span>⏱</span>
-                  <span>Hourly Overtime Pay</span>
-                </h4>
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center space-x-2 cursor-pointer group">
-                    <input type="checkbox" checked={formData.overtime_applicable} onChange={e=>setFormData({...formData, overtime_applicable: e.target.checked})} className="w-4 h-4 rounded border-amber-300 text-amber-500" />
-                    <span className="text-[10px] font-black uppercase text-amber-700 group-hover:text-amber-900 transition">OT Pay Applicable</span>
-                  </label>
-                </div>
-                {formData.overtime_applicable && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-amber-600">Hourly OT Rate (₹ per hour)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.overtime_hourly_rate}
-                      onChange={e=>setFormData({...formData, overtime_hourly_rate: parseFloat(e.target.value)||0})}
-                      className="w-full bg-white border border-amber-200 rounded-xl px-4 py-2 text-sm font-bold text-amber-800"
-                      placeholder="e.g. 150"
-                    />
-                    <p className="text-[9px] text-amber-500 font-bold">This rate applies to all eligible employees in this branch</p>
-                  </div>
-                )}
-              </div>
 
               <button type="submit" disabled={isSubmitting} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition flex items-center justify-center space-x-2">
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Apply Changes</span>}

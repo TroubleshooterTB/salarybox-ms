@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Attendance record not found' }, { status: 404 });
     }
 
-    // 3. If Admin, insert to attendance_corrections. If Super Admin, update directly.
+    // 3. If Admin, insert to manual_punch_requests. If Super Admin, update directly.
     if (profile?.role === 'Super Admin') {
       const { error: updateError } = await supabaseAdmin
         .from('attendance')
@@ -52,26 +52,24 @@ export async function POST(req: NextRequest) {
 
       if (updateError) throw updateError;
     } else {
-      const d = new Date(newTimestamp);
-      const timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:00`;
-      const dateStr = d.toISOString().split('T')[0];
-
       const { error: insertError } = await supabaseAdmin
-        .from('attendance_corrections')
+        .from('manual_punch_requests')
         .insert({
           user_id: oldRecord.user_id,
-          date: dateStr,
-          requested_punch_in: oldRecord.type === 'In' ? timeStr : null,
-          requested_punch_out: oldRecord.type === 'Out' ? timeStr : null,
-          reason: `Admin Edit: ${reason}`,
+          admin_id: user.id,
+          action_type: 'UPDATE',
+          target_attendance_id: attendanceId,
+          date: newTimestamp.split('T')[0],
+          punch_in: oldRecord.type === 'In' ? newTimestamp : null,
+          punch_out: oldRecord.type === 'Out' ? newTimestamp : null,
+          new_status: newStatus,
+          reason,
           status: 'Pending'
         });
 
       if (insertError) throw insertError;
       
-      // We also delete the old record so it's replaced, wait! No, if rejected it's gone.
-      // Better to not delete it until approved, but the trigger just inserts new records.
-      // We'll leave the old record, and when Super Admin approves, it adds a new one. The admin should manually delete the old one, or we can just accept it's a limitation for now.
+      return NextResponse.json({ message: 'Edit request sent for Super Admin approval' });
     }
 
     // 4. Write audit log

@@ -25,9 +25,8 @@ export interface PayrollInput {
   weeklyOffOTDays?: number;     // Full days worked on weekly off
   weeklyOffOTHalfDays?: number; // Half days worked on weekly off (<5 hrs)
   // V2.5: Branch-level hourly overtime
-  branchOvertimeApplicable?: boolean;
-  branchOvertimeHourlyRate?: number;   // ₹ per hour
   branchOvertimeHours?: number;         // Extra hours worked beyond standard shift
+  overtimeHourlyRate?: number;          // Employee-specific fixed OT rate
 }
 
 export interface PayrollOutput {
@@ -80,7 +79,8 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     bonus = 0, incentive = 0, fines = 0, otherDeductions = 0,
     pfEnabled = false, esiEnabled = false,
     weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0,
-    branchOvertimeApplicable = false, branchOvertimeHourlyRate = 0, branchOvertimeHours = 0
+    branchOvertimeApplicable = false, branchOvertimeHourlyRate = 0, branchOvertimeHours = 0,
+    overtimeHourlyRate = 0
   } = input;
 
   const monthDays = getDaysInMonth(year, month);
@@ -123,10 +123,13 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   let overtimePay = 0;
   const perHourPay = perDaySalary / standardShiftHours;
   
-  if (overtimeType === 'Hourly') {
-    overtimePay = overtimeHours * perHourPay;
-  } else if (overtimeType === 'Day Basic') {
-    overtimePay = (overtimeHours / standardShiftHours) * perDaySalary;
+  if (overtimeType === 'Hourly' || overtimeType === 'Day Basic') {
+    const rate = overtimeHourlyRate > 0 ? overtimeHourlyRate : perHourPay;
+    if (overtimeType === 'Hourly') {
+      overtimePay = overtimeHours * rate;
+    } else {
+      overtimePay = (overtimeHours / standardShiftHours) * (rate * standardShiftHours);
+    }
   }
 
   const isExcessiveOT = overtimeHours > 50;

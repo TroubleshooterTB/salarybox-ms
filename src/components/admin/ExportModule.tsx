@@ -181,6 +181,8 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           return acc;
         }, 0);
 
+        const weeklyOffDay = p.weekly_off_day ?? 0;
+        const weeklyOffDay2 = p.weekly_off_day_2 ?? -1;
         const holidaysCount = (holidays || []).length;
 
         const payroll = calculatePayroll({
@@ -193,7 +195,7 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           halfDays,
           lateDays,
           overtimeHours,
-          overtimeType: overtimeHours > 0 ? 'Hourly' : 'None',
+          overtimeType: p.overtime_applicable ? 'Hourly' : 'None',
           standardShiftHours: standardShiftHours,
           loanDeduction,
           professionalTaxApplicable: p.professional_tax_applicable !== false,
@@ -204,7 +206,8 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           fines: adj?.fines || 0,
           otherDeductions: adj?.other_deductions || 0,
           pfEnabled: p.pf_enabled,
-          esiEnabled: p.esi_enabled
+          esiEnabled: p.esi_enabled,
+          overtimeHourlyRate: p.overtime_hourly_rate || 0
         });
 
         // Mark loan as processed

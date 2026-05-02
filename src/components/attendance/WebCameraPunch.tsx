@@ -21,49 +21,66 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
 
   // 1. Initialize Camera
   useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    
     async function startCamera() {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: "user" },
+          video: { 
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
           audio: false 
         });
+        activeStream = s;
         setStream(s);
         if (videoRef.current) {
           videoRef.current.srcObject = s;
-          // iOS Safari requires explicit play() and muted for autoplay
-          videoRef.current.play().catch(err => {
-            console.error("Video play failed:", err);
-            setGeoError("Video playback failed. Please tap to enable camera.");
-          });
+          // Safari 11+ requirements
+          videoRef.current.setAttribute('autoplay', '');
+          videoRef.current.setAttribute('muted', '');
+          videoRef.current.setAttribute('playsinline', '');
+          
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              console.warn("Autoplay blocked, waiting for user interaction:", err);
+            });
+          }
         }
       } catch (err: any) {
         console.error("Camera error:", err);
-        setGeoError("Camera access denied: " + err.message);
+        setGeoError("Camera blocked: " + (err.name === 'NotAllowedError' ? 'Please grant permission in Settings.' : err.message));
       }
     }
+    
     startCamera();
-    return () => stream?.getTracks().forEach(t => t.stop());
+    return () => {
+      activeStream?.getTracks().forEach(t => t.stop());
+    };
   }, []);
 
-  // 2. Initialize Geolocation
-  useEffect(() => {
+  const refreshLocation = () => {
+    setLocating(true);
+    setGeoError('');
+    
     if (!navigator.geolocation) {
       setGeoError("Geolocation not supported.");
       setLocating(false);
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         setLocation({ lat: latitude, lng: longitude });
         setLocating(false);
-        setGeoError(''); // Clear any previous errors
+        setGeoError('');
 
         // Fetch nearest branch logic
         const { data: bs } = await supabase.from('branches').select('*').eq('is_active', true);
         if (bs && bs.length > 0) {
-           // Calculate actual nearest branch using haversine
            const toRad = (val: number) => (val * Math.PI) / 180;
            let minDist = Infinity;
            let closest = bs[0];
@@ -81,18 +98,21 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
       (err) => {
         console.error("Geolocation error:", err);
         let msg = "GPS Error: ";
-        if (err.code === 1) msg += "Permission Denied. Please enable Location Services.";
-        else if (err.code === 2) msg += "Position Unavailable.";
-        else if (err.code === 3) msg += "Request Timed Out.";
+        if (err.code === 1) msg = "Location Access Denied. Check iPhone Settings > Privacy > Location.";
+        else if (err.code === 2) msg = "GPS Position Unavailable.";
+        else if (err.code === 3) msg = "GPS Timeout. Please go outdoors.";
         else msg += err.message;
         
         setGeoError(msg);
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
 
-    return () => navigator.geolocation.clearWatch(watchId);
+  // 2. Initial Location Lock
+  useEffect(() => {
+    refreshLocation();
   }, []);
 
   const handleCaptureAndPunch = async (type: 'In' | 'Out') => {
@@ -113,12 +133,15 @@ export default function WebCameraPunch({ onBack }: { onBack: () => void }) {
       const video = videoRef.current;
       
       // Ensure dimensions are captured correctly
-      canvas.width = video.videoWidth || video.clientWidth;
-      canvas.height = video.videoHeight || video.clientHeight;
+      const vWidth = video.videoWidth || video.clientWidth || 640;
+      const vHeight = video.videoHeight || video.clientHeight || 480;
+      
+      canvas.width = vWidth;
+      canvas.height = vHeight;
       
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, vWidth, vHeight);
       }
       const selfieBase64 = canvas.toDataURL('image/jpeg', 0.8);
 

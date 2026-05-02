@@ -11,6 +11,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
   const [devices, setDevices] = useState<any[]>([]);
   const [balances, setBalances] = useState<any[]>([]);
   const [corrections, setCorrections] = useState<any[]>([]);
+  const [manualPunches, setManualPunches] = useState<any[]>([]);
   const [profileRequests, setProfileRequests] = useState<any[]>([]);
 
   const fetchLeaves = async () => {
@@ -55,6 +56,23 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
 
     const { data } = await query;
     if (data) setCorrections(data);
+    setLoading(false);
+  };
+
+  const fetchManualPunches = async () => {
+    setLoading(true);
+    let query = supabase
+      .from('manual_punch_requests')
+      .select('*, profiles:user_id(full_name, employee_id, branch)')
+      .eq('status', 'Pending')
+      .order('created_at', { ascending: false });
+
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      query = query.eq('profiles.branch', selectedBranch);
+    }
+
+    const { data } = await query;
+    if (data) setManualPunches(data);
     setLoading(false);
   };
 
@@ -113,6 +131,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
   useEffect(() => {
     if (activeTab === 'leaves') fetchLeaves();
     else if (activeTab === 'corrections') fetchCorrections();
+    else if (activeTab === 'manual' as any) fetchManualPunches();
     else if (activeTab === 'profiles') fetchProfileRequests();
     else if (activeTab === 'devices') fetchDevices();
     else fetchBalances();
@@ -186,6 +205,22 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     fetchCorrections();
   };
 
+  const handleManualPunchAction = async (id: string, newStatus: 'Approved' | 'Rejected') => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/manual-punch-approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: session?.access_token,
+        requestId: id,
+        newStatus
+      })
+    });
+    const result = await res.json();
+    if (!res.ok) alert(result.error);
+    fetchManualPunches();
+  };
+
   const handleProfileUpdateAction = async (id: string, newStatus: 'Approved' | 'Rejected', request: any) => {
     const { error } = await supabase.from('profile_update_requests').update({ status: newStatus }).eq('id', id);
     
@@ -221,6 +256,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
         {[
           { id: 'leaves', icon: CalendarDays, label: t('leaves'), count: leaves.length },
           { id: 'corrections', icon: BarChart3, label: t('corrections'), count: corrections.length },
+          { id: 'manual', icon: CheckCircle2, label: 'Manual Entry', count: manualPunches.length },
           { id: 'profiles', icon: Smartphone, label: t('profile'), count: profileRequests.length },
           { id: 'balances', icon: BarChart3, label: 'Quotas' },
           { id: 'devices', icon: Smartphone, label: 'Hardware' }
@@ -332,6 +368,60 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                       <td className="px-8 py-6 text-right space-x-3">
                         <button onClick={() => handleCorrectionAction(c.id, 'Rejected')} className="p-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition"><XCircle className="w-6 h-6" /></button>
                         <button onClick={() => handleCorrectionAction(c.id, 'Approved')} className="p-3 text-emerald-500 hover:bg-emerald-50 rounded-2xl transition"><CheckCircle2 className="w-6 h-6" /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {activeTab === 'manual' as any && (
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Action</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Proposed Changes</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Reason</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Approval</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {manualPunches.length === 0 ? (
+                    <tr><td colSpan={5} className="py-24 text-center text-slate-300 font-black uppercase tracking-widest">No pending manual adjustments</td></tr>
+                  ) : manualPunches.map(p => (
+                    <tr key={p.id} className="hover:bg-slate-50/50 transition duration-300">
+                      <td className="px-8 py-6">
+                        <p className="font-bold text-slate-800">{p.profiles?.full_name}</p>
+                        <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{p.profiles?.branch}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg border ${
+                          p.action_type === 'ADD' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                          p.action_type === 'UPDATE' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                          'bg-rose-50 text-rose-600 border-rose-100'
+                        }`}>{p.action_type}</span>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-700">{new Date(p.date).toLocaleDateString()}</p>
+                        <div className="flex flex-col space-y-1 mt-1">
+                          {p.punch_in && (
+                             <span className="text-[10px] font-bold text-emerald-600">IN: {new Date(p.punch_in).toLocaleTimeString()}</span>
+                          )}
+                          {p.punch_out && (
+                             <span className="text-[10px] font-bold text-rose-600">OUT: {new Date(p.punch_out).toLocaleTimeString()}</span>
+                          )}
+                          {p.new_status && (
+                             <span className="text-[10px] font-bold text-slate-500">Status: {p.new_status}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 max-w-xs">
+                        <p className="text-xs font-bold text-slate-500 italic">"{p.reason}"</p>
+                      </td>
+                      <td className="px-8 py-6 text-right space-x-3">
+                        <button onClick={() => handleManualPunchAction(p.id, 'Rejected')} className="p-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition"><XCircle className="w-6 h-6" /></button>
+                        <button onClick={() => handleManualPunchAction(p.id, 'Approved')} className="p-3 text-emerald-500 hover:bg-emerald-50 rounded-2xl transition"><CheckCircle2 className="w-6 h-6" /></button>
                       </td>
                     </tr>
                   ))}

@@ -63,6 +63,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     allow_remote_punch: false,
     employee_categories: [] as string[],
     weekly_off_day: 0, // 0=Sunday, 1=Monday, ..., 6=Saturday, -1=No Weekly Off
+    weekly_off_day_2: -1, // Second weekly off
+    overtime_applicable: false,
+    overtime_hourly_rate: 0,
     password: 'password123'
   };
 
@@ -130,6 +133,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       allow_remote_punch: profile.allow_remote_punch || false,
       employee_categories: profile.employee_categories || [],
       weekly_off_day: profile.weekly_off_day ?? 0,
+      weekly_off_day_2: profile.weekly_off_day_2 ?? -1,
+      overtime_applicable: profile.overtime_applicable || false,
+      overtime_hourly_rate: profile.overtime_hourly_rate || 0,
       password: '' // Don't show existing password (security)
     });
     setNewPass('');
@@ -241,6 +247,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         allow_remote_punch: formData.allow_remote_punch,
         employee_categories: formData.employee_categories || [],
         weekly_off_day: formData.weekly_off_day ?? 0,
+        weekly_off_day_2: formData.weekly_off_day_2 ?? -1,
+        overtime_applicable: formData.overtime_applicable || false,
+        overtime_hourly_rate: formData.overtime_hourly_rate || 0,
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
@@ -934,27 +943,78 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                 </label>
               </div>
 
-              {/* Weekly Off Day */}
-              <div className="bg-violet-50 p-5 rounded-[2rem] border border-violet-100">
-                <h4 className="text-[10px] font-black text-violet-600 uppercase tracking-widest mb-3 flex items-center space-x-2">
+              {/* Weekly Off Days */}
+              <div className="bg-violet-50 p-6 rounded-[2rem] border border-violet-100 space-y-4">
+                <h4 className="text-[10px] font-black text-violet-600 uppercase tracking-widest flex items-center space-x-2">
                   <span>🗓️</span>
-                  <span>Weekly Off Day</span>
+                  <span>Weekly Off Protocol</span>
                 </h4>
-                <select
-                  value={formData.weekly_off_day}
-                  onChange={e => setFormData({ ...formData, weekly_off_day: parseInt(e.target.value) })}
-                  className="w-full bg-white border border-violet-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-violet-300 outline-none"
-                >
-                  <option value={-1}>No Weekly Off</option>
-                  <option value={0}>Sunday</option>
-                  <option value={1}>Monday</option>
-                  <option value={2}>Tuesday</option>
-                  <option value={3}>Wednesday</option>
-                  <option value={4}>Thursday</option>
-                  <option value={5}>Friday</option>
-                  <option value={6}>Saturday</option>
-                </select>
-                <p className="text-[9px] text-violet-500 font-bold mt-2">If employee works on their weekly off, they receive one day’s extra salary (or half-day if &lt;5 hrs worked)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-violet-500">Weekly Off Day 1</label>
+                    <select
+                      value={formData.weekly_off_day}
+                      onChange={e => setFormData({ ...formData, weekly_off_day: parseInt(e.target.value) })}
+                      className="w-full bg-white border border-violet-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-violet-300 outline-none"
+                    >
+                      <option value={-1}>No Weekly Off</option>
+                      <option value={0}>Sunday</option>
+                      <option value={1}>Monday</option>
+                      <option value={2}>Tuesday</option>
+                      <option value={3}>Wednesday</option>
+                      <option value={4}>Thursday</option>
+                      <option value={5}>Friday</option>
+                      <option value={6}>Saturday</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-violet-500">Weekly Off Day 2 (Optional)</label>
+                    <select
+                      value={formData.weekly_off_day_2}
+                      onChange={e => setFormData({ ...formData, weekly_off_day_2: parseInt(e.target.value) })}
+                      className="w-full bg-white border border-violet-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-violet-300 outline-none"
+                    >
+                      <option value={-1}>None / N.A.</option>
+                      <option value={0}>Sunday</option>
+                      <option value={1}>Monday</option>
+                      <option value={2}>Tuesday</option>
+                      <option value={3}>Wednesday</option>
+                      <option value={4}>Thursday</option>
+                      <option value={5}>Friday</option>
+                      <option value={6}>Saturday</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[9px] text-violet-500 font-bold">Working on weekly off earns 1 day extra salary (or 0.5 day if &lt;5 hrs).</p>
+              </div>
+
+              {/* Overtime Eligibility */}
+              <div className="bg-amber-50 p-6 rounded-[2rem] border border-amber-100 space-y-4">
+                <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center space-x-2">
+                  <span>⏱</span>
+                  <span>Overtime Protocol</span>
+                </h4>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center space-x-2 cursor-pointer group">
+                    <input type="checkbox" checked={formData.overtime_applicable} onChange={e=>setFormData({...formData, overtime_applicable: e.target.checked})} className="w-5 h-5 rounded border-amber-300 text-amber-500 focus:ring-amber-500" />
+                    <span className="text-sm font-bold text-amber-700 group-hover:text-amber-900 transition">Hourly OT Applicable</span>
+                  </label>
+                </div>
+                {formData.overtime_applicable && (
+                  <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                    <label className="text-[10px] font-bold text-amber-600">Fixed Hourly Rate (Optional)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.overtime_hourly_rate}
+                      onChange={e=>setFormData({...formData, overtime_hourly_rate: parseFloat(e.target.value)||0})}
+                      className="w-full bg-white border border-amber-200 rounded-xl px-4 py-3 text-sm font-bold text-amber-800"
+                      placeholder="If 0, salary-based rate is used"
+                    />
+                    <p className="text-[9px] text-amber-500 font-bold">Default OT Rate: (Monthly Salary / Days in Month / 8 hrs)</p>
+                  </div>
+                )}
               </div>
 
               {/* Passcode Reset Link (Existing Employees) */}

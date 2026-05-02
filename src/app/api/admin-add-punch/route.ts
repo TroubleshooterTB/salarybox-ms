@@ -47,7 +47,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Target employee profile not found' }, { status: 404 });
     }
 
-    // 3. Insert the manual punch record
+    if (adminProfile?.role !== 'Super Admin') {
+      // Send for approval
+      const { error: reqError } = await supabaseAdmin.from('manual_punch_requests').insert({
+        user_id: userId,
+        admin_id: adminUser.id,
+        action_type: 'ADD',
+        date: timestamp.split('T')[0],
+        punch_in: type === 'In' ? timestamp : null,
+        punch_out: type === 'Out' ? timestamp : null,
+        new_status: status,
+        reason,
+        status: 'Pending'
+      });
+      if (reqError) throw reqError;
+      return NextResponse.json({ success: true, message: 'Request sent for Super Admin approval' });
+    }
+
+    // 3. Insert the manual punch record (Super Admin Only)
     const { data: newPunch, error: insertError } = await supabaseAdmin
       .from('attendance')
       .insert({
@@ -56,7 +73,7 @@ export async function POST(req: NextRequest) {
         timestamp,
         status,
         branch: employeeProfile.branch,
-        address_string: `Admin Manual Entry (${reason})`,
+        address_string: `Super Admin Manual Entry (${reason})`,
         latitude: 0,
         longitude: 0,
         employee_name: employeeProfile.full_name || '',

@@ -123,7 +123,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      alert('Override successful!');
+      alert(data.message || 'Override successful!');
       setEditingPunch(null);
       setReason('');
       setCurrentDate(new Date(currentDate));
@@ -148,7 +148,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      alert('Punch deleted successfully!');
+      alert(data.message || 'Punch deleted successfully!');
       
       // Update local state by removing from attendance
       setAttendance(prev => prev.filter(p => p.id !== punchId));
@@ -185,7 +185,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      alert('Manual punch added successfully!');
+      alert(data.message || 'Manual punch added successfully!');
       setIsAddingManualPunch(false);
       setReason('');
       setSelectedDayData(null);

@@ -46,7 +46,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Punch record not found' }, { status: 404 });
     }
 
-    // Delete the punch
+    if (adminProfile?.role !== 'Super Admin') {
+        const { error: reqError } = await supabaseAdmin.from('manual_punch_requests').insert({
+            user_id: punchToDelete.user_id,
+            admin_id: adminUser.id,
+            action_type: 'DELETE',
+            target_attendance_id: punchId,
+            date: new Date(punchToDelete.timestamp).toISOString().split('T')[0],
+            reason: 'Admin requested deletion from Calendar',
+            status: 'Pending'
+        });
+        if (reqError) throw reqError;
+        return NextResponse.json({ success: true, message: 'Deletion request sent for Super Admin approval' });
+    }
+
+    // Delete the punch (Super Admin Only)
     const { error: deleteError } = await supabaseAdmin
       .from('attendance')
       .delete()
