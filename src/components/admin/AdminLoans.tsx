@@ -278,11 +278,41 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
                 <button type="submit" className="mt-6 w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition active:scale-95">Disburse Loan</button>
               </form>
 
-              {/* Form 2: Schedule EMI */}
+              {/* Form 2: Quick Skip Controls */}
+              <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 p-6 flex flex-col">
+                <h4 className="font-bold text-slate-800 flex items-center mb-6">
+                   <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mr-3"><CalendarClock className="w-4 h-4" /></div>
+                   EMI Skip Controls
+                </h4>
+                
+                <div className="space-y-4 flex-1">
+                  <p className="text-xs font-semibold text-slate-500">Instantly pause EMI deductions for this employee. This will set deduction to ₹0 for the selected duration.</p>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Duration to Skip</label>
+                    <select 
+                      onChange={(e) => skipSchedules(parseInt(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-rose-500 transition"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Choose number of months...</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                        <option key={m} value={m}>{m} Month{m > 1 ? 's' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-rose-50 border border-rose-100 rounded-2xl">
+                   <p className="text-[10px] font-bold text-rose-600">Note: Skipping will create ₹0 entries in the ledger for future months.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              {/* Form 3: Schedule EMI */}
               <form onSubmit={handleSchedule} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 p-6 flex flex-col">
                 <h4 className="font-bold text-slate-800 flex items-center mb-6">
-                   <div className="w-8 h-8 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center mr-3"><CalendarClock className="w-4 h-4" /></div>
-                   Schedule EMI Deduction
+                   <div className="w-8 h-8 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center mr-3"><Plus className="w-4 h-4" /></div>
+                   Schedule Manual EMI
                 </h4>
                 
                 <div className="space-y-4 flex-1">
@@ -296,136 +326,74 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
                       <input required value={scheduleAmount} onChange={e=>setScheduleAmount(e.target.value)} type="number" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition" />
                     </div>
                   </div>
-                  <p className="text-xs font-semibold text-slate-500">The total scheduled EMIs must not exceed the outstanding balance. The engine will automatically deduct this from the target month's payload.</p>
                 </div>
 
-                <button type="submit" className="mt-6 w-full py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition shadow-lg shadow-brand-500/20 active:scale-95">Schedule EMI</button>
+                <button type="submit" className="mt-6 w-full py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition shadow-lg shadow-brand-500/20 active:scale-95">Add to Ledger</button>
               </form>
-            </div>
 
-            {/* Balance Correction Panel */}
-            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-amber-200 text-amber-700 flex items-center justify-center">
-                  <IndianRupee className="w-4 h-4" />
+              {/* Balance Correction Panel */}
+              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 flex flex-col justify-between">
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-200 text-amber-700 flex items-center justify-center">
+                    <IndianRupee className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-amber-900">Balance Correction</h4>
+                    <p className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">Adjust outstanding total</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-amber-900">Balance Correction (Loan)</h4>
-                  <p className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">Set outstanding balance as on a date</p>
-                </div>
+                <form onSubmit={handleBalanceCorrection} className="grid grid-cols-2 gap-3 items-end">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-amber-700">Date</label>
+                    <input type="date" value={correctionDate} onChange={e => setCorrectionDate(e.target.value)} className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-amber-700">Amount</label>
+                    <input type="number" value={correctionAmount} onChange={e => setCorrectionAmount(e.target.value)} className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold" />
+                  </div>
+                  <button type="submit" className="col-span-2 mt-2 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-700 transition">Update Total Balance</button>
+                </form>
               </div>
-              <form onSubmit={handleBalanceCorrection} className="grid grid-cols-3 gap-3 items-end">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-700">As on Date</label>
-                  <input
-                    type="date"
-                    value={correctionDate}
-                    onChange={e => setCorrectionDate(e.target.value)}
-                    className="w-full bg-white border border-amber-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-700">Balance Amount (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={correctionAmount}
-                    onChange={e => setCorrectionAmount(e.target.value)}
-                    placeholder="e.g. 25000"
-                    className="w-full bg-white border border-amber-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition"
-                  />
-                </div>
-                <button type="submit" className="py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition active:scale-95">
-                  Set Balance
-                </button>
-              </form>
-            </div>
-
-            {/* Leave Balance Correction */}
-            <div className="bg-purple-50 border border-purple-200 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-200 text-purple-700 flex items-center justify-center">
-                  <CalendarClock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-purple-900">Opening Leave Balance</h4>
-                  <p className="text-[10px] text-purple-600 font-bold uppercase tracking-widest">Carry-forward balance as on a date</p>
-                </div>
-              </div>
-              <form onSubmit={handleLeaveBalanceCorrection} className="grid grid-cols-3 gap-3 items-end">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-purple-700">As on Date</label>
-                  <input
-                    type="date"
-                    value={leaveCorrectionDate}
-                    onChange={e => setLeaveCorrectionDate(e.target.value)}
-                    className="w-full bg-white border border-purple-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-purple-500 transition"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-purple-700">Leave Days Balance</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={leaveCorrectionBalance}
-                    onChange={e => setLeaveCorrectionBalance(e.target.value)}
-                    placeholder="e.g. 12.5"
-                    className="w-full bg-white border border-purple-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-purple-500 transition"
-                  />
-                </div>
-                <button type="submit" className="py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition active:scale-95">
-                  Set Balance
-                </button>
-              </form>
             </div>
 
             {/* Schedules Table */}
-            {userSchedules.length > 0 && (
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                  <h4 className="font-bold text-slate-700 text-sm tracking-wide">EMI Ledger & Skip Controls</h4>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[10px] font-black uppercase text-slate-400">Skip For:</span>
-                    <select 
-                      onChange={(e) => skipSchedules(parseInt(e.target.value))}
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none"
-                      defaultValue=""
-                    >
-                      <option value="" disabled>Select months</option>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-                        <option key={m} value={m}>{m} Month{m > 1 ? 's' : ''}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <h4 className="font-bold text-slate-700 text-sm tracking-wide">Monthly EMI Ledger (Flexi-EMI)</h4>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Edit amounts directly in the table</p>
                 </div>
                 <table className="w-full text-left">
                   <thead className="bg-white">
                     <tr>
                       <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">Target Month</th>
-                      <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">EMI Amount</th>
+                      <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">EMI Amount (Editable)</th>
                       <th className="px-6 py-3 text-[10px] font-black tracking-widest text-slate-400 uppercase">Status</th>
                       <th className="px-6 py-3 text-right"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {userSchedules.map(s => (
+                    {userSchedules.length === 0 ? (
+                      <tr><td colSpan={4} className="py-12 text-center text-slate-300 font-black uppercase tracking-widest">No schedules found</td></tr>
+                    ) : userSchedules.map(s => (
                       <tr key={s.id} className={s.is_skipped ? 'bg-slate-50/50' : ''}>
                         <td className="px-6 py-4">
                            <p className="font-bold text-slate-700 text-sm">{s.target_month}</p>
-                           {s.is_skipped && <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Skipped</span>}
+                           {s.is_skipped && <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Manual Skip</span>}
                         </td>
                         <td className="px-6 py-4">
                            {!s.is_processed ? (
-                             <input 
-                               type="number"
-                               defaultValue={s.deduction_amount}
-                               onBlur={(e) => {
-                                 const val = parseFloat(e.target.value);
-                                 if (val !== s.deduction_amount) updateScheduleAmount(s.id, val);
-                               }}
-                               className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-700 focus:border-brand-500 outline-none"
-                             />
+                             <div className="flex items-center space-x-2">
+                               <input 
+                                 type="number"
+                                 defaultValue={s.deduction_amount}
+                                 onBlur={(e) => {
+                                   const val = parseFloat(e.target.value);
+                                   if (val !== s.deduction_amount) updateScheduleAmount(s.id, val);
+                                 }}
+                                 className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-700 focus:border-brand-500 outline-none"
+                               />
+                               <span className="text-[9px] font-black text-slate-300 uppercase">Edit</span>
+                             </div>
                            ) : (
                              <p className="font-bold text-slate-700 text-sm">₹{s.deduction_amount}</p>
                            )}
@@ -448,8 +416,7 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+            </div>
           </>
         )}
       </div>
