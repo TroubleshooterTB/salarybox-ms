@@ -20,6 +20,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reason, setReason] = useState('');
   const [dayNotes, setDayNotes] = useState<any[]>([]);
+  const [holidays, setHolidays] = useState<any[]>([]);
   const [newNote, setNewNote] = useState('');
   const [isNoteLoading, setIsNoteLoading] = useState(false);
 
@@ -50,6 +51,15 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
           .order('timestamp', { ascending: true });
 
       if (data) setAttendance(data);
+      
+      // Fetch Holidays
+      const { data: hData } = await supabase
+        .from('holidays')
+        .select('*')
+        .gte('date', startOfMonth.split('T')[0])
+        .lte('date', endOfMonth.split('T')[0]);
+      if (hData) setHolidays(hData);
+
       setLoading(false);
     }
     fetchAttendance();
@@ -201,6 +211,12 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     const dayPunches = attendance.filter(a => new Date(a.timestamp).getDate() === day);
     if (dayPunches.length === 0) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Check Holidays first
+      const holiday = holidays.find(h => h.date === dateStr);
+      if (holiday) return { status: 'Holiday', name: holiday.name };
+
       if (date.getDay() === 0) return { status: 'Week Off' };
       return null;
     }
@@ -235,7 +251,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     'Half Day Leave': { color: 'bg-[linear-gradient(135deg,#a855f7_50%,#f59e0b_50%)]', text: 'text-white', badge: 'HD LVE' },
     'Week Off': { color: 'bg-[#94a3b8]', text: 'text-white' },
     'Week Off OT': { color: 'bg-[#0ea5e9]', text: 'text-white', badge: 'WO OT' },
-    'Holiday': { color: 'bg-[#94a3b8]', text: 'text-white' }
+    'Holiday': { color: 'bg-[#fde047]', text: 'text-slate-900', badge: 'HOL' }
   };
 
   const formatTime = (ts: string) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -389,6 +405,11 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h3 className="text-lg font-black text-slate-900">{formatDate(selectedDayData.day)}</h3>
+                    {getDayData(selectedDayData.day)?.status === 'Holiday' && (
+                      <p className="text-sm font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg inline-block mt-1 uppercase tracking-tighter border border-amber-100">
+                        ✨ {getDayData(selectedDayData.day)?.name}
+                      </p>
+                    )}
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                       {selectedDayData.punches.length} punch record{selectedDayData.punches.length !== 1 ? 's' : ''}
                     </p>
