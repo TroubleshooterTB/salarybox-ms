@@ -79,7 +79,7 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     bonus = 0, incentive = 0, fines = 0, otherDeductions = 0,
     pfEnabled = false, esiEnabled = false,
     weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0,
-    branchOvertimeApplicable = false, branchOvertimeHourlyRate = 0, branchOvertimeHours = 0,
+    branchOvertimeHours = 0,
     overtimeHourlyRate = 0
   } = input;
 
