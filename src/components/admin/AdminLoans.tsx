@@ -21,6 +21,13 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
   const [userLoans, setUserLoans] = useState<any[]>([]);
   const [userSchedules, setUserSchedules] = useState<any[]>([]);
 
+  // Global Summary
+  const [summaryData, setSummaryData] = useState({
+    totalDisbursed: 0,
+    totalBalance: 0,
+    employeesWithLoan: 0
+  });
+
   useEffect(() => {
     async function fetchProfiles() {
       let query = supabase.from('profiles').select('id, full_name, employee_id, branch').order('full_name');
@@ -29,6 +36,34 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
       }
       const { data } = await query;
       if (data) setProfiles(data);
+
+      // Fetch Global Loan Summary
+      const { data: allLoans } = await supabase.from('loans').select('user_id, type, loan_amount, remaining_balance').order('transaction_date', { ascending: false });
+      if (allLoans) {
+        let tDisbursed = 0;
+        let tBalance = 0;
+        let empCount = 0;
+        const latestBalanceMap = new Map();
+
+        allLoans.forEach(loan => {
+          if (loan.type === 'Disbursement') {
+             tDisbursed += (loan.loan_amount || 0);
+          }
+          if (!latestBalanceMap.has(loan.user_id)) {
+             latestBalanceMap.set(loan.user_id, loan.remaining_balance || 0);
+          }
+        });
+
+        latestBalanceMap.forEach(bal => {
+          if (bal > 0) {
+            tBalance += bal;
+            empCount++;
+          }
+        });
+
+        setSummaryData({ totalDisbursed: tDisbursed, totalBalance: tBalance, employeesWithLoan: empCount });
+      }
+
       setLoading(false);
     }
     fetchProfiles();
@@ -237,10 +272,36 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
 
       {/* Right Content: Loan Operations */}
       <div className="flex-1 flex flex-col space-y-6 overflow-y-auto pb-12">
-        <div className="mb-2">
-          <h2 className="text-2xl font-black tracking-tight text-slate-800">Loan & EMI Ledger</h2>
-          <p className="text-slate-500 font-medium text-sm">Disburse advances and schedule future EMI payroll deductions.</p>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight text-slate-800">Loan & EMI Ledger</h2>
+            <p className="text-slate-500 font-medium text-sm">Company loan overview and employee management.</p>
+          </div>
         </div>
+
+        {/* Global Summary */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="bg-slate-900 rounded-3xl p-6 text-white relative overflow-hidden shadow-lg shadow-slate-900/20">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl" />
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Disbursed (All Time)</p>
+            <h3 className="text-3xl font-black flex items-center">
+              <IndianRupee className="w-5 h-5 mr-1 opacity-50" /> {summaryData.totalDisbursed.toLocaleString('en-IN')}
+            </h3>
+          </div>
+          <div className="bg-brand-500 rounded-3xl p-6 text-white relative overflow-hidden shadow-lg shadow-brand-500/20">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <p className="text-[10px] font-black uppercase tracking-widest text-brand-200 mb-1">Company Outstanding Bal.</p>
+            <h3 className="text-3xl font-black flex items-center">
+              <IndianRupee className="w-5 h-5 mr-1 opacity-50" /> {summaryData.totalBalance.toLocaleString('en-IN')}
+            </h3>
+          </div>
+          <div className="bg-emerald-500 rounded-3xl p-6 text-white relative overflow-hidden shadow-lg shadow-emerald-500/20">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200 mb-1">Employees with Active Loan</p>
+            <h3 className="text-3xl font-black">{summaryData.employeesWithLoan}</h3>
+          </div>
+        </div>
+
 
         {!selectedUser ? (
           <div className="bg-white rounded-3xl border border-slate-100 p-16 text-center shadow-sm flex-1 flex flex-col items-center justify-center">
