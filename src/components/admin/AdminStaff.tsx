@@ -782,7 +782,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Petrol Allowance (₹/KM)</label>
-                    <input value={formData.petrol_allowance_rate} onChange={e=>setFormData({...formData, petrol_allowance_rate: e.target.value})} type="number" step="0.01" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="3.75" />
+                    <input value={formData.petrol_allowance_rate} onChange={e=>setFormData({...formData, petrol_allowance_rate: parseFloat(e.target.value) || 0})} type="number" step="0.01" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="3.75" />
                   </div>
                 </div>
               </div>
