@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS manual_punch_requests (
 
 ALTER TABLE manual_punch_requests ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies to avoid conflicts if re-running
+DROP POLICY IF EXISTS "Admins can manage manual punch requests" ON manual_punch_requests;
+DROP POLICY IF EXISTS "Users can view their own manual punch requests" ON manual_punch_requests;
+
 -- Admins/Super Admins can manage all
 CREATE POLICY "Admins can manage manual punch requests" ON manual_punch_requests
     FOR ALL USING (
