@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText, CalendarDays, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText, CalendarDays, Trash2, MapPin } from 'lucide-react';
 import { calculatePayroll } from '../../lib/payrollEngine';
 import PayslipView from './PayslipView';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
