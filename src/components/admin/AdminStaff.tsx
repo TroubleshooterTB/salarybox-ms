@@ -975,7 +975,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                         />
                         <button 
                             type="button"
-                            onClick={handleResetPassword}
+                            onClick={() => handleResetPassword()}
                             disabled={isSubmitting}
                             className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-black transition disabled:opacity-50"
                         >
