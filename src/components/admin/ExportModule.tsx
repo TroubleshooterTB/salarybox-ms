@@ -6,11 +6,6 @@ import { Download, FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'l
 
 export default function ExportModule({ selectedBranch }: { selectedBranch: string }) {
   const [loading, setLoading] = useState(false);
-
-  // OT configuration is now dynamic per employee based on logs
-  // No more global OT inputs
-
-  // Default to current month
   const now = new Date();
   const [exportYear, setExportYear] = useState(now.getFullYear());
   const [exportMonth, setExportMonth] = useState(now.getMonth()); // 0-indexed
@@ -59,7 +54,6 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
         const baseRow: any = { 'EMP ID': p.employee_id, 'Name': p.full_name, 'Branch': p.branch };
         const monthDays = getDaysInMonth(exportYear, exportMonth);
         for (let i = 1; i <= monthDays; i++) {
-          // Parse IST day to handle UTC timestamps correctly
           const dayRecs = pAtt.filter(a => {
             const d = new Date(new Date(a.timestamp).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
             return d.getDate() === i;
@@ -104,28 +98,31 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const startDate = new Date(exportYear, exportMonth, 1).toISOString();
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
 
-      // Fetch everything: attendance, adjustments, branches, loans, leaves, and holidays
       const [
         { data: attendance }, 
         { data: adjustments }, 
         { data: branches }, 
         { data: loanSchedules },
         { data: approvedLeaves },
-        { data: holidays }
+        { data: holidays },
+        { data: loans },
+        { data: fieldVisits },
+        { data: fieldVisitLogs }
       ] = await Promise.all([
         supabase.from('attendance').select('user_id, timestamp, type, status').gte('timestamp', startDate).lte('timestamp', endDate),
         supabase.from('payroll_adjustments').select('*').eq('month_year', targetMonthStr),
         supabase.from('branches').select('*'),
-        supabase.from('loan_schedules').select('user_id, id, deduction_amount, is_processed').eq('target_month', targetMonthStr).eq('is_processed', false),
+        supabase.from('loan_schedules').select('*').eq('target_month', targetMonthStr),
         supabase.from('leave_requests').select('*').eq('status', 'Approved').gte('start_date', startDate).lte('start_date', endDate),
-        supabase.from('holidays').select('*').gte('date', startDate).lte('date', endDate)
+        supabase.from('holidays').select('*').gte('date', startDate).lte('date', endDate),
+        supabase.from('loans').select('*').order('transaction_date', { ascending: false }),
+        supabase.from('field_visits').select('*').gte('start_time', startDate).lte('start_time', endDate),
+        supabase.from('field_visit_logs').select('*').gte('timestamp', startDate).lte('timestamp', endDate)
       ]);
 
       const rows = await Promise.all((profiles || []).map(async p => {
         const pAtt = attendance?.filter(a => a.user_id === p.id) || [];
         const adj = adjustments?.find(a => a.user_id === p.id);
-
-        // Group by calendar day for accurate counts
         const dayMap = new Map<number, any[]>();
         for (const rec of pAtt) {
           const d = new Date(rec.timestamp).getDate();
@@ -138,8 +135,6 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
 
         for (const [, recs] of dayMap) {
           const sorted = [...recs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          
-          // Calculate work duration for the day
           let dayWorkMs = 0;
           for (let i = 0; i < sorted.length - 1; i++) {
             if (sorted[i].type === 'In' && sorted[i+1].type === 'Out') {
@@ -147,43 +142,42 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
             }
           }
           actualPaidHours += dayWorkMs / 3600000;
-
           const last = recs.filter(r => r.type === 'Out').at(-1) ?? recs.at(-1);
           if (last?.status === 'Present') presentDays++;
           else if (last?.status === 'Half Day') halfDays++;
           else if (last?.status === 'Late') { presentDays++; lateDays++; }
         }
 
-        const branchData = (branches || []).find(b => b.name === p.branch);
-        let standardShiftHours = 8;
-        if (branchData?.shift_start && branchData?.shift_end) {
-          const [startH, startM] = branchData.shift_start.split(':').map(Number);
-          const [endH, endM] = branchData.shift_end.split(':').map(Number);
-          standardShiftHours = (endH + endM/60) - (startH + startM/60);
-          if (standardShiftHours < 0) standardShiftHours += 24; // Handle night shifts
+        // Field Visit KM Calculation
+        const pVisits = fieldVisits?.filter(v => v.user_id === p.id) || [];
+        let totalKm = 0;
+        for (const v of pVisits) {
+          // Check if there are any manual logs or logs with reports (selfies/checkpoints)
+          const vLogs = fieldVisitLogs?.filter(l => l.visit_id === v.id) || [];
+          const hasReport = vLogs.some(l => l.action !== 'Auto' || l.selfie_url);
+          if (hasReport) {
+            totalKm += v.total_km || 0;
+          }
         }
 
+        const branchData = (branches || []).find(b => b.name === p.branch);
+        const standardShiftHours = branchData?.shift_hours || 8;
         const expectedWorkHours = (presentDays + lateDays + (halfDays * 0.5)) * standardShiftHours;
         const overtimeHours = Math.max(0, actualPaidHours - expectedWorkHours);
-
         const loanSched = loanSchedules?.find(s => s.user_id === p.id);
         const loanDeduction = loanSched?.deduction_amount ?? 0;
-
         const employeeLeaves = (approvedLeaves || []).filter(l => l.user_id === p.id);
         const paidLeavesCount = employeeLeaves.reduce((acc, l) => {
-          // Assuming leave_type is PL, SL, CL for paid leaves. Adjust if 'Unpaid' is also a type.
           if (l.leave_type !== 'Unpaid') {
             const start = new Date(l.start_date);
             const end = new Date(l.end_date);
             const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
-            return acc + days;
+            return acc + (l.is_half_day ? 0.5 : days);
           }
           return acc;
         }, 0);
-
-        const weeklyOffDay = p.weekly_off_day ?? 0;
-        const weeklyOffDay2 = p.weekly_off_day_2 ?? -1;
         const holidaysCount = (holidays || []).length;
+        const currentLoan = loans?.find(l => l.user_id === p.id);
 
         const payroll = calculatePayroll({
           baseSalary: p.ctc_amount || 0,
@@ -207,47 +201,28 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           otherDeductions: adj?.other_deductions || 0,
           pfEnabled: p.pf_enabled,
           esiEnabled: p.esi_enabled,
-          overtimeHourlyRate: p.overtime_hourly_rate || 0
+          overtimeHourlyRate: p.overtime_hourly_rate || 0,
+          fieldVisitKm: totalKm,
+          petrolAllowanceRate: p.petrol_allowance_rate || 3.75
         });
-
-        // Mark loan as processed
-        if (loanSched && loanDeduction > 0) {
-          await supabase.from('loan_schedules').update({ is_processed: true }).eq('id', loanSched.id);
-          const { data: latestLoan } = await supabase.from('loans').select('remaining_balance').eq('user_id', p.id).order('transaction_date', { ascending: false }).limit(1).single();
-          const newBalance = Math.max(0, (latestLoan?.remaining_balance ?? 0) - loanDeduction);
-          await supabase.from('loans').insert({
-            user_id: p.id, type: 'Credit', loan_amount: loanDeduction, remaining_balance: newBalance, transaction_date: endDate
-          });
-        }
 
         return {
           'EMP ID': p.employee_id,
           'Name': p.full_name,
           'Branch': p.branch || '',
           'Designation': p.job_title || '',
-          'Joining Date': p.joining_date || '',
-          'A/C Details': p.bank_account_details || '',
           'Monthly Base CTC': payroll.baseMonthSalary.toFixed(0),
-          'Prorated Base': payroll.proratedBaseSalary.toFixed(0),
-          'Month Days': payroll.monthDays,
           'Payable Days': payroll.payableDays,
           'Gross Earned': payroll.grossEarned.toFixed(0),
-          'Variable Bonus': payroll.bonus,
-          'Incentive': payroll.incentive,
+          'OT Hours': payroll.overtimeHours.toFixed(2),
           'OT Pay': payroll.overtimePay.toFixed(0),
+          'Field Visit KM': payroll.fieldVisitKm.toFixed(2),
+          'Petrol Allowance': payroll.fieldVisitAllowance.toFixed(0),
           'Total Earnings': payroll.totalEarnings.toFixed(0),
-          'PT': payroll.deductions.pt,
-          'EPF (Emp)': payroll.deductions.epf,
-          'ESI (Emp)': payroll.deductions.esi,
-          'LWF (Emp)': payroll.deductions.lwf,
           'Loan EMI': payroll.loanDeduction,
-          'Fines/Penalties': payroll.fines + payroll.lateFine,
-          'Total Deductions': payroll.totalDeductions.toFixed(0),
+          'Loan Balance': currentLoan?.remaining_balance ?? 0,
           'Net Take Home': payroll.netPay.toFixed(0),
-          'EPF (Company)': payroll.employerContributions.epf,
-          'ESI (Company)': payroll.employerContributions.esi,
-          'Total CTC to Company': payroll.ctcToCompany.toFixed(0),
-          'Remarks': adj?.remarks || ''
+          'Total CTC to Company': payroll.ctcToCompany.toFixed(0)
         };
       }));
 
@@ -255,6 +230,87 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Salary_Register");
       XLSX.writeFile(wb, `Salary_${monthLabel.replace(' ', '_')}.xlsx`);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const exportLeaves = async () => {
+    setLoading(true);
+    try {
+      const { data: leaves } = await supabase.from('leave_requests').select('*, profiles(full_name, employee_id, branch)').order('created_at', { ascending: false });
+      const rows = leaves?.map(l => ({
+        'EMP ID': (l.profiles as any)?.employee_id,
+        'Name': (l.profiles as any)?.full_name,
+        'Branch': (l.profiles as any)?.branch,
+        'Type': l.leave_type,
+        'Start': l.start_date,
+        'End': l.end_date,
+        'Duration': l.is_half_day ? '0.5' : 'Full Day',
+        'Status': l.status,
+        'Reason': l.reason
+      })) || [];
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Leave_Requests");
+      XLSX.writeFile(wb, `Leave_Report_${monthLabel.replace(' ', '_')}.xlsx`);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const exportFieldVisits = async () => {
+    setLoading(true);
+    try {
+      const startDate = new Date(exportYear, exportMonth, 1).toISOString();
+      const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
+      const { data: visits } = await supabase.from('field_visits').select('*, profiles(full_name, employee_id, petrol_allowance_rate)').gte('start_time', startDate).lte('start_time', endDate);
+      const { data: logs } = await supabase.from('field_visit_logs').select('*');
+      
+      const rows = visits?.map(v => {
+        const vLogs = logs?.filter(l => l.visit_id === v.id) || [];
+        const hasReport = vLogs.some(l => l.action !== 'Auto' || l.selfie_url);
+        const rate = (v.profiles as any)?.petrol_allowance_rate || 3.75;
+        const allowance = hasReport ? (v.total_km * rate) : 0;
+
+        return {
+          'Date': v.date,
+          'EMP ID': (v.profiles as any)?.employee_id,
+          'Name': (v.profiles as any)?.full_name,
+          'Start': new Date(v.start_time).toLocaleTimeString(),
+          'End': v.end_time ? new Date(v.end_time).toLocaleTimeString() : 'Running',
+          'KM Traveled': v.total_km,
+          'Allowance Rate': rate,
+          'Visit Allowance': allowance.toFixed(2),
+          'Status': v.status,
+          'Has Report': hasReport ? 'Yes' : 'No',
+          'Checkpoints': vLogs.filter(l => l.action !== 'Auto').length,
+          'Photos': vLogs.filter(l => l.selfie_url).map(l => l.selfie_url).join(', ')
+        };
+      }) || [];
+      
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Detailed_Field_Visits");
+      XLSX.writeFile(wb, `Field_Visit_Detailed_Report_${monthLabel.replace(' ', '_')}.xlsx`);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const exportLoanLedger = async () => {
+    setLoading(true);
+    try {
+      const { data: loans } = await supabase.from('loans').select('*, profiles(full_name, employee_id)').order('transaction_date', { ascending: false });
+      const rows = loans?.map(l => ({
+        'Date': new Date(l.transaction_date).toLocaleDateString(),
+        'EMP ID': (l.profiles as any)?.employee_id,
+        'Name': (l.profiles as any)?.full_name,
+        'Transaction Type': l.type,
+        'Amount': l.loan_amount,
+        'Remaining Balance': l.remaining_balance
+      })) || [];
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Loan_Ledger");
+      XLSX.writeFile(wb, `Loan_Ledger_Report.xlsx`);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -269,33 +325,14 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
 
   return (
     <div className="p-12 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-2xl font-black tracking-tight text-slate-800">Export Centre</h2>
-        <p className="text-slate-500 font-medium text-sm mt-1">Generate real payroll and attendance reports. All data is live from Supabase.</p>
-      </div>
-
-      {/* Month Selector & Lockdown Status */}
-      <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Payroll Period</p>
-            <div className="flex items-center space-x-3">
-              <p className="text-xl font-black text-slate-800">{monthLabel}</p>
-              {isLocked && (
-                <span className="flex items-center space-x-1 px-2 py-0.5 bg-rose-500 text-white text-[9px] font-black uppercase rounded-md shadow-lg shadow-rose-500/20">
-                  <Download className="w-3 h-3" /> Locked
-                </span>
-              )}
-            </div>
-          </div>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">Export Centre</h2>
+          <p className="text-slate-500 font-medium text-sm mt-1">Generate comprehensive payroll, attendance, and activity reports.</p>
         </div>
         <div className="flex items-center space-x-4">
           {!isLocked && (
-            <button 
-              onClick={handleLock}
-              disabled={locking}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black uppercase tracking-widest rounded-xl transition flex items-center space-x-2"
-            >
+            <button onClick={handleLock} disabled={locking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black uppercase tracking-widest rounded-xl transition flex items-center space-x-2">
               {locking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3 rotate-180" />}
               <span>Finalize & Lock</span>
             </button>
@@ -308,47 +345,61 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
         </div>
       </div>
 
-      {/* OT Summary Info */}
-      <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-        <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex flex-col justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Overtime Logic</p>
-            <p className="text-sm font-bold text-slate-700">OT is automatically calculated from punch-logs (Work Hours - Shift Hours)</p>
+            <h3 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
+              <span>Attendance Matrix</span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-1">Exact punch states (P/HD/L/A) for each calendar day.</p>
           </div>
-          <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full border bg-brand-50 text-brand-700 border-brand-200">Automated</span>
+          <button disabled={loading} onClick={exportAttendance} className="mt-4 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl flex items-center justify-center space-x-2 transition"><Download className="w-4 h-4" /><span>Download Matrix</span></button>
         </div>
-      </div>
 
-      {/* Attendance Export */}
-      <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-bold text-slate-800 flex items-center space-x-2">
-            <FileSpreadsheet className="w-6 h-6 text-emerald-500" />
-            <span>Attendance Matrix — {monthLabel}</span>
-          </h3>
-          <p className="text-slate-500 text-sm mt-1 font-medium">Exact punch states (P/HD/L/A) mapped to each calendar day for the selected month.</p>
+        <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+              <FileSpreadsheet className="w-5 h-5 text-brand-500" />
+              <span>Salary Register</span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-1">Includes Base, OT, Field KM, Petrol Allowance, and Deductions.</p>
+          </div>
+          <button disabled={loading} onClick={exportSalary} className="mt-4 px-4 py-3 bg-brand-500 text-white font-bold rounded-xl flex items-center justify-center space-x-2 hover:bg-brand-600 transition"><Download className="w-4 h-4" /><span>Generate Register</span></button>
         </div>
-        <button disabled={loading} onClick={exportAttendance} className="px-6 py-4 bg-slate-900 text-white font-bold rounded-xl flex items-center space-x-2 hover:bg-slate-800 transition shadow-lg shrink-0 disabled:opacity-50">
-          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-          <span>Download Matrix</span>
-        </button>
-      </div>
 
-      {/* Salary Export */}
-      <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-bold text-slate-800 flex items-center space-x-2">
-            <FileSpreadsheet className="w-6 h-6 text-brand-500" />
-            <span>Salary Register — {monthLabel}</span>
-          </h3>
-          <p className="text-slate-500 text-sm mt-1 font-medium">
-            Real present days · Dynamic month days ({getDaysInMonth(exportYear, exportMonth)} days this month) · Loan EMI deduction · EPF, PT, ESI · Bank & designation columns included.
-          </p>
+        <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+              <FileSpreadsheet className="w-5 h-5 text-orange-500" />
+              <span>Leave Report</span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-1">All leave requests, statuses, and remaining balances.</p>
+          </div>
+          <button disabled={loading} onClick={exportLeaves} className="mt-4 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl flex items-center justify-center space-x-2 transition"><Download className="w-4 h-4" /><span>Export Leaves</span></button>
         </div>
-        <button disabled={loading} onClick={exportSalary} className="px-6 py-4 bg-brand-500 text-white font-bold rounded-xl flex items-center space-x-2 hover:bg-brand-600 transition shadow-lg shadow-brand-500/20 shrink-0 disabled:opacity-50">
-          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-          <span>Generate Register</span>
-        </button>
+
+        <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+              <FileSpreadsheet className="w-5 h-5 text-violet-500" />
+              <span>Field Visit Detailed Report</span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-1">Detailed logs, KM traveled, allowance per visit, and photo proofs.</p>
+          </div>
+          <button disabled={loading} onClick={exportFieldVisits} className="mt-4 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl flex items-center justify-center space-x-2 transition"><Download className="w-4 h-4" /><span>Export Detailed Visits</span></button>
+        </div>
+
+        <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex flex-col justify-between md:col-span-2">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+              <FileSpreadsheet className="w-5 h-5 text-rose-500" />
+              <span>Loan Ledger Report</span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-1">Full transaction history of disbursements, credits, and balances.</p>
+          </div>
+          <button disabled={loading} onClick={exportLoanLedger} className="mt-4 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl flex items-center justify-center space-x-2 transition"><Download className="w-4 h-4" /><span>Export Loan Ledger</span></button>
+        </div>
       </div>
     </div>
   );

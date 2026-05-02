@@ -13,34 +13,32 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
     async function fetchData() {
       setLoading(true);
       
-      // Fetch profiles first
       let profileQuery = supabase.from('profiles').select('id, full_name, employee_id, branch, department');
       if (selectedBranch && selectedBranch !== 'All Branches') {
         profileQuery = profileQuery.eq('branch', selectedBranch);
       }
       const { data: profiles } = await profileQuery;
 
-      // Fetch quotas for the current year
-      const { data: quotas } = await supabase
-        .from('leave_quotas')
+      const { data: balances } = await supabase
+        .from('leave_balances')
         .select('*')
         .eq('year', currentYear);
 
       if (profiles) {
         const matrix = profiles.map(p => {
-          const q = quotas?.find(q => q.user_id === p.id) || {
-            pl_total: 15, pl_used: 0,
-            sl_total: 12, sl_used: 0,
-            cl_total: 10, cl_used: 0
+          const b = balances?.find(b => b.user_id === p.id) || {
+            privileged_leave_total: 15, privileged_leave_used: 0,
+            sick_leave_total: 12, sick_leave_used: 0,
+            casual_leave_total: 10, casual_leave_used: 0
           };
           return {
             ...p,
-            pl: `${q.pl_total - q.pl_used} / ${q.pl_total}`,
-            sl: `${q.sl_total - q.sl_used} / ${q.sl_total}`,
-            cl: `${q.cl_total - q.cl_used} / ${q.cl_total}`,
-            pl_raw: q.pl_total - q.pl_used,
-            sl_raw: q.sl_total - q.sl_used,
-            cl_raw: q.cl_total - q.cl_used
+            pl: `${b.privileged_leave_total - b.privileged_leave_used} / ${b.privileged_leave_total}`,
+            sl: `${b.sick_leave_total - b.sick_leave_used} / ${b.sick_leave_total}`,
+            cl: `${b.casual_leave_total - b.casual_leave_used} / ${b.casual_leave_total}`,
+            pl_raw: b.privileged_leave_total - b.privileged_leave_used,
+            sl_raw: b.sick_leave_total - b.sick_leave_used,
+            cl_raw: b.casual_leave_total - b.casual_leave_used
           };
         });
         setData(matrix);
@@ -74,7 +72,7 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
     <div className="p-8 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Leave Balance Matrix</h2>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Leave Balance Matrix</h2>
           <p className="text-slate-500 text-sm font-medium">Tracking SL/PL/CL quotas for {currentYear}</p>
         </div>
         <button 

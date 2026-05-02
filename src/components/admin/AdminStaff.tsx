@@ -66,7 +66,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     weekly_off_day_2: -1, // Second weekly off
     overtime_applicable: false,
     overtime_hourly_rate: 0,
-    password: 'password123'
+    password: 'password123',
+    petrol_allowance_rate: 3.75
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -136,6 +137,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       weekly_off_day_2: profile.weekly_off_day_2 ?? -1,
       overtime_applicable: profile.overtime_applicable || false,
       overtime_hourly_rate: profile.overtime_hourly_rate || 0,
+      petrol_allowance_rate: profile.petrol_allowance_rate || 3.75,
       password: '' // Don't show existing password (security)
     });
     setNewPass('');
@@ -250,6 +252,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         weekly_off_day_2: formData.weekly_off_day_2 ?? -1,
         overtime_applicable: formData.overtime_applicable || false,
         overtime_hourly_rate: formData.overtime_hourly_rate || 0,
+        petrol_allowance_rate: parseFloat(formData.petrol_allowance_rate as any) || 3.75,
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
@@ -776,6 +779,10 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Amount (CTC)</label>
                     <input required value={formData.ctc_amount} onChange={e=>setFormData({...formData, ctc_amount: e.target.value})} type="number" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="₹45,000" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Petrol Allowance (₹/KM)</label>
+                    <input value={formData.petrol_allowance_rate} onChange={e=>setFormData({...formData, petrol_allowance_rate: e.target.value})} type="number" step="0.01" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="3.75" />
                   </div>
                 </div>
               </div>

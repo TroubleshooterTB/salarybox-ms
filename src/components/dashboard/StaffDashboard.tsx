@@ -5,7 +5,7 @@ import {
   User, Clock, 
   CalendarDays, IndianRupee, 
   Palmtree, FolderOpen, Globe, Settings,
-  Briefcase, MessageSquare
+  Briefcase, MessageSquare, ExternalLink, MapPin
 } from 'lucide-react';
 import useStore from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -16,13 +16,17 @@ import StaffProfile from './StaffProfile';
 import HolidayCalendar from './HolidayCalendar';
 import CorrectionRequest from './CorrectionRequest';
 import AttendanceCalendar from './AttendanceCalendar';
+import FieldVisit from './FieldVisit';
+import Documents from './Documents';
+import Notes from './Notes';
+import SettingsView from './Settings';
 import NotificationBell from '../common/NotificationBell';
 
-const menuItems = [
+const baseMenuItems = [
   { id: 'profile', label: 'Profile', icon: User, color: 'bg-blue-500' },
   { id: 'history', label: 'View Attendance', icon: CalendarDays, color: 'bg-emerald-500' },
   { id: 'leaves', label: 'Request Leave', icon: Palmtree, color: 'bg-orange-500' },
-  { id: 'crm', label: 'CRM', icon: Briefcase, color: 'bg-indigo-500' },
+  { id: 'crm', label: 'CRM', icon: Briefcase, color: 'bg-indigo-500', isExternal: true },
   { id: 'notes', label: 'Notes', icon: MessageSquare, color: 'bg-amber-500' },
   { id: 'holidays', label: 'Holiday List', icon: Globe, color: 'bg-teal-500' },
   { id: 'documents', label: 'Documents', icon: FolderOpen, color: 'bg-cyan-500' },
@@ -31,12 +35,17 @@ const menuItems = [
 ];
 
 export default function StaffDashboard() {
-  const { session, userRole } = useStore();
+  const { session, userRole, userProfile } = useStore();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [todayPunches, setTodayPunches] = useState<any[]>([]);
   const [correctionDate, setCorrectionDate] = useState<string | undefined>(undefined);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const menuItems = [...baseMenuItems];
+  if (userProfile?.branch === 'Remote/Field') {
+    menuItems.splice(3, 0, { id: 'field_visit', label: 'Field Visit', icon: MapPin, color: 'bg-violet-600' });
+  }
 
   useEffect(() => {
     async function fetchToday() {
@@ -132,6 +141,18 @@ export default function StaffDashboard() {
   }
   if (activeTab === 'corrections') {
     return <CorrectionRequest onBack={() => { setActiveTab(null); setCorrectionDate(undefined); }} prefillDate={correctionDate} />;
+  }
+  if (activeTab === 'field_visit') {
+    return <FieldVisit onBack={() => setActiveTab(null)} />;
+  }
+  if (activeTab === 'documents') {
+    return <Documents onBack={() => setActiveTab(null)} />;
+  }
+  if (activeTab === 'notes') {
+    return <Notes onBack={() => setActiveTab(null)} />;
+  }
+  if (activeTab === 'settings') {
+    return <SettingsView onBack={() => setActiveTab(null)} />;
   }
   if (activeTab === 'history') {
     return <AttendanceCalendar 
@@ -277,7 +298,13 @@ export default function StaffDashboard() {
                   transition={{ delay: index * 0.04, type: "spring", stiffness: 200 }}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    if (item.id === 'crm') {
+                      window.open('https://minimalstroke.odoo.com/odoo/crm', '_blank');
+                    } else {
+                      setActiveTab(item.id);
+                    }
+                  }}
                   className="flex flex-col items-center justify-center p-4 bg-slate-800/40 backdrop-blur-md border border-slate-700/60 rounded-3xl shadow-xl hover:bg-slate-800/80 transition duration-300 aspect-[4/5] relative overflow-hidden group"
                 >
                   {/* Subtle highlight effect on hover */}
@@ -286,7 +313,10 @@ export default function StaffDashboard() {
                   <div className={`w-14 h-14 rounded-2xl ${item.color} flex items-center justify-center mb-3 shadow-lg shadow-black/20`}>
                     <Icon className="w-7 h-7 text-white" />
                   </div>
-                  <span className="text-xs font-semibold text-slate-300 tracking-wide">{item.label}</span>
+                  <span className="text-xs font-semibold text-slate-300 tracking-wide flex items-center">
+                    {item.label}
+                    {item.isExternal && <ExternalLink className="w-2.5 h-2.5 ml-1 text-slate-500" />}
+                  </span>
                 </motion.button>
               );
             })}

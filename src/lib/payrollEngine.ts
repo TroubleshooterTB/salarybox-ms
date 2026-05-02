@@ -31,6 +31,9 @@ export interface PayrollInput {
   holidayOTDays?: number;       
   holidayOTHalfDays?: number;   
   holidayOTHours?: number;      
+  // V2.6: Field Visit Allowance
+  fieldVisitKm?: number;
+  petrolAllowanceRate?: number;
 }
 
 export interface PayrollOutput {
@@ -52,6 +55,9 @@ export interface PayrollOutput {
   incentive: number;
   lateFine: number;
   loanDeduction: number;
+  // V2.6: Field Visit
+  fieldVisitKm: number;
+  fieldVisitAllowance: number;
   fines: number;
   otherDeductions: number;
   deductions: {
@@ -86,7 +92,8 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0,
     branchOvertimeHours = 0,
     overtimeHourlyRate = 0,
-    holidayOTDays = 0, holidayOTHalfDays = 0, holidayOTHours = 0
+    holidayOTDays = 0, holidayOTHalfDays = 0, holidayOTHours = 0,
+    fieldVisitKm = 0, petrolAllowanceRate = 3.75
   } = input;
 
   const monthDays = getDaysInMonth(year, month);
@@ -153,17 +160,12 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   // Logic: 
   // - If OT is hourly: holidayOTHours * rate
   // - Otherwise: (holidayOTDays * perDaySalary) + (holidayOTHalfDays * perDaySalary * 0.5)
-  let holidayOTPay = 0;
-  const rate = overtimeHourlyRate > 0 ? overtimeHourlyRate : perHourPay;
-  
-  if (overtimeType === 'Hourly') {
-    holidayOTPay = holidayOTHours * rate;
-  } else {
-    holidayOTPay = (holidayOTDays * perDaySalary) + (holidayOTHalfDays * perDaySalary * 0.5);
-  }
+  const holidayOTPay = (overtimeType === 'Hourly') ? (holidayOTHours * rate) : ((holidayOTDays * perDaySalary) + (holidayOTHalfDays * perDaySalary * 0.5));
+
+  const fieldVisitAllowance = fieldVisitKm * petrolAllowanceRate;
 
   const lateFine = lateDays * (perDaySalary * 0.5);
-  const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay + holidayOTPay;
+  const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay + holidayOTPay + fieldVisitAllowance;
 
   // 6. Statutory Deductions
   const isFeb = month === 1;
@@ -201,6 +203,8 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     incentive,
     lateFine,
     loanDeduction,
+    fieldVisitKm,
+    fieldVisitAllowance,
     fines,
     otherDeductions,
     deductions: { pt, epf, esi, lwf },

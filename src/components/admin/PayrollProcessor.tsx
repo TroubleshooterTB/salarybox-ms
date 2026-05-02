@@ -40,13 +40,17 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         { data: allAdjustments },
         { data: allLoans },
         { data: allLeaves },
-        { data: allHolidays }
+        { data: allHolidays },
+        { data: allFieldVisits },
+        { data: allFieldVisitLogs }
       ] = await Promise.all([
         supabase.from('attendance').select('*').in('user_id', profileIds).gte('timestamp', startDate).lte('timestamp', endDate),
         supabase.from('payroll_adjustments').select('*').in('user_id', profileIds).eq('month_year', monthYear),
         supabase.from('loan_schedules').select('*').in('user_id', profileIds).eq('target_month', monthYear),
         supabase.from('leave_requests').select('*').in('user_id', profileIds).eq('status', 'Approved').lte('start_date', endDate.split('T')[0]),
-        supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0])
+        supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0]),
+        supabase.from('field_visits').select('*').in('user_id', profileIds).gte('start_time', startDate).lte('start_time', endDate),
+        supabase.from('field_visit_logs').select('*').in('visit_id', supabase.from('field_visits').select('id').in('user_id', profileIds).gte('start_time', startDate).lte('start_time', endDate) as any).gte('timestamp', startDate).lte('timestamp', endDate)
       ]);
 
       // 4. Process each employee
@@ -214,10 +218,28 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           branchOvertimeHours: totalOvertimeHours,
           holidayOTDays,
           holidayOTHalfDays,
-          holidayOTHours
+          holidayOTHours,
+          fieldVisitKm: 0, 
+          petrolAllowanceRate: p.petrol_allowance_rate || 3.75
         });
 
-        return { ...p, payroll, weeklyOffOTDays, weeklyOffOTHalfDays, branchOTHours: Math.round(totalOvertimeHours * 10) / 10 };
+        // RE-CALCULATE Field Visit KM for this specific employee
+        const pVisits = allFieldVisits?.filter(v => v.user_id === p.id) || [];
+        const pLogs = allFieldVisitLogs || [];
+        let totalKm = 0;
+        pVisits.forEach(v => {
+          const vLogs = pLogs.filter(l => l.visit_id === v.id);
+          const hasReport = vLogs.some(l => l.action !== 'Auto' || l.selfie_url);
+          if (hasReport) totalKm += (v.total_km || 0);
+        });
+
+        const finalPayroll = calculatePayroll({
+          ...payroll,
+          fieldVisitKm: totalKm,
+          petrolAllowanceRate: p.petrol_allowance_rate || 3.75
+        });
+
+        return { ...p, payroll: finalPayroll, weeklyOffOTDays, weeklyOffOTHalfDays, branchOTHours: Math.round(totalOvertimeHours * 10) / 10 };
       });
 
       setPayrollData(calculatedData);
@@ -322,6 +344,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Basic</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">OT/Earned</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-violet-500">Weekly Off OT</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-blue-500">Field Visit</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-amber-500">Branch OT</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-rose-500">Deductions</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-emerald-600">Net Pay</th>
@@ -352,6 +375,16 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                            <p className="text-[9px] font-bold text-violet-400">
                              {p.weeklyOffOTDays}d + {p.weeklyOffOTHalfDays}½d
                            </p>
+                         </div>
+                       ) : (
+                         <span className="text-[10px] text-slate-300 font-bold">—</span>
+                       )}
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                       {p.payroll.fieldVisitKm > 0 ? (
+                         <div>
+                           <p className="text-xs font-black text-blue-700">₹{Math.round(p.payroll.fieldVisitAllowance).toLocaleString()}</p>
+                           <p className="text-[9px] font-bold text-blue-400">{p.payroll.fieldVisitKm.toFixed(1)} KM</p>
                          </div>
                        ) : (
                          <span className="text-[10px] text-slate-300 font-bold">—</span>
