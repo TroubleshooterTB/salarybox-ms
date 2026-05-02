@@ -160,6 +160,7 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   // Logic: 
   // - If OT is hourly: holidayOTHours * rate
   // - Otherwise: (holidayOTDays * perDaySalary) + (holidayOTHalfDays * perDaySalary * 0.5)
+  const rate = overtimeHourlyRate > 0 ? overtimeHourlyRate : perHourPay;
   const holidayOTPay = (overtimeType === 'Hourly') ? (holidayOTHours * rate) : ((holidayOTDays * perDaySalary) + (holidayOTHalfDays * perDaySalary * 0.5));
 
   const fieldVisitAllowance = fieldVisitKm * petrolAllowanceRate;
