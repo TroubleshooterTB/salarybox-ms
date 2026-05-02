@@ -48,6 +48,7 @@ export default function AdminBranches() {
       radius_meters: branch.radius_meters,
       geofence_enabled: branch.geofence_enabled,
       is_active: branch.is_active,
+      shift_start: branch.shift_start?.slice(0, 5) || '09:00',
       shift_end: branch.shift_end?.slice(0, 5) || '18:00'
     });
     setShowModal(true);
