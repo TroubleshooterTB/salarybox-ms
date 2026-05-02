@@ -98,7 +98,16 @@ CREATE POLICY "Users can view their own loan schedules" ON loan_schedules
     FOR SELECT USING (auth.uid() = user_id);
 
 -- 5. Holiday Management
-ALTER TABLE holidays ADD COLUMN IF NOT EXISTS branch TEXT; -- NULL means All Branches
+CREATE TABLE IF NOT EXISTS holidays (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    date DATE NOT NULL UNIQUE,
+    type TEXT CHECK (type IN ('National', 'Regional', 'Optional')),
+    branch TEXT, -- NULL means All Branches
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE holidays ADD COLUMN IF NOT EXISTS branch TEXT; 
 
 CREATE TABLE IF NOT EXISTS holiday_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

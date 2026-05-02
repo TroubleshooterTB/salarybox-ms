@@ -15,10 +15,10 @@ export interface PayrollInput {
   joiningDate?: string;         // YYYY-MM-DD
   dateOfLeaving?: string;       // YYYY-MM-DD
   // Adjustments from payroll_adjustments table
-  bonus?: number;               
-  incentive?: number;           
-  fines?: number;               
-  otherDeductions?: number;     
+  bonus?: number;
+  incentive?: number;
+  fines?: number;
+  otherDeductions?: number;
   pfEnabled?: boolean;
   esiEnabled?: boolean;
   // V2.5: Weekly off overtime
@@ -122,7 +122,7 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   // 3. Standard Overtime Pay (Hourly / Day Basic)
   let overtimePay = 0;
   const perHourPay = perDaySalary / standardShiftHours;
-  
+
   if (overtimeType === 'Hourly' || overtimeType === 'Day Basic') {
     const rate = overtimeHourlyRate > 0 ? overtimeHourlyRate : perHourPay;
     if (overtimeType === 'Hourly') {

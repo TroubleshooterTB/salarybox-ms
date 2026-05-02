@@ -72,9 +72,14 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         });
 
         let presentDays = 0, halfDays = 0, lateDays = 0, paidLeaves = 0;
-        let weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0;
-        let totalOvertimeHours = 0; // hours worked beyond standard shift
-        const publicHolidays = (allHolidays || []).length;
+        let totalOvertimeHours = 0;
+        let weeklyOffOTDays = 0;
+        let weeklyOffOTHalfDays = 0;
+        let holidayOTDays = 0;
+        let holidayOTHalfDays = 0;
+        let holidayOTHours = 0;
+
+        const publicHolidays = (allHolidays || []).filter(h => h.branch === null || h.branch === p.branch).length;
 
         const weeklyOffDay = p.weekly_off_day ?? 0; // default Sunday
         const weeklyOffDay2 = p.weekly_off_day_2 ?? -1;
@@ -91,7 +96,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           
           const dayOfWeek = currentDate.getDay();
           const approvedLeave = lvs.find(lv => dateStr >= lv.start_date && dateStr <= lv.end_date);
-          const isHolidayRecord = (allHolidays || []).some(h => dateStr === h.date);
+          const isHolidayRecord = (allHolidays || []).some(h => dateStr === h.date && (h.branch === null || h.branch === p.branch));
 
           const inPunches = records.filter(r => r.type === 'In').sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           const outPunches = records.filter(r => r.type === 'Out').sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -131,7 +136,16 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
             continue;
           }
 
-          if (isHolidayRecord && inPunches.length === 0) {
+          if (isHolidayRecord) {
+            if (inPunches.length > 0) {
+               const durationHrs = durationMins / 60;
+               if (durationHrs >= 5) {
+                 holidayOTDays++;
+               } else if (durationHrs >= 1) {
+                 holidayOTHalfDays++;
+               }
+               holidayOTHours += durationHrs;
+            }
             continue;
           }
 
@@ -197,7 +211,10 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           weeklyOffOTDays,
           weeklyOffOTHalfDays,
           overtimeHourlyRate: p.overtime_hourly_rate || 0,
-          branchOvertimeHours: totalOvertimeHours
+          branchOvertimeHours: totalOvertimeHours,
+          holidayOTDays,
+          holidayOTHalfDays,
+          holidayOTHours
         });
 
         return { ...p, payroll, weeklyOffOTDays, weeklyOffOTHalfDays, branchOTHours: Math.round(totalOvertimeHours * 10) / 10 };
