@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { 
   LogOut, Users, Settings, Clock, 
   IndianRupee, History, Map, 
-  FileStack, UserCheck, Calendar, Globe 
+  FileStack, UserCheck, Calendar, Globe, MapPin
 } from 'lucide-react';
 import L from 'leaflet';
 import ExportModule from './ExportModule';
@@ -53,6 +53,15 @@ const createSelfieIcon = (url: string) => L.divIcon({
   iconAnchor: [22, 22]
 });
 
+const FieldIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
 export default function AdminDashboard() {
   const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
@@ -60,6 +69,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'branches'|'leaves'|'audit'|'payroll'|'holidays'|'field'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
+  const [activeFieldVisits, setActiveFieldVisits] = useState<any[]>([]);
   
   // Logic: If Branch Admin, force their assigned branch.
   const initialBranch = (userRole === 'Branch Admin' && userProfile?.branch) 
@@ -79,7 +89,33 @@ export default function AdminDashboard() {
       .order('timestamp', { ascending: false })
       .limit(100);
       
+      
     if (data) setAttendance(data);
+
+    // Fetch active field visits
+    const { data: fData } = await supabase
+      .from('field_visits')
+      .select('*, profiles(full_name, branch, department)')
+      .eq('status', 'Running');
+    
+    if (fData && fData.length > 0) {
+      // For each visit, get the latest log
+      const visitIds = fData.map(v => v.id);
+      const { data: lData } = await supabase
+        .from('field_visit_logs')
+        .select('*')
+        .in('visit_id', visitIds)
+        .order('timestamp', { ascending: false });
+      
+      const visitsWithLastPos = fData.map(v => ({
+        ...v,
+        lastLog: lData?.find(l => l.visit_id === v.id)
+      })).filter(v => v.lastLog);
+      
+      setActiveFieldVisits(visitsWithLastPos);
+    } else {
+      setActiveFieldVisits([]);
+    }
   };
 
   useEffect(() => {
@@ -232,7 +268,32 @@ export default function AdminDashboard() {
                      </Popup>
                    </Marker>
                  ))}
-               </MapContainer>
+
+                  {activeFieldVisits
+                    .filter(v => v.lastLog && (selectedBranch === 'All Branches' || v.profiles?.branch === selectedBranch))
+                    .map((v: any) => (
+                    <Marker 
+                      key={`field-${v.id}`} 
+                      position={[v.lastLog.latitude, v.lastLog.longitude]} 
+                      icon={v.lastLog.selfie_url ? createSelfieIcon(v.lastLog.selfie_url) : FieldIcon}
+                    >
+                      <Popup className="premium-popup">
+                        <div className="text-center font-sans tracking-tight min-w-[140px]">
+                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white mx-auto mb-2 shadow-lg">
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <h3 className="font-bold text-sm text-slate-800 mb-1">{v.profiles?.full_name}</h3>
+                          <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">ON FIELD VISIT</p>
+                          <div className="bg-slate-50 rounded-xl p-2 border border-slate-100 mb-2">
+                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Current Distance</p>
+                             <p className="text-sm font-black text-slate-700">{v.total_km.toFixed(1)} KM</p>
+                          </div>
+                          <p className="text-[9px] font-bold text-slate-400">Last Active: {new Date(v.lastLog.timestamp).toLocaleTimeString()}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
              </div>
            )}
         </div>
