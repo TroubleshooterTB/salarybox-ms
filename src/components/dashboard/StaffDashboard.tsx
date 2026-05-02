@@ -161,6 +161,12 @@ export default function StaffDashboard() {
       onApplyLeave={(date) => { setCorrectionDate(date); setActiveTab('leaves'); }}
     />;
   }
+  if (activeTab === 'loans') {
+    return <LoanLedger onBack={() => setActiveTab(null)} />;
+  }
+  if (activeTab === 'profile') {
+    return <StaffProfile onBack={() => setActiveTab(null)} />;
+  }
   if (activeTab && !['attendance', 'leaves', 'loans', 'history', 'profile', 'holidays', 'corrections'].includes(activeTab)) {
     return (
       <div className="min-h-screen bg-slate-950 text-white p-4 max-w-md mx-auto flex flex-col items-center justify-center">
