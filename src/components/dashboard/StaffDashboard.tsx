@@ -43,7 +43,7 @@ export default function StaffDashboard() {
   const [isSyncing, setIsSyncing] = useState(false);
 
   const menuItems = [...baseMenuItems];
-  if (userProfile?.branch === 'Remote/Field') {
+  if (userProfile?.field_visit_enabled) {
     menuItems.splice(3, 0, { id: 'field_visit', label: 'Field Visit', icon: MapPin, color: 'bg-violet-600' });
   }
 

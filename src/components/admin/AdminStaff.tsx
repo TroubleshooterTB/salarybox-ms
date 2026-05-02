@@ -67,7 +67,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     overtime_applicable: false,
     overtime_hourly_rate: 0,
     password: 'password123',
-    petrol_allowance_rate: 3.75
+    petrol_allowance_rate: 3.75,
+    field_visit_enabled: false,
+    field_visit_allowance_eligible: false
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -138,6 +140,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       overtime_applicable: profile.overtime_applicable || false,
       overtime_hourly_rate: profile.overtime_hourly_rate || 0,
       petrol_allowance_rate: profile.petrol_allowance_rate || 3.75,
+      field_visit_enabled: profile.field_visit_enabled || false,
+      field_visit_allowance_eligible: profile.field_visit_allowance_eligible || false,
       password: '' // Don't show existing password (security)
     });
     setNewPass('');
@@ -253,6 +257,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         overtime_applicable: formData.overtime_applicable || false,
         overtime_hourly_rate: formData.overtime_hourly_rate || 0,
         petrol_allowance_rate: parseFloat(formData.petrol_allowance_rate as any) || 3.75,
+        field_visit_enabled: formData.field_visit_enabled || false,
+        field_visit_allowance_eligible: formData.field_visit_allowance_eligible || false,
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
@@ -783,6 +789,47 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Petrol Allowance (₹/KM)</label>
                     <input value={formData.petrol_allowance_rate} onChange={e=>setFormData({...formData, petrol_allowance_rate: parseFloat(e.target.value) || 0})} type="number" step="0.01" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700" placeholder="3.75" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Field Visit Configuration */}
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40">
+                <div className="flex items-center space-x-3 mb-6 pb-6 border-b border-slate-100">
+                  <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center shadow-inner">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black tracking-tight text-slate-800">Field Visit Configuration</h3>
+                    <p className="text-xs font-bold text-slate-400">Manage GPS tracking and travel allowance.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-start space-x-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.field_visit_enabled} 
+                      onChange={e=>setFormData({...formData, field_visit_enabled: e.target.checked})} 
+                      className="w-5 h-5 mt-1 rounded border-indigo-300 text-indigo-500 focus:ring-indigo-500" 
+                    />
+                    <div>
+                      <p className="text-sm font-black text-slate-800">Enable Field Visit Tab</p>
+                      <p className="text-[10px] font-bold text-slate-500 mt-1">Employee can access the Field Visit module and track their real-time location.</p>
+                    </div>
+                  </div>
+
+                  <div className={`flex items-start space-x-4 p-4 border rounded-2xl transition ${formData.field_visit_enabled ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200 opacity-50 pointer-events-none'}`}>
+                    <input 
+                      type="checkbox" 
+                      checked={formData.field_visit_allowance_eligible} 
+                      onChange={e=>setFormData({...formData, field_visit_allowance_eligible: e.target.checked})} 
+                      className="w-5 h-5 mt-1 rounded border-emerald-300 text-emerald-500 focus:ring-emerald-500" 
+                    />
+                    <div>
+                      <p className="text-sm font-black text-slate-800">Eligible for Travel Allowance</p>
+                      <p className="text-[10px] font-bold text-slate-500 mt-1">Employee will be paid based on GPS kilometers driven during visits.</p>
+                    </div>
                   </div>
                 </div>
               </div>
