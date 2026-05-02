@@ -135,7 +135,6 @@ export default function AdminBranches() {
                   {b.geofence_enabled ? b.radius_meters + 'm' : 'Disabled'}
                 </p>
               </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-50">
