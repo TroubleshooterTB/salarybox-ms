@@ -53,7 +53,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       const calculatedData = profiles.map(p => {
         const att = allAttendance?.filter(a => a.user_id === p.id) || [];
         const adj = allAdjustments?.find(a => a.user_id === p.id);
-        const l = allLoans?.find(a => a.user_id === p.id);
+        const l = allLoans?.filter(a => a.user_id === p.id).reduce((sum, current) => sum + (current.deduction_amount || 0), 0) || 0;
         const lvs = allLeaves?.filter(l => l.user_id === p.id) || [];
         const branchInfo = branchMap.get(p.branch) as any;
 
@@ -183,7 +183,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           year, month,
           presentDays, paidLeaves, publicHolidays, halfDays, lateDays,
           overtimeHours: totalOvertimeHours, overtimeType: p.overtime_applicable ? 'Hourly' : 'None', standardShiftHours,
-          loanDeduction: l?.deduction_amount || 0,
+          loanDeduction: l,
           professionalTaxApplicable: p.professional_tax_applicable !== false,
           joiningDate: p.joining_date,
           dateOfLeaving: p.date_of_leaving,

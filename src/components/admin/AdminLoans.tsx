@@ -312,10 +312,11 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
               <form onSubmit={handleSchedule} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 p-6 flex flex-col">
                 <h4 className="font-bold text-slate-800 flex items-center mb-6">
                    <div className="w-8 h-8 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center mr-3"><Plus className="w-4 h-4" /></div>
-                   Schedule Manual EMI
+                   Manual Salary Deduction (One-time)
                 </h4>
                 
                 <div className="space-y-4 flex-1">
+                  <p className="text-xs font-semibold text-slate-500">Directly specify an amount to be deducted from the employee's salary for a specific month.</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target Month</label>
@@ -328,7 +329,7 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
                   </div>
                 </div>
 
-                <button type="submit" className="mt-6 w-full py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition shadow-lg shadow-brand-500/20 active:scale-95">Add to Ledger</button>
+                <button type="submit" className="mt-6 w-full py-3 bg-brand-500 text-white font-bold rounded-xl hover:bg-brand-600 transition shadow-lg shadow-brand-500/20 active:scale-95">Set Deduction for Month</button>
               </form>
 
               {/* Balance Correction Panel */}
