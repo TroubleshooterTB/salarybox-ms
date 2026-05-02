@@ -5,7 +5,7 @@ import { useLanguage } from '../../lib/i18n';
 
 export default function AdminApprovals({ selectedBranch }: { selectedBranch: string }) {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'leaves' | 'devices' | 'balances' | 'corrections' | 'profiles'>('leaves');
+  const [activeTab, setActiveTab] = useState<'leaves' | 'devices' | 'balances' | 'corrections' | 'profiles' | 'holidays'>('leaves');
   const [loading, setLoading] = useState(false);
   const [leaves, setLeaves] = useState<any[]>([]);
   const [devices, setDevices] = useState<any[]>([]);
@@ -13,6 +13,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
   const [corrections, setCorrections] = useState<any[]>([]);
   const [manualPunches, setManualPunches] = useState<any[]>([]);
   const [profileRequests, setProfileRequests] = useState<any[]>([]);
+  const [holidayRequests, setHolidayRequests] = useState<any[]>([]);
 
   const fetchLeaves = async () => {
     setLoading(true);
@@ -93,6 +94,26 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     setLoading(false);
   };
 
+  const fetchHolidayRequests = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('holiday_requests').select('*').eq('status', 'Pending').order('created_at', { ascending: false });
+    if (data) setHolidayRequests(data);
+    setLoading(false);
+  };
+
+  const handleHolidayAction = async (request: any, newStatus: 'Approved' | 'Rejected') => {
+    const { error: reqError } = await supabase.from('holiday_requests').update({ status: newStatus }).eq('id', request.id);
+    if (!reqError && newStatus === 'Approved') {
+      await supabase.from('holidays').insert({
+        name: request.name,
+        date: request.date,
+        type: request.type,
+        branch: request.branch
+      });
+    }
+    fetchHolidayRequests();
+  };
+
   const fetchDevices = async () => {
     setLoading(true);
     let query = supabase
@@ -134,6 +155,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
     else if (activeTab === 'manual' as any) fetchManualPunches();
     else if (activeTab === 'profiles') fetchProfileRequests();
     else if (activeTab === 'devices') fetchDevices();
+    else if (activeTab === 'holidays') fetchHolidayRequests();
     else fetchBalances();
   }, [activeTab, selectedBranch]);
 
@@ -258,6 +280,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
           { id: 'corrections', icon: BarChart3, label: t('corrections'), count: corrections.length },
           { id: 'manual', icon: CheckCircle2, label: 'Manual Entry', count: manualPunches.length },
           { id: 'profiles', icon: Smartphone, label: t('profile'), count: profileRequests.length },
+          { id: 'holidays', icon: CalendarDays, label: 'Holidays', count: holidayRequests.length },
           { id: 'balances', icon: BarChart3, label: 'Quotas' },
           { id: 'devices', icon: Smartphone, label: 'Hardware' }
         ].map(tab => (
@@ -554,6 +577,39 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
                         }`}>
                           {d.device_reset_requested ? 'Authorize Replace' : 'Full Reset'}
                         </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            {activeTab === 'holidays' && (
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Holiday</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Date</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Scope</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {holidayRequests.map(r => (
+                    <tr key={r.id} className="hover:bg-slate-50/50 transition duration-300">
+                      <td className="px-8 py-6">
+                        <p className="font-bold text-slate-800">{r.name}</p>
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-brand-50 text-brand-600 border border-brand-100">{r.type}</span>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{r.date}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{r.branch || 'All Branches'}</p>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <div className="flex justify-end space-x-2">
+                          <button onClick={() => handleHolidayAction(r, 'Approved')} className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl transition"><CheckCircle2 className="w-5 h-5" /></button>
+                          <button onClick={() => handleHolidayAction(r, 'Rejected')} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"><XCircle className="w-5 h-5" /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}

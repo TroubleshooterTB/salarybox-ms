@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS loans (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Fix check constraint if it exists from older versions
+ALTER TABLE loans DROP CONSTRAINT IF EXISTS loans_type_check;
+ALTER TABLE loans ADD CONSTRAINT loans_type_check CHECK (type IN ('Disbursement', 'Credit', 'Balance Correction', 'EMI', 'Loan'));
+
 CREATE TABLE IF NOT EXISTS loan_schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
@@ -88,3 +92,35 @@ CREATE POLICY "Users can view their own loans" ON loans
 
 CREATE POLICY "Users can view their own loan schedules" ON loan_schedules
     FOR SELECT USING (auth.uid() = user_id);
+
+-- 5. Holiday Management
+ALTER TABLE holidays ADD COLUMN IF NOT EXISTS branch TEXT; -- NULL means All Branches
+
+CREATE TABLE IF NOT EXISTS holiday_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    date DATE NOT NULL,
+    type TEXT CHECK (type IN ('National', 'Regional', 'Optional')),
+    branch TEXT, -- NULL for All Branches
+    admin_id UUID REFERENCES auth.users(id),
+    status TEXT DEFAULT 'Pending' CHECK (status IN ('Pending', 'Approved', 'Rejected')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure RLS on holiday_requests
+ALTER TABLE holiday_requests ENABLE ROW LEVEL SECURITY;
+
+-- Drop and recreate holiday_requests policies
+DROP POLICY IF EXISTS "Admins can manage holiday requests" ON holiday_requests;
+CREATE POLICY "Admins can manage holiday requests" ON holiday_requests
+    FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('Admin', 'Super Admin')));
+
+-- Also ensure holidays table is accessible
+ALTER TABLE holidays ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view holidays" ON holidays;
+CREATE POLICY "Anyone can view holidays" ON holidays FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Super Admins can manage holidays" ON holidays;
+CREATE POLICY "Super Admins can manage holidays" ON holidays
+    FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'Super Admin'));
