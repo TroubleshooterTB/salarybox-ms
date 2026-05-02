@@ -196,11 +196,11 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         const isShowroom = p.branch === 'Showroom' || p.job_title?.toLowerCase().includes('showroom');
         const standardShiftHours = isShowroom ? 10 : 8;
 
-        const payroll = calculatePayroll({
+        const payrollInput = {
           baseSalary: p.ctc_amount || 0,
           year, month,
           presentDays, paidLeaves, publicHolidays, halfDays, lateDays,
-          overtimeHours: totalOvertimeHours, overtimeType: p.overtime_applicable ? 'Hourly' : 'None', standardShiftHours,
+          overtimeHours: totalOvertimeHours, overtimeType: (p.overtime_applicable ? 'Hourly' : 'None') as any, standardShiftHours,
           loanDeduction: l,
           professionalTaxApplicable: p.professional_tax_applicable !== false,
           joiningDate: p.joining_date,
@@ -211,7 +211,6 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           otherDeductions: adj?.other_deductions || 0,
           pfEnabled: p.pf_enabled,
           esiEnabled: p.esi_enabled,
-          // V2.5 new fields
           weeklyOffOTDays,
           weeklyOffOTHalfDays,
           overtimeHourlyRate: p.overtime_hourly_rate || 0,
@@ -221,7 +220,9 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           holidayOTHours,
           fieldVisitKm: 0, 
           petrolAllowanceRate: p.petrol_allowance_rate || 3.75
-        });
+        };
+
+        const payroll = calculatePayroll(payrollInput);
 
         // RE-CALCULATE Field Visit KM for this specific employee
         const pVisits = allFieldVisits?.filter(v => v.user_id === p.id) || [];
@@ -234,7 +235,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         });
 
         const finalPayroll = calculatePayroll({
-          ...payroll,
+          ...payrollInput,
           fieldVisitKm: totalKm,
           petrolAllowanceRate: p.petrol_allowance_rate || 3.75
         });
