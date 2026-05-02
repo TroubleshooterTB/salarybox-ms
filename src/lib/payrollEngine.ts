@@ -25,8 +25,12 @@ export interface PayrollInput {
   weeklyOffOTDays?: number;     // Full days worked on weekly off
   weeklyOffOTHalfDays?: number; // Half days worked on weekly off (<5 hrs)
   // V2.5: Branch-level hourly overtime
-  branchOvertimeHours?: number;         // Extra hours worked beyond standard shift
-  overtimeHourlyRate?: number;          // Employee-specific fixed OT rate
+  branchOvertimeHours?: number;         
+  overtimeHourlyRate?: number;          
+  // V2.5: Holiday overtime
+  holidayOTDays?: number;       
+  holidayOTHalfDays?: number;   
+  holidayOTHours?: number;      
 }
 
 export interface PayrollOutput {
@@ -41,8 +45,9 @@ export interface PayrollOutput {
   overtimeHours: number;        // Total OT hours
   hourlyRate: number;           // Per hour rate used for OT
   isExcessiveOT: boolean;       // Flag for HR review (>50 hours)
-  weeklyOffOTPay: number;       // Extra pay for working on weekly off
-  branchOTPay: number;          // Hourly OT from branch rate
+  weeklyOffOTPay: number;       
+  branchOTPay: number;          
+  holidayOTPay: number;         
   bonus: number;
   incentive: number;
   lateFine: number;
@@ -80,7 +85,8 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     pfEnabled = false, esiEnabled = false,
     weeklyOffOTDays = 0, weeklyOffOTHalfDays = 0,
     branchOvertimeHours = 0,
-    overtimeHourlyRate = 0
+    overtimeHourlyRate = 0,
+    holidayOTDays = 0, holidayOTHalfDays = 0, holidayOTHours = 0
   } = input;
 
   const monthDays = getDaysInMonth(year, month);
@@ -122,7 +128,7 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   // 3. Standard Overtime Pay (Hourly / Day Basic)
   let overtimePay = 0;
   const perHourPay = perDaySalary / standardShiftHours;
-
+  
   if (overtimeType === 'Hourly' || overtimeType === 'Day Basic') {
     const rate = overtimeHourlyRate > 0 ? overtimeHourlyRate : perHourPay;
     if (overtimeType === 'Hourly') {
@@ -141,10 +147,23 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
   // 5. Branch Hourly OT Pay (V2.5) - Override with calculated hourly OT if needed
   // If hourly overtime rate is provided by branch, we can use it, but user requested Month Salary / Days / Shift Hours
   // We will use standard overtimePay calculated above instead of fixed branch rate.
-  const branchOTPay = 0; // Disabled as per new requirement: OT is based on salary
+  const branchOTPay = 0; 
+
+  // 5. Holiday OT Pay (V2.5)
+  // Logic: 
+  // - If OT is hourly: holidayOTHours * rate
+  // - Otherwise: (holidayOTDays * perDaySalary) + (holidayOTHalfDays * perDaySalary * 0.5)
+  let holidayOTPay = 0;
+  const rate = overtimeHourlyRate > 0 ? overtimeHourlyRate : perHourPay;
+  
+  if (overtimeType === 'Hourly') {
+    holidayOTPay = holidayOTHours * rate;
+  } else {
+    holidayOTPay = (holidayOTDays * perDaySalary) + (holidayOTHalfDays * perDaySalary * 0.5);
+  }
 
   const lateFine = lateDays * (perDaySalary * 0.5);
-  const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay;
+  const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay + holidayOTPay;
 
   // 6. Statutory Deductions
   const isFeb = month === 1;
