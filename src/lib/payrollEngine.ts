@@ -196,6 +196,7 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     isExcessiveOT,
     weeklyOffOTPay,
     branchOTPay,
+    holidayOTPay,
     bonus,
     incentive,
     lateFine,
