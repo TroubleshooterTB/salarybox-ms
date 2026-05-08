@@ -105,20 +105,19 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     
     try {
       // Import libraries for New API
-      const { Place, SearchNearbyRankPreference } = await window.google.maps.importLibrary("places");
+      const { Place } = await window.google.maps.importLibrary("places");
       
       const request = {
+        textQuery: `${selectedCategory.label} near me`,
         fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types"],
         locationRestriction: {
           center: { lat: pos.lat, lng: pos.lng },
           radius: radius,
         },
-        includedPrimaryTypes: [selectedCategory.keyword],
         maxResultCount: 20,
-        rankPreference: SearchNearbyRankPreference.POPULARITY,
       };
 
-      const { places: results } = await Place.searchNearby(request);
+      const { places: results } = await Place.searchText(request);
       
       // Transform new format to a standard format for our UI
       const formattedResults = results.map((p: any) => ({
