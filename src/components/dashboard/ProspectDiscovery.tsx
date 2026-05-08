@@ -101,12 +101,17 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     if (!window.google || !pos) return;
     
     setLoading(true);
+    const searchTimeout = setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+        alert('Search Timed Out. This usually happens due to API Key restrictions (check Domain Restrictions in Google Console).');
+      }
+    }, 6000);
+
     try {
       const pyrmont = new window.google.maps.LatLng(pos.lat, pos.lng);
-      const map = new window.google.maps.Map(document.createElement('div'), {
-        center: pyrmont,
-        zoom: 15,
-      });
+      const map = new window.google.maps.Map(document.createElement('div'));
+      serviceRef.current = new window.google.maps.places.PlacesService(map);
 
       const request = {
         location: pyrmont,
@@ -114,23 +119,23 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         keyword: selectedCategory.keyword,
       };
 
-      serviceRef.current = new window.google.maps.places.PlacesService(map);
       serviceRef.current.nearbySearch(request, (results: any, status: any) => {
+        clearTimeout(searchTimeout);
+        console.log('Nearby Search Status:', status);
+        
         if (status === window.google.maps.places.PlacesServiceStatus.OK) {
           setPlaces(results);
         } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
           setPlaces([]);
         } else {
-          console.error('Places API Status:', status);
-          if (status === 'REQUEST_DENIED') {
-             alert('Google Maps API Error: Request Denied. Please verify the API key and restrictions.');
-          }
+          alert(`Google Search Error: ${status}. Please verify your API Key is unrestricted for this domain.`);
           setPlaces([]);
         }
         setLoading(false);
       });
     } catch (err) {
-      console.error('Search error:', err);
+      clearTimeout(searchTimeout);
+      console.error('Search crash:', err);
       setLoading(false);
     }
   };
@@ -138,26 +143,43 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
   const handleAreaSearch = () => {
     if (!searchTerm || !window.google) return;
     setLoading(true);
+    setPlaces([]);
     
-    const request = {
-      query: searchTerm,
-      fields: ['name', 'geometry'],
-    };
-
-    const service = new window.google.maps.places.PlacesService(document.createElement('div'));
-    service.findPlaceFromQuery(request, (results: any, status: any) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK && results[0]) {
-        const pos = {
-          lat: results[0].geometry.location.lat(),
-          lng: results[0].geometry.location.lng()
-        };
-        setCurrentPos(pos);
-        searchPlaces(pos);
-      } else {
-        alert('Area not found');
+    const areaTimeout = setTimeout(() => {
+      if (loading) {
         setLoading(false);
+        alert('Area Search Timed Out.');
       }
-    });
+    }, 5000);
+
+    try {
+      const map = new window.google.maps.Map(document.createElement('div'));
+      const service = new window.google.maps.places.PlacesService(map);
+      
+      const request = {
+        query: searchTerm,
+        fields: ['name', 'geometry'],
+      };
+
+      service.findPlaceFromQuery(request, (results: any, status: any) => {
+        clearTimeout(areaTimeout);
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results?.[0]?.geometry?.location) {
+          const pos = {
+            lat: results[0].geometry.location.lat(),
+            lng: results[0].geometry.location.lng()
+          };
+          setCurrentPos(pos);
+          searchPlaces(pos);
+        } else {
+          alert(`Area Search Failed: ${status}`);
+          setLoading(false);
+        }
+      });
+    } catch (err) {
+      clearTimeout(areaTimeout);
+      setLoading(false);
+      alert('Search initialization failed.');
+    }
   };
 
   return (
