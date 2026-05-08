@@ -23,7 +23,7 @@ import AuditLogs from './AuditLogs';
 import PayrollProcessor from './PayrollProcessor';
 import AdminHolidays from './AdminHolidays';
 import AdminFieldVisits from './AdminFieldVisits';
-import AdminReimbursements from './AdminReimbursements';
+import ExpenseApprovals from './ExpenseApprovals';
 import NotificationBell from '../common/NotificationBell';
 import { useLanguage } from '../../lib/i18n';
 import useStore from '../../store';
@@ -270,7 +270,7 @@ export default function AdminDashboard() {
            {activeTab === 'calendar' && <AdminCalendar selectedBranch={selectedBranch} />}
            {activeTab === 'approvals' && <AdminApprovals selectedBranch={selectedBranch} />}
            {activeTab === 'branches' && <AdminBranches />}
-           {activeTab === 'reimbursements' && <AdminReimbursements selectedBranch={selectedBranch} />}
+           {activeTab === 'reimbursements' && <ExpenseApprovals selectedBranch={selectedBranch} />}
            {activeTab === 'loans' && <AdminLoans selectedBranch={selectedBranch} />}
            {activeTab === 'settings' && <AdminSettings />}
            {activeTab === 'export' && <ExportModule selectedBranch={selectedBranch} />}
