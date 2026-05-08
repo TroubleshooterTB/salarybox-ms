@@ -110,8 +110,10 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         textQuery: `${selectedCategory.label} in this area`,
         fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types"],
         locationRestriction: {
-          center: { lat: pos.lat, lng: pos.lng },
-          radius: radius,
+          circle: {
+            center: { lat: pos.lat, lng: pos.lng },
+            radius: radius,
+          }
         },
         maxResultCount: 20,
       };
