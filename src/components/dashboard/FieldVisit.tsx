@@ -4,6 +4,8 @@ import useStore from '../../store';
 import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectDiscovery from './ProspectDiscovery';
+import OdooProjectList from './OdooProjectList';
+import { Globe } from 'lucide-react';
 
 export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const { session } = useStore();
@@ -20,11 +22,26 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const [lastCheckTime, setLastCheckTime] = useState<number>(Date.now());
   const [isStationary, setIsStationary] = useState(false);
   const [showDiscovery, setShowDiscovery] = useState(false);
+  const [showOdooProjects, setShowOdooProjects] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<any>(null);
 
   useEffect(() => {
     fetchActiveVisit();
+    fetchTodaysLogs();
   }, [session]);
+
+  const fetchTodaysLogs = async () => {
+    if (!session) return;
+    const today = new Date().toISOString().split('T')[0];
+    const { data } = await supabase
+      .from('field_visit_logs')
+      .select('*, visit_id(user_id)')
+      .gte('timestamp', `${today}T00:00:00`)
+      .order('timestamp', { ascending: false });
+    
+    // Filter by current user manually if query is complex, or add user_id to logs
+    if (data) setLogs(data);
+  };
 
   const fetchActiveVisit = async () => {
     if (!session) return;
@@ -254,6 +271,18 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     );
   }
 
+  if (showOdooProjects) {
+    return (
+      <OdooProjectList 
+        onBack={() => setShowOdooProjects(false)} 
+        onSelect={(project) => {
+          setNote(`Visiting Project: ${project.display_name}\n(Odoo Sync Enabled)`);
+          setShowOdooProjects(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col max-w-md mx-auto relative overflow-x-hidden">
       <div className="flex items-center justify-between mb-8 pt-4">
@@ -264,13 +293,20 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
           <h2 className="text-xl font-bold ml-2 tracking-tight">Field Visit</h2>
         </div>
         <div className="flex items-center space-x-2">
-           <button 
-            onClick={() => setShowDiscovery(true)}
-            className="p-2.5 bg-brand-500/10 text-brand-400 border border-brand-500/20 rounded-xl hover:bg-brand-500/20 transition flex items-center space-x-2"
-           >
-              <Search className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Discover</span>
-           </button>
+            <button 
+             onClick={() => setShowDiscovery(true)}
+             className="p-2.5 bg-brand-500/10 text-brand-400 border border-brand-500/20 rounded-xl hover:bg-brand-500/20 transition flex items-center space-x-2"
+            >
+               <Search className="w-4 h-4" />
+               <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Discover</span>
+            </button>
+            <button 
+             onClick={() => setShowOdooProjects(true)}
+             className="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/20 transition flex items-center space-x-2"
+            >
+               <Globe className="w-4 h-4" />
+               <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Sites</span>
+            </button>
            {activeVisit && (
              <button 
               onClick={() => {

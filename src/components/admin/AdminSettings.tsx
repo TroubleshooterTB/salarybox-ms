@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Target, Trash2, Edit3, Loader2, ShieldAlert, ExternalLink } from 'lucide-react';
+import { Plus, Target, Trash2, Edit3, Loader2, ShieldAlert, ExternalLink, Globe } from 'lucide-react';
 
 export default function AdminSettings() {
   const [branches, setBranches] = useState<any[]>([]);
@@ -15,6 +15,11 @@ export default function AdminSettings() {
   const [globalRadius, setGlobalRadius] = useState(150);
   const [isUpdatingGlobal, setIsUpdatingGlobal] = useState(false);
 
+  const [odooData, setOdooData] = useState({
+    url: '', db: '', username: '', api_key: ''
+  });
+  const [savingOdoo, setSavingOdoo] = useState(false);
+
   const fetchBranches = async () => {
     setLoading(true);
     const { data } = await supabase.from('branches').select('*').order('name');
@@ -25,7 +30,34 @@ export default function AdminSettings() {
   const fetchSettings = async () => {
     const { data } = await supabase.from('company_settings').select('global_geofence_radius').eq('id', 1).single();
     if (data) setGlobalRadius(data.global_geofence_radius);
+
+    const { data: oData } = await supabase.from('odoo_settings').select('*').maybeSingle();
+    if (oData) {
+      setOdooData({
+        url: oData.url || '',
+        db: oData.db || '',
+        username: oData.username || '',
+        api_key: oData.api_key || ''
+      });
+    }
   }
+
+  const saveOdooSettings = async () => {
+    setSavingOdoo(true);
+    try {
+      const { data: existing } = await supabase.from('odoo_settings').select('id').maybeSingle();
+      if (existing) {
+        await supabase.from('odoo_settings').update(odooData).eq('id', existing.id);
+      } else {
+        await supabase.from('odoo_settings').insert(odooData);
+      }
+      alert('Odoo Connection Saved Successfully!');
+    } catch (err: any) {
+      alert('Error saving Odoo settings: ' + err.message);
+    } finally {
+      setSavingOdoo(false);
+    }
+  };
 
   useEffect(() => { 
     fetchBranches(); 
@@ -134,6 +166,76 @@ export default function AdminSettings() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Odoo Integration Section */}
+      <div className="mt-12 bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-2xl relative overflow-hidden">
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center text-brand-500">
+                 <Globe className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black text-slate-800">Odoo Online Integration</h3>
+            </div>
+            <p className="text-slate-500 font-medium text-sm">Link your field visits directly to Odoo CRM & Projects.</p>
+          </div>
+          <button 
+            onClick={saveOdooSettings}
+            disabled={savingOdoo}
+            className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:scale-105 transition active:scale-95 disabled:opacity-50 flex items-center space-x-2"
+          >
+            {savingOdoo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+            <span>Save Connection</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Odoo URL</label>
+              <input 
+                type="text" 
+                value={odooData.url} 
+                onChange={e => setOdooData({...odooData, url: e.target.value})}
+                placeholder="https://yourcompany.odoo.com"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Database Name</label>
+              <input 
+                type="text" 
+                value={odooData.db} 
+                onChange={e => setOdooData({...odooData, db: e.target.value})}
+                placeholder="yourcompany-main"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition"
+              />
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Odoo Email / Username</label>
+              <input 
+                type="text" 
+                value={odooData.username} 
+                onChange={e => setOdooData({...odooData, username: e.target.value})}
+                placeholder="admin@yourcompany.com"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Odoo API Key (Generated in Profile)</label>
+              <input 
+                type="password" 
+                value={odooData.api_key} 
+                onChange={e => setOdooData({...odooData, api_key: e.target.value})}
+                placeholder="••••••••••••••••"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-brand-500 transition"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Global Security & Master Controls */}

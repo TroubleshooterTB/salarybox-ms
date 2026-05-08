@@ -32,6 +32,35 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
   
   const mapRef = useRef<HTMLDivElement>(null);
   const serviceRef = useRef<any>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  const syncToOdoo = async (place: any) => {
+    setSyncingId(place.place_id);
+    try {
+      const response = await fetch('/api/odoo/crm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: place.name,
+          street: place.vicinity,
+          rating: place.rating,
+          place_id: place.place_id,
+          category: selectedCategory.label
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`Lead created in Odoo CRM!`);
+      } else {
+        throw new Error(data.error || 'Failed to sync with Odoo');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSyncingId(null);
+    }
+  };
 
   const [debugStatus, setDebugStatus] = useState({
     script: 'Checking...',
@@ -284,21 +313,31 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                 )}
               </div>
 
-              <div className="flex items-center space-x-3 pt-2">
-                 <button 
-                  onClick={() => onSelect(place)}
-                  className="flex-1 bg-brand-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition flex items-center justify-center space-x-2"
-                 >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Visit This Location</span>
-                 </button>
-                 <button 
-                  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place.name)}&destination_place_id=${place.place_id}`, '_blank')}
-                  className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 hover:text-white transition active:scale-95"
-                 >
-                    <Navigation className="w-6 h-6" />
-                 </button>
-              </div>
+               <div className="flex items-center space-x-2 pt-2">
+                  <button 
+                   onClick={() => onSelect(place)}
+                   className="flex-1 bg-brand-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition flex items-center justify-center space-x-2"
+                  >
+                     <CheckCircle2 className="w-4 h-4" />
+                     <span>Visit</span>
+                  </button>
+                  <button 
+                   disabled={syncingId === place.place_id}
+                   onClick={() => syncToOdoo(place)}
+                   className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition flex items-center justify-center space-x-2 ${
+                     syncingId === place.place_id ? 'bg-slate-800 text-slate-500' : 'bg-slate-800 text-brand-400 border border-brand-500/20 hover:bg-slate-700'
+                   }`}
+                  >
+                     {syncingId === place.place_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                     <span>CRM</span>
+                  </button>
+                  <button 
+                   onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place.name)}&destination_place_id=${place.place_id}`, '_blank')}
+                   className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 hover:text-white transition active:scale-95"
+                  >
+                     <Navigation className="w-5 h-5" />
+                  </button>
+               </div>
             </motion.div>
           ))
         )}
