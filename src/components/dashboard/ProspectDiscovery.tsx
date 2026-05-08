@@ -97,94 +97,82 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     }
   }, [mapLoaded, selectedCategory, radius]);
 
-  const searchPlaces = (pos: {lat: number, lng: number}) => {
+  const searchPlaces = async (pos: {lat: number, lng: number}) => {
     if (!window.google || !pos) return;
     
     setLoading(true);
-    const searchTimeout = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-        alert('Search Timed Out. This usually happens due to API Key restrictions (check Domain Restrictions in Google Console).');
-      }
-    }, 6000);
-
+    setPlaces([]);
+    
     try {
-      const pyrmont = new window.google.maps.LatLng(pos.lat, pos.lng);
-      const map = new window.google.maps.Map(document.createElement('div'), {
-        center: pyrmont,
-        zoom: 15
-      });
-      serviceRef.current = new window.google.maps.places.PlacesService(map);
-
+      // Import libraries for New API
+      const { Place, SearchNearbyRankPreference } = await window.google.maps.importLibrary("places");
+      
       const request = {
-        location: pyrmont,
-        radius: radius,
-        keyword: selectedCategory.keyword,
+        fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types"],
+        locationRestriction: {
+          center: { lat: pos.lat, lng: pos.lng },
+          radius: radius,
+        },
+        includedPrimaryTypes: [selectedCategory.keyword],
+        maxResultCount: 20,
+        rankPreference: SearchNearbyRankPreference.POPULARITY,
       };
 
-      serviceRef.current.nearbySearch(request, (results: any, status: any) => {
-        clearTimeout(searchTimeout);
-        console.log('Nearby Search Status:', status);
-        
-        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-          setPlaces(results);
-        } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-          setPlaces([]);
-        } else {
-          alert(`Google Search Error: ${status}. Please verify your API Key is unrestricted for this domain.`);
-          setPlaces([]);
-        }
-        setLoading(false);
-      });
-    } catch (err) {
-      clearTimeout(searchTimeout);
-      console.error('Search crash:', err);
+      const { places: results } = await Place.searchNearby(request);
+      
+      // Transform new format to a standard format for our UI
+      const formattedResults = results.map((p: any) => ({
+        place_id: p.id,
+        name: p.displayName?.text || 'Unknown',
+        rating: p.rating,
+        vicinity: p.formattedAddress,
+        geometry: {
+          location: {
+            lat: p.location.lat(),
+            lng: p.location.lng()
+          }
+        },
+        types: p.types
+      }));
+
+      setPlaces(formattedResults);
+      setLoading(false);
+    } catch (err: any) {
+      console.error('New Search error:', err);
+      alert(`Search Error: ${err.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
 
-  const handleAreaSearch = () => {
+  const handleAreaSearch = async () => {
     if (!searchTerm || !window.google) return;
     setLoading(true);
     setPlaces([]);
     
-    const areaTimeout = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-        alert('Area Search Timed Out.');
-      }
-    }, 5000);
-
     try {
-      const map = new window.google.maps.Map(document.createElement('div'), {
-        center: { lat: 20, lng: 77 }, // Dummy center for init
-        zoom: 12
-      });
-      const service = new window.google.maps.places.PlacesService(map);
-      
+      const { Place } = await window.google.maps.importLibrary("places");
       const request = {
-        query: searchTerm,
-        fields: ['name', 'geometry'],
+        textQuery: searchTerm,
+        fields: ["location"],
+        maxResultCount: 1,
       };
 
-      service.findPlaceFromQuery(request, (results: any, status: any) => {
-        clearTimeout(areaTimeout);
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && results?.[0]?.geometry?.location) {
-          const pos = {
-            lat: results[0].geometry.location.lat(),
-            lng: results[0].geometry.location.lng()
-          };
-          setCurrentPos(pos);
-          searchPlaces(pos);
-        } else {
-          alert(`Area Search Failed: ${status}`);
-          setLoading(false);
-        }
-      });
-    } catch (err) {
-      clearTimeout(areaTimeout);
+      const { places: results } = await Place.searchText(request);
+      
+      if (results && results.length > 0) {
+        const pos = {
+          lat: results[0].location.lat(),
+          lng: results[0].location.lng()
+        };
+        setCurrentPos(pos);
+        searchPlaces(pos);
+      } else {
+        alert('Area not found');
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error('Area Search error:', err);
       setLoading(false);
-      alert('Search initialization failed.');
     }
   };
 
