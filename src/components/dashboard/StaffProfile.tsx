@@ -34,7 +34,9 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
 
   // Odoo Settings State
   const [odooCreds, setOdooCreds] = useState({ username: '', api_key: '' });
+  const [globalOdoo, setGlobalOdoo] = useState({ url: '', db: '' });
   const [odooLoading, setOdooLoading] = useState(false);
+  const [testingOdoo, setTestingOdoo] = useState(false);
   const [hasOdoo, setHasOdoo] = useState(false);
 
   const handleGeneratePayslip = async () => {
@@ -156,6 +158,36 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleTestOdoo = async () => {
+    if (!globalOdoo.url) {
+      alert('Company Odoo URL not set by Admin. Please contact your manager.');
+      return;
+    }
+    setTestingOdoo(true);
+    try {
+      const res = await fetch('/api/odoo/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: globalOdoo.url,
+          db: globalOdoo.db,
+          username: odooCreds.username,
+          api_key: odooCreds.api_key
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Success: ' + data.message);
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Network Error: ' + err.message);
+    } finally {
+      setTestingOdoo(false);
+    }
+  };
+
   useEffect(() => {
     async function fetch() {
       if (!session) return;
@@ -170,6 +202,10 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
         setOdooCreds({ username: o.odoo_username, api_key: o.odoo_api_key });
         setHasOdoo(true);
       }
+
+      // Fetch Global Odoo Settings
+      const { data: g } = await supabase.from('odoo_settings').select('url, db').maybeSingle();
+      if (g) setGlobalOdoo({ url: g.url, db: g.db });
 
       setLoading(false);
     }
@@ -352,14 +388,24 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
                   className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:border-brand-500 outline-none transition"
                 />
               </div>
-              <button 
-                onClick={handleSaveOdoo}
-                disabled={odooLoading}
-                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2"
-              >
-                {odooLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-                <span>{hasOdoo ? 'Update Connection' : 'Link Odoo Account'}</span>
-              </button>
+              <div className="flex space-x-3">
+                <button 
+                  onClick={handleTestOdoo}
+                  disabled={testingOdoo || !odooCreds.api_key}
+                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-brand-400 font-black rounded-2xl text-[10px] uppercase tracking-widest border border-brand-500/20 transition-all flex items-center justify-center space-x-2"
+                >
+                  {testingOdoo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                  <span>Test Connection</span>
+                </button>
+                <button 
+                  onClick={handleSaveOdoo}
+                  disabled={odooLoading || !odooCreds.api_key}
+                  className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2"
+                >
+                  {odooLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                  <span>{hasOdoo ? 'Update' : 'Link Account'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
