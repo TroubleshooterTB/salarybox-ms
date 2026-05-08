@@ -261,62 +261,42 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
           <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h2 className="text-xl font-bold ml-2 tracking-tight">Field Visit Tracking</h2>
+          <h2 className="text-xl font-bold ml-2 tracking-tight">Field Visit</h2>
         </div>
-        {logs.length > 0 && (
-          <button 
-            onClick={() => {
-              const headers = ['Type', 'Timestamp', 'Lat', 'Lng', 'Note', 'Distance (KM)'];
-              const rows = logs.map(l => [
-                l.type,
-                new Date(l.timestamp).toLocaleString(),
-                l.latitude,
-                l.longitude,
-                l.note || '',
-                l.distance_from_last || 0
-              ]);
-              const csvContent = "data:text/csv;charset=utf-8," 
-                + headers.join(",") + "\n"
-                + rows.map(e => e.join(",")).join("\n");
-              const encodedUri = encodeURI(csvContent);
-              const link = document.createElement("a");
-              link.setAttribute("href", encodedUri);
-              link.setAttribute("download", `Field_Visit_Report_${new Date().toISOString().slice(0,10)}.csv`);
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="text-[10px] font-black uppercase tracking-widest text-brand-400 bg-brand-500/10 px-3 py-2 rounded-xl border border-brand-500/20"
-          >
-            Download Report
-          </button>
-        )}
+        <div className="flex items-center space-x-2">
+           <button 
+            onClick={() => setShowDiscovery(true)}
+            className="p-2.5 bg-brand-500/10 text-brand-400 border border-brand-500/20 rounded-xl hover:bg-brand-500/20 transition flex items-center space-x-2"
+           >
+              <Search className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Discover</span>
+           </button>
+           {activeVisit && (
+             <button 
+              onClick={() => {
+                const csvContent = "data:text/csv;charset=utf-8," 
+                  + ["Type,Time,Note,Lat,Lng,Distance"]
+                  + logs.map(e => [e.type, new Date(e.timestamp).toLocaleTimeString(), e.note || "", e.latitude, e.longitude, e.distance_from_last].join(",")).join("\n");
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `Field_Visit_Report_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="p-2.5 text-brand-400 bg-brand-500/10 rounded-xl border border-brand-500/20"
+             >
+                <Navigation className="w-4 h-4" />
+             </button>
+           )}
+        </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center mt-20"><Loader2 className="w-8 h-8 animate-spin text-brand-500" /></div>
       ) : !activeVisit ? (
         <div className="flex-1 flex flex-col pt-4 pb-10">
-          {/* Discover Prospects Shortcut */}
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowDiscovery(true)}
-            className="w-full bg-gradient-to-br from-indigo-600 to-violet-600 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-500/20 flex items-center justify-between group overflow-hidden relative mb-12"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl group-hover:scale-110 transition duration-500" />
-            <div className="flex items-center space-x-4 relative z-10">
-              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                <Search className="w-7 h-7 text-white" />
-              </div>
-              <div className="text-left">
-                <h3 className="text-xl font-black text-white tracking-tight">Discover Nearby</h3>
-                <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mt-1 opacity-80">Find Architects & Builders</p>
-              </div>
-            </div>
-            <MapPin className="w-6 h-6 text-white/40" />
-          </motion.button>
-
           <div className="flex flex-col items-center justify-center space-y-8 flex-1">
             <div className="w-24 h-24 bg-brand-500/10 rounded-full flex items-center justify-center border border-brand-500/20 shadow-[0_0_50px_rgba(var(--color-brand-500),0.1)]">
               <Navigation className="w-10 h-10 text-brand-400" />

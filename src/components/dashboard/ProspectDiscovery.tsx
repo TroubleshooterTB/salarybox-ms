@@ -49,16 +49,27 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
 
   useEffect(() => {
     if (mapLoaded) {
+      const timeoutId = setTimeout(() => {
+        if (loading) {
+          alert('Geolocation timed out. Please check your GPS permissions.');
+          setLoading(false);
+        }
+      }, 15000); // 15s timeout
+
       navigator.geolocation.getCurrentPosition(
         (p) => {
+          clearTimeout(timeoutId);
           const pos = { lat: p.coords.latitude, lng: p.coords.longitude };
           setCurrentPos(pos);
           searchPlaces(pos);
         },
-        () => {
-          // Fallback or error
+        (error) => {
+          clearTimeout(timeoutId);
+          console.error('Geo error:', error);
+          alert('Could not get your location. Please ensure GPS is enabled.');
           setLoading(false);
-        }
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     }
   }, [mapLoaded, selectedCategory, radius]);
@@ -67,27 +78,38 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     if (!window.google || !pos) return;
     
     setLoading(true);
-    const pyrmont = new window.google.maps.LatLng(pos.lat, pos.lng);
-    const map = new window.google.maps.Map(document.createElement('div'), {
-      center: pyrmont,
-      zoom: 15,
-    });
+    try {
+      const pyrmont = new window.google.maps.LatLng(pos.lat, pos.lng);
+      const map = new window.google.maps.Map(document.createElement('div'), {
+        center: pyrmont,
+        zoom: 15,
+      });
 
-    const request = {
-      location: pyrmont,
-      radius: radius,
-      keyword: selectedCategory.keyword,
-    };
+      const request = {
+        location: pyrmont,
+        radius: radius,
+        keyword: selectedCategory.keyword,
+      };
 
-    serviceRef.current = new window.google.maps.places.PlacesService(map);
-    serviceRef.current.nearbySearch(request, (results: any, status: any) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-        setPlaces(results);
-      } else {
-        setPlaces([]);
-      }
+      serviceRef.current = new window.google.maps.places.PlacesService(map);
+      serviceRef.current.nearbySearch(request, (results: any, status: any) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+          setPlaces(results);
+        } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+          setPlaces([]);
+        } else {
+          console.error('Places API Status:', status);
+          if (status === 'REQUEST_DENIED') {
+             alert('Google Maps API Error: Request Denied. Please verify the API key and restrictions.');
+          }
+          setPlaces([]);
+        }
+        setLoading(false);
+      });
+    } catch (err) {
+      console.error('Search error:', err);
       setLoading(false);
-    });
+    }
   };
 
   const handleAreaSearch = () => {
