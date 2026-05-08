@@ -78,6 +78,8 @@ export default function AdminDashboard() {
 
   const [selectedBranch, setSelectedBranch] = useState<string>(initialBranch);
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const fetchData = async () => {
     // Initial branch fetch
     const { data: bData } = await supabase.from('branches').select('name').order('name');
@@ -92,11 +94,10 @@ export default function AdminDashboard() {
       
     if (data) setAttendance(data);
 
-    // Fetch active field visits
     const { data: fData } = await supabase
       .from('field_visits')
       .select('*, profiles(full_name, branch, department)')
-      .eq('status', 'Running');
+      .in('status', ['Active', 'Paused']);
     
     if (fData && fData.length > 0) {
       // For each visit, get the latest log
@@ -120,6 +121,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(fetchData, 30000); // 30s Polling for "live" feel
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = async () => {
@@ -129,8 +132,37 @@ export default function AdminDashboard() {
   const mapCenter: [number, number] = [18.5204, 73.8567];
 
   return (
-    <div className="flex bg-slate-50 min-h-screen text-slate-800 font-sans">
-      <aside className="w-80 bg-white border-r border-slate-100 flex flex-col h-screen sticky top-0 shrink-0 shadow-2xl shadow-slate-200/50 z-20">
+    <div className="flex bg-slate-50 min-h-screen text-slate-800 font-sans relative">
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 z-[40] shadow-sm">
+        <h1 className="text-xl font-black tracking-tighter text-slate-900 flex items-center space-x-2">
+          <span className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center text-white text-xs shadow-lg shadow-brand-500/30">MS</span>
+          <span>Minimal<span className="text-brand-500">Stroke</span></span>
+        </h1>
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition"
+        >
+          <div className="w-6 h-5 flex flex-col justify-between">
+            <span className={`h-0.5 bg-slate-600 rounded-full transition-all ${isSidebarOpen ? 'rotate-45 translate-y-2' : ''}`} />
+            <span className={`h-0.5 bg-slate-600 rounded-full transition-all ${isSidebarOpen ? 'opacity-0' : ''}`} />
+            <span className={`h-0.5 bg-slate-600 rounded-full transition-all ${isSidebarOpen ? '-rotate-45 -translate-y-2.5' : ''}`} />
+          </div>
+        </button>
+      </div>
+
+      {/* Sidebar Overlay for Mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[45]"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`
+        fixed inset-y-0 left-0 lg:sticky lg:top-0 w-80 bg-white border-r border-slate-100 flex flex-col h-screen shrink-0 shadow-2xl lg:shadow-slate-200/50 z-[50] transition-transform duration-300
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
         <div className="p-8 border-b border-slate-50">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-2xl font-black tracking-tighter text-slate-900 flex items-center space-x-2">
@@ -195,7 +227,10 @@ export default function AdminDashboard() {
           ].map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id as any)}
+              onClick={() => {
+                setActiveTab(item.id as any);
+                setIsSidebarOpen(false); // Close sidebar on mobile after selection
+              }}
               className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition duration-300 group ${
                 activeTab === item.id 
                   ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/30' 
@@ -225,7 +260,7 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      <main className="flex-1 bg-slate-50 relative overflow-hidden flex flex-col h-screen">
+      <main className="flex-1 bg-slate-50 relative overflow-hidden flex flex-col h-screen lg:pt-0 pt-16">
         <div className="flex-1 overflow-auto relative">
            {activeTab === 'daily' && <AdminDailyAttendance selectedBranch={selectedBranch} />}
            {activeTab === 'history' && <AdminHistoricalAttendance selectedBranch={selectedBranch} />}

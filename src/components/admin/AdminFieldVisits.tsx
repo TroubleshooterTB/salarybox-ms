@@ -194,7 +194,7 @@ export default function AdminFieldVisits() {
             />
           </div>
           <div className="flex bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
-            {['All', 'Running', 'Completed'].map(s => (
+            {['All', 'Active', 'Completed'].map(s => (
               <button 
                 key={s}
                 onClick={() => setFilterStatus(s)}

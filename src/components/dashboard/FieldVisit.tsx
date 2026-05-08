@@ -240,11 +240,41 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col max-w-md mx-auto relative overflow-x-hidden">
-      <div className="flex items-center mb-8 pt-4">
-        <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <h2 className="text-xl font-bold ml-2 tracking-tight">Field Visit Tracking</h2>
+      <div className="flex items-center justify-between mb-8 pt-4">
+        <div className="flex items-center">
+          <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <h2 className="text-xl font-bold ml-2 tracking-tight">Field Visit Tracking</h2>
+        </div>
+        {logs.length > 0 && (
+          <button 
+            onClick={() => {
+              const headers = ['Type', 'Timestamp', 'Lat', 'Lng', 'Note', 'Distance (KM)'];
+              const rows = logs.map(l => [
+                l.type,
+                new Date(l.timestamp).toLocaleString(),
+                l.latitude,
+                l.longitude,
+                l.note || '',
+                l.distance_from_last || 0
+              ]);
+              const csvContent = "data:text/csv;charset=utf-8," 
+                + headers.join(",") + "\n"
+                + rows.map(e => e.join(",")).join("\n");
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement("a");
+              link.setAttribute("href", encodedUri);
+              link.setAttribute("download", `Field_Visit_Report_${new Date().toISOString().slice(0,10)}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="text-[10px] font-black uppercase tracking-widest text-brand-400 bg-brand-500/10 px-3 py-2 rounded-xl border border-brand-500/20"
+          >
+            Download Report
+          </button>
+        )}
       </div>
 
       {loading ? (

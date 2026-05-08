@@ -37,6 +37,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     let watchId: number;
+    let timeoutId: NodeJS.Timeout;
 
     const initGeo = async () => {
       if (!session) return;
@@ -60,8 +61,15 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
         return;
       }
 
+      // 15s Safety Timeout to prevent infinite "Acquiring GPS..."
+      timeoutId = setTimeout(() => {
+        setGeoError('GPS timeout: Please ensure your location is enabled and try again.');
+        setLocating(false);
+      }, 15000);
+
       watchId = navigator.geolocation.watchPosition(
         (position) => {
+          clearTimeout(timeoutId);
           const { latitude, longitude } = position.coords;
           setLocation({ lat: latitude, lng: longitude });
 
@@ -91,7 +99,13 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
           setLocating(false);
         },
         (error) => {
-          setGeoError(error.message || 'Unable to retrieve your location.');
+          clearTimeout(timeoutId);
+          let msg = 'Unable to retrieve your location.';
+          if (error.code === 1) msg = 'Location permission denied. Please enable GPS.';
+          else if (error.code === 2) msg = 'Position unavailable. Check your GPS signal.';
+          else if (error.code === 3) msg = 'GPS acquisition timed out.';
+          
+          setGeoError(msg);
           setLocating(false);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -102,6 +116,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
 
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [session]);
 

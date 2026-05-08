@@ -656,28 +656,39 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                         <span className="px-3 py-1 bg-slate-200 text-slate-600 text-[10px] font-black tracking-widest uppercase rounded-full">Inactive</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button onClick={() => setViewingAttendance({ id: s.id, name: s.full_name })} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="View Attendance History">
-                        <CalendarDays className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleGeneratePayslip(s)} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition" title="Generate Payslip">
-                        <FileText className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => openAdjustments(s)} className="p-2 bg-brand-50 text-brand-600 rounded-lg hover:bg-brand-100 transition" title="Salary Adjustments">
-                        <Coins className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => { setSelectedStaffForPass(s); setQuickPass(''); setShowPassModal(true); }} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition" title="Quick Set Password">
-                        <ShieldCheck className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => openEdit(s)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition" title="Edit Employee">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleToggleActive(s.id, s.is_active !== false)} className={`p-2 rounded-lg transition ${s.is_active !== false ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`} title={s.is_active !== false ? "Deactivate Employee" : "Reactivate Employee"}>
-                        {s.is_active !== false ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      </button>
-                      <button onClick={() => handleDeleteEmployee(s.id, s.full_name)} className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-100 transition" title="Delete Employee Record">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <td className="px-6 py-4 text-right relative">
+                      <div className="flex items-center justify-end space-x-1">
+                        <button onClick={() => setViewingAttendance({ id: s.id, name: s.full_name })} className="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition" title="Calendar">
+                          <CalendarDays className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => openEdit(s)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        
+                        <div className="group relative inline-block">
+                          <button className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                            <Plus className="w-4 h-4 rotate-45" />
+                          </button>
+                          <div className="absolute right-0 bottom-full mb-2 w-48 bg-white border border-slate-100 shadow-2xl rounded-2xl p-2 hidden group-hover:block z-[60] animate-in fade-in slide-in-from-bottom-2">
+                             <button onClick={() => handleGeneratePayslip(s)} className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-xl transition">
+                               <FileText className="w-4 h-4" /> <span>Generate Payslip</span>
+                             </button>
+                             <button onClick={() => openAdjustments(s)} className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-brand-50 hover:text-brand-600 rounded-xl transition">
+                               <Coins className="w-4 h-4" /> <span>Adjust Salary</span>
+                             </button>
+                             <button onClick={() => { setSelectedStaffForPass(s); setQuickPass(''); setShowPassModal(true); }} className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-600 rounded-xl transition">
+                               <ShieldCheck className="w-4 h-4" /> <span>Set Password</span>
+                             </button>
+                             <div className="h-px bg-slate-50 my-1" />
+                             <button onClick={() => handleToggleActive(s.id, s.is_active !== false)} className={`w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold rounded-xl transition ${s.is_active !== false ? 'text-amber-500 hover:bg-amber-50' : 'text-emerald-500 hover:bg-emerald-50'}`}>
+                               {s.is_active !== false ? <><Square className="w-4 h-4" /> <span>Deactivate</span></> : <><Play className="w-4 h-4" /> <span>Reactivate</span></>}
+                             </button>
+                             <button onClick={() => handleDeleteEmployee(s.id, s.full_name)} className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 rounded-xl transition">
+                               <Trash2 className="w-4 h-4" /> <span>Delete Profile</span>
+                             </button>
+                          </div>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ))}

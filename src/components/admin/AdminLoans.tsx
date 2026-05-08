@@ -313,11 +313,12 @@ export default function AdminLoans({ selectedBranch }: { selectedBranch: string 
         ) : (
           <>
             {/* Balance Overview */}
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 shadow-xl text-white relative overflow-hidden">
-               <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
-               <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Outstanding Balance</p>
-               <h3 className="text-5xl font-black flex items-center">
-                 <IndianRupee className="w-8 h-8 mr-2 opacity-50" /> {currentBalance.toLocaleString('en-IN')}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-10 shadow-xl text-white relative overflow-visible min-h-[160px] flex flex-col justify-center">
+               <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+               <p className="text-[12px] font-black uppercase tracking-widest text-slate-400 mb-3">Total Outstanding Balance</p>
+               <h3 className="text-4xl md:text-5xl lg:text-6xl font-black flex items-center leading-tight">
+                 <IndianRupee className="w-8 h-8 md:w-10 md:h-10 mr-3 opacity-50" /> 
+                 <span>{currentBalance.toLocaleString('en-IN')}</span>
                </h3>
             </div>
 

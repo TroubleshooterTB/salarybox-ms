@@ -61,7 +61,25 @@ export default function StaffDashboard() {
         .gte('timestamp', startOfDay.toISOString())
         .order('timestamp', { ascending: true });
         
-      if (data) setTodayPunches(data);
+      if (data) {
+        // Merge with local queue to prevent "vanishing" punches
+        const queue = JSON.parse(localStorage.getItem('attendance_queue') || '[]');
+        const localTodayPunches = queue.filter((p: any) => p.timestamp >= startOfDay.toISOString());
+        
+        // Use a map to avoid duplicates if some are already synced
+        const punchMap = new Map();
+        data.forEach(p => punchMap.set(p.timestamp, p));
+        localTodayPunches.forEach((p: any) => {
+          if (!punchMap.has(p.timestamp)) {
+            punchMap.set(p.timestamp, { ...p, isOffline: true });
+          }
+        });
+
+        const merged = Array.from(punchMap.values()).sort((a, b) => 
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        setTodayPunches(merged);
+      }
     }
     
     // Refresh interval every time dashboard mounts or activeTab clears
@@ -267,13 +285,16 @@ export default function StaffDashboard() {
               </div>
             ) : (
               todayPunches.map((p, i) => (
-                <div key={p.id} className={`flex justify-between items-center p-3 rounded-2xl border ${p.type === 'In' ? 'bg-emerald-950/30 border-emerald-900/50' : 'bg-rose-950/30 border-rose-900/50'}`}>
+                <div key={p.id} className={`flex justify-between items-center p-3 rounded-2xl border ${p.type === 'In' ? 'bg-emerald-950/30 border-emerald-900/50' : 'bg-rose-950/30 border-rose-900/50'} ${p.isOffline ? 'opacity-70 border-dashed' : ''}`}>
                   <div className="flex items-center space-x-3">
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black ${p.type === 'In' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
                       {p.type === 'In' ? 'IN' : 'OUT'}
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-white tracking-wide">{new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="text-sm font-bold text-white tracking-wide flex items-center space-x-2">
+                        <span>{new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {p.isOffline && <Loader2 className="w-3 h-3 animate-spin text-brand-400" />}
+                      </p>
                       <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-0.5 truncate max-w-[150px]">{p.address_string || `GPS: ${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}`}</p>
                     </div>
                   </div>
