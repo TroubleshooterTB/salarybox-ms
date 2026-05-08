@@ -121,7 +121,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
       // Transform new format to a standard format for our UI
       const formattedResults = results.map((p: any) => ({
         place_id: p.id,
-        name: p.displayName?.text || 'Unknown',
+        name: p.displayName || p.displayName?.text || p.name || 'Unknown Business',
         rating: p.rating,
         vicinity: p.formattedAddress,
         geometry: {
@@ -240,24 +240,6 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
 
       {/* Results List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20 custom-scrollbar relative">
-        {/* Status Dashboard */}
-        <div className="flex items-center justify-center space-x-4 mb-4 py-2 bg-slate-900/30 rounded-xl border border-white/5">
-           <div className="flex flex-col items-center">
-              <span className="text-[7px] font-black uppercase text-slate-500">Script</span>
-              <span className={`text-[8px] font-bold ${debugStatus.script === 'Loaded' ? 'text-emerald-400' : 'text-amber-400'}`}>{debugStatus.script}</span>
-           </div>
-           <div className="w-px h-4 bg-slate-800" />
-           <div className="flex flex-col items-center">
-              <span className="text-[7px] font-black uppercase text-slate-500">Key</span>
-              <span className={`text-[8px] font-bold ${debugStatus.key === 'Detected' ? 'text-emerald-400' : 'text-rose-400'}`}>{debugStatus.key}</span>
-           </div>
-           <div className="w-px h-4 bg-slate-800" />
-           <div className="flex flex-col items-center">
-              <span className="text-[7px] font-black uppercase text-slate-500">GPS</span>
-              <span className={`text-[8px] font-bold ${debugStatus.gps === 'OK' ? 'text-emerald-400' : 'text-amber-400'}`}>{debugStatus.gps}</span>
-           </div>
-        </div>
-
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500">
              <Loader2 className="w-10 h-10 animate-spin text-brand-500 mb-4" />
