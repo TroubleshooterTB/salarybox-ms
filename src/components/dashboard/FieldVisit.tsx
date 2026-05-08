@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
 import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProspectDiscovery from './ProspectDiscovery';
 
 export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const { session } = useStore();
@@ -18,6 +19,8 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [lastCheckTime, setLastCheckTime] = useState<number>(Date.now());
   const [isStationary, setIsStationary] = useState(false);
+  const [showDiscovery, setShowDiscovery] = useState(false);
+  const [selectedProspect, setSelectedProspect] = useState<any>(null);
 
   useEffect(() => {
     fetchActiveVisit();
@@ -238,6 +241,19 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     return R * c;
   };
 
+  if (showDiscovery) {
+    return (
+      <ProspectDiscovery 
+        onBack={() => setShowDiscovery(false)} 
+        onSelect={(place) => {
+          setNote(`Visiting: ${place.name}\nAddress: ${place.vicinity}`);
+          setSelectedProspect(place);
+          setShowDiscovery(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col max-w-md mx-auto relative overflow-x-hidden">
       <div className="flex items-center justify-between mb-8 pt-4">
@@ -280,26 +296,48 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
       {loading ? (
         <div className="flex justify-center mt-20"><Loader2 className="w-8 h-8 animate-spin text-brand-500" /></div>
       ) : !activeVisit ? (
-        <div className="flex flex-col items-center justify-center space-y-8 mt-20">
-          <div className="w-24 h-24 bg-brand-500/10 rounded-full flex items-center justify-center border border-brand-500/20 shadow-[0_0_50px_rgba(var(--color-brand-500),0.1)]">
-            <Navigation className="w-10 h-10 text-brand-400" />
-          </div>
-          <div className="text-center space-y-2 px-6">
-            <h3 className="text-2xl font-black tracking-tight">Ready to Start?</h3>
-            <p className="text-slate-400 font-medium">Your location and travel distance will be tracked automatically for the report.</p>
-          </div>
-          <button 
-            disabled={isSubmitting}
-            onClick={startVisit}
-            className="w-full py-5 bg-white text-slate-950 font-black rounded-3xl flex items-center justify-center space-x-3 shadow-xl hover:shadow-white/20 active:scale-95 transition-all uppercase tracking-widest text-sm"
+        <div className="flex-1 flex flex-col pt-4 pb-10">
+          {/* Discover Prospects Shortcut */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowDiscovery(true)}
+            className="w-full bg-gradient-to-br from-indigo-600 to-violet-600 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-500/20 flex items-center justify-between group overflow-hidden relative mb-12"
           >
-            <Play className="w-5 h-5 fill-current" />
-            <span>Start Field Visit</span>
-          </button>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl group-hover:scale-110 transition duration-500" />
+            <div className="flex items-center space-x-4 relative z-10">
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                <Search className="w-7 h-7 text-white" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-xl font-black text-white tracking-tight">Discover Nearby</h3>
+                <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mt-1 opacity-80">Find Architects & Builders</p>
+              </div>
+            </div>
+            <MapPin className="w-6 h-6 text-white/40" />
+          </motion.button>
+
+          <div className="flex flex-col items-center justify-center space-y-8 flex-1">
+            <div className="w-24 h-24 bg-brand-500/10 rounded-full flex items-center justify-center border border-brand-500/20 shadow-[0_0_50px_rgba(var(--color-brand-500),0.1)]">
+              <Navigation className="w-10 h-10 text-brand-400" />
+            </div>
+            <div className="text-center space-y-2 px-6">
+              <h3 className="text-2xl font-black tracking-tight">Ready to Start?</h3>
+              <p className="text-slate-400 font-medium text-center">Your location and travel distance will be tracked automatically.</p>
+            </div>
+            <button 
+              disabled={isSubmitting}
+              onClick={startVisit}
+              className="w-full py-5 bg-white text-slate-950 font-black rounded-3xl flex items-center justify-center space-x-3 shadow-xl hover:shadow-white/20 active:scale-95 transition-all uppercase tracking-widest text-sm"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>Start Field Visit</span>
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-6 pb-10">
-          {/* Active Status Card */}
+        <div className="flex-1 space-y-6 pt-4 pb-10">
+          {activeVisit && (
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl relative overflow-hidden">
             <div className={`absolute top-0 right-0 w-32 h-32 ${activeVisit.status === 'Active' ? 'bg-emerald-500/10' : 'bg-amber-500/10'} rounded-full blur-3xl pointer-events-none`} />
             

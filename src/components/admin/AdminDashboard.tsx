@@ -23,6 +23,7 @@ import AuditLogs from './AuditLogs';
 import PayrollProcessor from './PayrollProcessor';
 import AdminHolidays from './AdminHolidays';
 import AdminFieldVisits from './AdminFieldVisits';
+import AdminReimbursements from './AdminReimbursements';
 import NotificationBell from '../common/NotificationBell';
 import { useLanguage } from '../../lib/i18n';
 import useStore from '../../store';
@@ -212,24 +213,25 @@ export default function AdminDashboard() {
             { id: 'daily', icon: Clock, label: t('attendance') },
             { id: 'history', icon: History, label: 'History' },
             { id: 'staff', icon: Users, label: t('staff') },
-            { id: 'loans', icon: IndianRupee, label: t('loans') },
             { id: 'approvals', icon: UserCheck, label: t('approvals') },
+            { id: 'field', icon: MapPin, label: 'Field Visits' },
+            { id: 'reimbursements', icon: IndianRupee, label: 'Expense Claims', roles: ['Super Admin', 'Admin'] },
+            { id: 'loans', icon: IndianRupee, label: t('loans'), roles: ['Super Admin', 'Admin'] },
             { id: 'leaves', icon: FileStack, label: 'Leave Balances' },
-            { id: 'branches', icon: Globe, label: t('branches') },
-            { id: 'export', icon: FileStack, label: t('export') },
+            { id: 'branches', icon: Globe, label: t('branches'), roles: ['Super Admin'] },
+            { id: 'payroll', icon: IndianRupee, label: 'Payroll', roles: ['Super Admin', 'Admin'] },
+            { id: 'audit', icon: History, label: 'Audit Logs', roles: ['Super Admin'] },
+            { id: 'holidays', icon: Calendar, label: 'Holiday Manager', roles: ['Super Admin', 'Admin'] },
             { id: 'map', icon: Map, label: 'Live Map' },
             { id: 'calendar', icon: Calendar, label: 'Calendar' },
-            { id: 'payroll', icon: IndianRupee, label: 'Payroll' },
-            { id: 'field', icon: MapPin, label: 'Field Visits' },
-            { id: 'audit', icon: History, label: 'Audit Logs' },
-            { id: 'holidays', icon: Calendar, label: 'Holiday Manager' },
-            { id: 'settings', icon: Settings, label: t('settings') }
-          ].map((item) => (
+            { id: 'export', icon: FileStack, label: t('export'), roles: ['Super Admin', 'Admin'] },
+            { id: 'settings', icon: Settings, label: t('settings'), roles: ['Super Admin'] }
+          ].filter(item => !item.roles || item.roles.includes(userRole as any)).map((item) => (
             <button
               key={item.id}
               onClick={() => {
                 setActiveTab(item.id as any);
-                setIsSidebarOpen(false); // Close sidebar on mobile after selection
+                setIsSidebarOpen(false);
               }}
               className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition duration-300 group ${
                 activeTab === item.id 
@@ -268,6 +270,7 @@ export default function AdminDashboard() {
            {activeTab === 'calendar' && <AdminCalendar selectedBranch={selectedBranch} />}
            {activeTab === 'approvals' && <AdminApprovals selectedBranch={selectedBranch} />}
            {activeTab === 'branches' && <AdminBranches />}
+           {activeTab === 'reimbursements' && <AdminReimbursements selectedBranch={selectedBranch} />}
            {activeTab === 'loans' && <AdminLoans selectedBranch={selectedBranch} />}
            {activeTab === 'settings' && <AdminSettings />}
            {activeTab === 'export' && <ExportModule selectedBranch={selectedBranch} />}

@@ -20,12 +20,14 @@ import FieldVisit from './FieldVisit';
 import Documents from './Documents';
 import Notes from './Notes';
 import SettingsView from './Settings';
+import Reimbursements from './Reimbursements';
 import NotificationBell from '../common/NotificationBell';
 
 const baseMenuItems = [
   { id: 'profile', label: 'Profile', icon: User, color: 'bg-blue-500' },
   { id: 'history', label: 'View Attendance', icon: CalendarDays, color: 'bg-emerald-500' },
   { id: 'leaves', label: 'Request Leave', icon: Palmtree, color: 'bg-orange-500' },
+  { id: 'reimbursements', label: 'Claims', icon: IndianRupee, color: 'bg-violet-500' },
   { id: 'crm', label: 'CRM', icon: Briefcase, color: 'bg-indigo-500', isExternal: true },
   { id: 'notes', label: 'Notes', icon: MessageSquare, color: 'bg-amber-500' },
   { id: 'holidays', label: 'Holiday List', icon: Globe, color: 'bg-teal-500' },
@@ -162,6 +164,9 @@ export default function StaffDashboard() {
   }
   if (activeTab === 'field_visit') {
     return <FieldVisit onBack={() => setActiveTab(null)} />;
+  }
+  if (activeTab === 'reimbursements') {
+    return <Reimbursements onBack={() => setActiveTab(null)} />;
   }
   if (activeTab === 'documents') {
     return <Documents onBack={() => setActiveTab(null)} />;
