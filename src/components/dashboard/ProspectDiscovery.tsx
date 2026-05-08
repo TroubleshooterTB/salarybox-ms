@@ -44,7 +44,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     if (!window.google) {
       setDebugStatus(prev => ({ ...prev, script: 'Loading...' }));
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBWisX1RzTF_dd1ePP8LsV2asg2MpexCqg&libraries=places`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBWisX1RzTF_dd1ePP8LsV2asg2MpexCqg&libraries=places&v=weekly`;
       script.async = true;
       script.defer = true;
       script.onload = () => {
@@ -104,11 +104,10 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     setPlaces([]);
     
     try {
-      // Import libraries for New API
       const { Place } = await window.google.maps.importLibrary("places");
       
       const request = {
-        textQuery: `${selectedCategory.label} near me`,
+        textQuery: `${selectedCategory.label} in this area`,
         fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types"],
         locationRestriction: {
           center: { lat: pos.lat, lng: pos.lng },
@@ -117,7 +116,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         maxResultCount: 20,
       };
 
-      const { places: results } = await Place.searchText(request);
+      const { places: results } = await Place.searchByText(request);
       
       // Transform new format to a standard format for our UI
       const formattedResults = results.map((p: any) => ({
@@ -156,7 +155,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         maxResultCount: 1,
       };
 
-      const { places: results } = await Place.searchText(request);
+      const { places: results } = await Place.searchByText(request);
       
       if (results && results.length > 0) {
         const pos = {
