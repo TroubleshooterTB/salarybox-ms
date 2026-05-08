@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectDiscovery from './ProspectDiscovery';
 
