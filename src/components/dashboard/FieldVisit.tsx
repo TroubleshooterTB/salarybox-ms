@@ -338,99 +338,102 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
       ) : (
         <div className="flex-1 space-y-6 pt-4 pb-10">
           {activeVisit && (
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl relative overflow-hidden">
-            <div className={`absolute top-0 right-0 w-32 h-32 ${activeVisit.status === 'Active' ? 'bg-emerald-500/10' : 'bg-amber-500/10'} rounded-full blur-3xl pointer-events-none`} />
-            
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  <div className={`w-2 h-2 rounded-full ${activeVisit.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{activeVisit.status} Visit</p>
+            <>
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl relative overflow-hidden">
+                <div className={`absolute top-0 right-0 w-32 h-32 ${activeVisit.status === 'Active' ? 'bg-emerald-500/10' : 'bg-amber-500/10'} rounded-full blur-3xl pointer-events-none`} />
+                
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <div className={`w-2 h-2 rounded-full ${activeVisit.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{activeVisit.status} Visit</p>
+                    </div>
+                    <h3 className="text-3xl font-black text-white">{(activeVisit.total_km || 0).toFixed(2)} <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">KM</span></h3>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Started At</p>
+                    <p className="text-sm font-bold text-white">{new Date(activeVisit.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
                 </div>
-                <h3 className="text-3xl font-black text-white">{(activeVisit.total_km || 0).toFixed(2)} <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">KM</span></h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <button onClick={handlePauseResume} className={`flex items-center justify-center space-x-2 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition ${activeVisit.status === 'Active' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
+                    {activeVisit.status === 'Active' ? <><Pause className="w-4 h-4 fill-current" /> <span>Pause</span></> : <><Play className="w-4 h-4 fill-current" /> <span>Resume</span></>}
+                  </button>
+                  <button onClick={endVisit} className="flex items-center justify-center space-x-2 py-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl font-black uppercase text-[10px] tracking-widest">
+                    <Square className="w-4 h-4 fill-current" />
+                    <span>End Visit</span>
+                  </button>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Started At</p>
-                <p className="text-sm font-bold text-white">{new Date(activeVisit.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={handlePauseResume} className={`flex items-center justify-center space-x-2 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition ${activeVisit.status === 'Active' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
-                {activeVisit.status === 'Active' ? <><Pause className="w-4 h-4 fill-current" /> <span>Pause</span></> : <><Play className="w-4 h-4 fill-current" /> <span>Resume</span></>}
-              </button>
-              <button onClick={endVisit} className="flex items-center justify-center space-x-2 py-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl font-black uppercase text-[10px] tracking-widest">
-                <Square className="w-4 h-4 fill-current" />
-                <span>End Visit</span>
-              </button>
-            </div>
-          </div>
+              {/* New Checkpoint Form */}
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-4">
+                <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center">
+                  <MapPin className="w-4 h-4 mr-2 text-brand-500" />
+                  Log Visit Point
+                </h4>
 
-          {/* New Checkpoint Form */}
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-4">
-            <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center">
-              <MapPin className="w-4 h-4 mr-2 text-brand-500" />
-              Log Visit Point
-            </h4>
+                {selfie ? (
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden group">
+                    <img src={selfie} className="w-full h-full object-cover" />
+                    <button onClick={() => setSelfie(null)} className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full">
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={startCamera} className="w-full aspect-video bg-slate-950 border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 hover:border-brand-500/50 hover:text-brand-400 transition group">
+                    <Camera className="w-8 h-8 mb-2 group-hover:scale-110 transition" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Take Mandatory Selfie</span>
+                  </button>
+                )}
 
-            {selfie ? (
-              <div className="relative w-full aspect-video rounded-2xl overflow-hidden group">
-                <img src={selfie} className="w-full h-full object-cover" />
-                <button onClick={() => setSelfie(null)} className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full">
-                  <ArrowLeft className="w-4 h-4" />
+                <textarea 
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Add visit details/client name..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-white outline-none focus:border-brand-500 transition resize-none placeholder-slate-600"
+                  rows={2}
+                />
+
+                <button 
+                  disabled={isSubmitting || !selfie}
+                  onClick={captureCheckpoint}
+                  className="w-full py-4 bg-brand-500 text-white font-black rounded-xl shadow-lg shadow-brand-500/20 active:scale-95 transition uppercase tracking-widest text-[10px] disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Log Checkpoint'}
                 </button>
               </div>
-            ) : (
-              <button onClick={startCamera} className="w-full aspect-video bg-slate-950 border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-500 hover:border-brand-500/50 hover:text-brand-400 transition group">
-                <Camera className="w-8 h-8 mb-2 group-hover:scale-110 transition" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Take Mandatory Selfie</span>
-              </button>
-            )}
 
-            <textarea 
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="Add visit details/client name..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-white outline-none focus:border-brand-500 transition resize-none placeholder-slate-600"
-              rows={2}
-            />
-
-            <button 
-              disabled={isSubmitting || !selfie}
-              onClick={captureCheckpoint}
-              className="w-full py-4 bg-brand-500 text-white font-black rounded-xl shadow-lg shadow-brand-500/20 active:scale-95 transition uppercase tracking-widest text-[10px] disabled:opacity-50"
-            >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Log Checkpoint'}
-            </button>
-          </div>
-
-          {/* Activity Log */}
-          <div className="space-y-3">
-             <p className="text-[10px] font-black uppercase tracking-widest text-slate-600 px-2">Today's Activity</p>
-             {logs.map(log => (
-               <div key={log.id} className="bg-slate-900/50 border border-slate-800/50 p-4 rounded-2xl flex items-center space-x-4">
-                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                   log.type === 'Start' ? 'bg-emerald-500/20 text-emerald-400' :
-                   log.type === 'End' ? 'bg-rose-500/20 text-rose-400' :
-                   log.type === 'Stationary' ? 'bg-amber-500/20 text-amber-400' :
-                   'bg-slate-800 text-slate-400'
-                 }`}>
-                   {log.type === 'Stationary' ? <AlertTriangle className="w-5 h-5" /> : <MapPin className="w-5 h-5" />}
-                 </div>
-                 <div className="flex-1 min-w-0">
-                   <div className="flex justify-between items-start">
-                     <p className="font-bold text-sm text-slate-200">{log.type}</p>
-                     <p className="text-[9px] font-black text-slate-500">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                   </div>
-                   {log.note && <p className="text-xs text-slate-400 mt-0.5 truncate italic">"{log.note}"</p>}
-                   {log.distance_from_last > 0 && <p className="text-[9px] font-black text-brand-400 uppercase tracking-widest mt-1">+{log.distance_from_last.toFixed(2)} KM</p>}
-                 </div>
-                 {log.selfie_url && (
-                   <img src={log.selfie_url} className="w-10 h-10 rounded-lg object-cover border border-slate-700" />
-                 )}
-               </div>
-             ))}
-          </div>
+              {/* Activity Log */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-600 px-2">Today's Activity</p>
+                {logs.map(log => (
+                  <div key={log.id} className="bg-slate-900/50 border border-slate-800/50 p-4 rounded-2xl flex items-center space-x-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      log.type === 'Start' ? 'bg-emerald-500/20 text-emerald-400' :
+                      log.type === 'End' ? 'bg-rose-500/20 text-rose-400' :
+                      log.type === 'Stationary' ? 'bg-amber-500/20 text-amber-400' :
+                      'bg-slate-800 text-slate-400'
+                    }`}>
+                      {log.type === 'Stationary' ? <AlertTriangle className="w-5 h-5" /> : <MapPin className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <p className="font-bold text-sm text-slate-200">{log.type}</p>
+                        <p className="text-[9px] font-black text-slate-500">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                      {log.note && <p className="text-xs text-slate-400 mt-0.5 truncate italic">"{log.note}"</p>}
+                      {log.distance_from_last > 0 && <p className="text-[9px] font-black text-brand-400 uppercase tracking-widest mt-1">+{log.distance_from_last.toFixed(2)} KM</p>}
+                    </div>
+                    {log.selfie_url && (
+                      <img src={log.selfie_url} className="w-10 h-10 rounded-lg object-cover border border-slate-700" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
