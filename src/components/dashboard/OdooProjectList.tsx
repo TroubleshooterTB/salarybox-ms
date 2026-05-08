@@ -19,8 +19,12 @@ export default function OdooProjectList({ onBack, onSelect }: OdooProjectListPro
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/odoo/projects');
-      const data = await res.json();
+      const response = await fetch('/api/odoo/projects', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token') ? JSON.parse(localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token')!).access_token : ''}`
+        }
+      });
+      const data = await response.json();
       if (data.success) {
         setProjects(data.projects);
       } else {

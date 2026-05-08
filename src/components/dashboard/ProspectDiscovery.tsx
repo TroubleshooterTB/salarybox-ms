@@ -39,7 +39,10 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     try {
       const response = await fetch('/api/odoo/crm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token') ? JSON.parse(localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token')!).access_token : ''}`
+        },
         body: JSON.stringify({
           name: place.name,
           street: place.vicinity,

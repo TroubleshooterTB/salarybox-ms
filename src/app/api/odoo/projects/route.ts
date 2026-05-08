@@ -16,18 +16,38 @@ const callOdoo = (client: any, method: string, args: any[]) => {
   });
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { data: settings, error: settingsError } = await supabaseAdmin
+    // Get auth token from header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) return NextResponse.json({ success: false, error: 'Unauthorized' });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) return NextResponse.json({ success: false, error: 'Invalid Session' });
+
+    // 1. Get Global Odoo Settings
+    const { data: globalSettings } = await supabaseAdmin
       .from('odoo_settings')
-      .select('*')
+      .select('url, db')
       .maybeSingle();
 
-    if (settingsError || !settings) {
-      return NextResponse.json({ success: false, error: 'Odoo settings not configured.' });
+    if (!globalSettings?.url) return NextResponse.json({ success: false, error: 'Company Odoo URL not configured.' });
+
+    // 2. Get User's Personal Odoo Settings
+    const { data: userSettings } = await supabaseAdmin
+      .from('user_odoo_settings')
+      .select('odoo_username, odoo_api_key')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!userSettings?.odoo_api_key) {
+      return NextResponse.json({ success: false, error: 'Personal Odoo account not linked.' });
     }
 
-    const { url, db, username, api_key } = settings;
+    const { url, db } = globalSettings;
+    const { odoo_username: username, odoo_api_key: api_key } = userSettings;
     const cleanUrl = url.replace(/\/$/, '').replace('https://', '');
     
     const commonClient = xmlrpc.createSecureClient({
@@ -45,11 +65,11 @@ export async function GET() {
       path: '/xmlrpc/2/object'
     });
     
-    // Fetch Projects (id, name, display_name, description)
+    // Fetch Projects specifically assigned to THIS user in Odoo
     const projects = await callOdoo(modelsClient, 'execute_kw', [
       db, uid, api_key,
       'project.project', 'search_read',
-      [[]], // Filter: all projects. You can add [['active', '=', true]] if needed
+      [[['user_id', '=', uid]]], 
       { fields: ['id', 'name', 'display_name'] }
     ]);
 

@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import xmlrpc from 'xmlrpc';
 import { createClient } from '@supabase/supabase-js';
 
-// Internal server-side supabase client to avoid issues with env vars in API routes
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -21,24 +20,47 @@ export async function POST(req: Request) {
   try {
     const { name, street, rating, place_id, category } = await req.json();
 
-    // 1. Get Odoo Settings from Supabase
-    const { data: settings, error: settingsError } = await supabaseAdmin
+    // Get auth token from header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) return NextResponse.json({ success: false, error: 'Unauthorized' });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) return NextResponse.json({ success: false, error: 'Invalid Session' });
+
+    // 1. Get Global Odoo Settings (URL & DB)
+    const { data: globalSettings } = await supabaseAdmin
       .from('odoo_settings')
-      .select('*')
+      .select('url, db')
       .maybeSingle();
 
-    if (settingsError || !settings) {
+    if (!globalSettings?.url || !globalSettings?.db) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Odoo settings not configured. Go to Admin > Settings to link Odoo Online.' 
+        error: 'Company Odoo URL not configured. Please ask Admin to set the Odoo URL in Settings.' 
       });
     }
 
-    const { url, db, username, api_key } = settings;
-    // Odoo Online URLs are like https://company.odoo.com
+    // 2. Get User's Personal Odoo Settings (Username & API Key)
+    const { data: userSettings } = await supabaseAdmin
+      .from('user_odoo_settings')
+      .select('odoo_username, odoo_api_key')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!userSettings?.odoo_api_key) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Your personal Odoo account is not linked. Please go to your Profile and add your Odoo API Key.' 
+      });
+    }
+
+    const { url, db } = globalSettings;
+    const { odoo_username: username, odoo_api_key: api_key } = userSettings;
+    
     const cleanUrl = url.replace(/\/$/, '').replace('https://', '');
     
-    // 2. Authenticate
     const commonClient = xmlrpc.createSecureClient({
       host: cleanUrl,
       port: 443,
@@ -48,10 +70,9 @@ export async function POST(req: Request) {
     const uid = await callOdoo(commonClient, 'authenticate', [db, username, api_key, {}]);
 
     if (!uid) {
-      return NextResponse.json({ success: false, error: 'Odoo Authentication Failed.' });
+      return NextResponse.json({ success: false, error: 'Odoo Authentication Failed. Check your personal API key.' });
     }
 
-    // 3. Create Lead
     const modelsClient = xmlrpc.createSecureClient({
       host: cleanUrl,
       port: 443,
@@ -63,6 +84,7 @@ export async function POST(req: Request) {
       street: street,
       description: `Rating: ${rating}\nCategory: ${category}\nGoogle Place ID: ${place_id}`,
       type: 'lead',
+      user_id: uid // Assign to the logged-in user in Odoo
     };
 
     const leadId = await callOdoo(modelsClient, 'execute_kw', [

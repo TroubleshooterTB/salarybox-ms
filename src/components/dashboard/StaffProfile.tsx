@@ -4,7 +4,7 @@ import useStore from '../../store';
 import { 
   ArrowLeft, Building2, Briefcase, Phone, 
   ShieldCheck, ShieldX, Calendar, Landmark, 
-  FileText, Loader2 
+  FileText, Loader2, Globe 
 } from 'lucide-react';
 import { useLanguage } from '../../lib/i18n';
 import { calculatePayroll } from '../../lib/payrollEngine';
@@ -31,6 +31,11 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
   const [newPasscode, setNewPasscode] = useState('');
   const [updateLoading, setUpdateLoading] = useState(false);
   const [updateMessage, setUpdateMessage] = useState('');
+
+  // Odoo Settings State
+  const [odooCreds, setOdooCreds] = useState({ username: '', api_key: '' });
+  const [odooLoading, setOdooLoading] = useState(false);
+  const [hasOdoo, setHasOdoo] = useState(false);
 
   const handleGeneratePayslip = async () => {
     if (!profile || !session) return;
@@ -131,6 +136,26 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleSaveOdoo = async () => {
+    if (!session) return;
+    setOdooLoading(true);
+    try {
+      const { error } = await supabase.from('user_odoo_settings').upsert({
+        user_id: session.user.id,
+        odoo_username: odooCreds.username,
+        odoo_api_key: odooCreds.api_key,
+        updated_at: new Date().toISOString()
+      });
+      if (error) throw error;
+      alert('Odoo Account Linked Successfully!');
+      setHasOdoo(true);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setOdooLoading(false);
+    }
+  };
+
   useEffect(() => {
     async function fetch() {
       if (!session) return;
@@ -139,6 +164,13 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
         .eq('id', session.user.id)
         .single();
       if (p) setProfile(p);
+
+      const { data: o } = await supabase.from('user_odoo_settings').select('*').eq('user_id', session.user.id).maybeSingle();
+      if (o) {
+        setOdooCreds({ username: o.odoo_username, api_key: o.odoo_api_key });
+        setHasOdoo(true);
+      }
+
       setLoading(false);
     }
     fetch();
@@ -286,6 +318,48 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('account_no')}</span>
                 <span className="text-sm font-mono font-bold text-slate-200">{profile.bank_account_details || '—'}</span>
               </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
+            <div className="flex items-center space-x-2 mb-4">
+              <Globe className="w-4 h-4 text-brand-400" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Odoo Account Link</p>
+            </div>
+            
+            <p className="text-[10px] font-bold text-slate-400 leading-relaxed mb-6">
+              Link your personal Odoo Online account to sync your field discoveries and visit assigned project sites.
+            </p>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Odoo Email/Username</label>
+                <input 
+                  type="text"
+                  placeholder="name@company.odoo.com"
+                  value={odooCreds.username}
+                  onChange={e => setOdooCreds({...odooCreds, username: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:border-brand-500 outline-none transition"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Odoo API Key</label>
+                <input 
+                  type="password"
+                  placeholder="••••••••"
+                  value={odooCreds.api_key}
+                  onChange={e => setOdooCreds({...odooCreds, api_key: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:border-brand-500 outline-none transition"
+                />
+              </div>
+              <button 
+                onClick={handleSaveOdoo}
+                disabled={odooLoading}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2"
+              >
+                {odooLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                <span>{hasOdoo ? 'Update Connection' : 'Link Odoo Account'}</span>
+              </button>
             </div>
           </div>
 
