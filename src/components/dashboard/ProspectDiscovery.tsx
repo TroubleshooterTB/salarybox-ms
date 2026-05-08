@@ -110,7 +110,10 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
 
     try {
       const pyrmont = new window.google.maps.LatLng(pos.lat, pos.lng);
-      const map = new window.google.maps.Map(document.createElement('div'));
+      const map = new window.google.maps.Map(document.createElement('div'), {
+        center: pyrmont,
+        zoom: 15
+      });
       serviceRef.current = new window.google.maps.places.PlacesService(map);
 
       const request = {
@@ -153,7 +156,10 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     }, 5000);
 
     try {
-      const map = new window.google.maps.Map(document.createElement('div'));
+      const map = new window.google.maps.Map(document.createElement('div'), {
+        center: { lat: 20, lng: 77 }, // Dummy center for init
+        zoom: 12
+      });
       const service = new window.google.maps.places.PlacesService(map);
       
       const request = {
