@@ -40,7 +40,18 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
       script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
       script.async = true;
       script.defer = true;
-      script.onload = () => setMapLoaded(true);
+      script.onload = () => {
+        if (!window.google.maps.places) {
+          alert('Google Places library failed to load. Please verify your API Key has Places API enabled.');
+          setLoading(false);
+        } else {
+          setMapLoaded(true);
+        }
+      };
+      script.onerror = () => {
+        alert('Failed to load Google Maps script. Check your internet or API key.');
+        setLoading(false);
+      };
       document.head.appendChild(script);
     } else {
       setMapLoaded(true);
@@ -50,11 +61,11 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
   useEffect(() => {
     if (mapLoaded) {
       const timeoutId = setTimeout(() => {
-        if (loading) {
-          alert('Geolocation timed out. Please check your GPS permissions.');
+        if (loading && !currentPos) {
+          alert('Geolocation is taking longer than expected. You can try searching for an area manually above.');
           setLoading(false);
         }
-      }, 15000); // 15s timeout
+      }, 10000);
 
       navigator.geolocation.getCurrentPosition(
         (p) => {
@@ -66,10 +77,9 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         (error) => {
           clearTimeout(timeoutId);
           console.error('Geo error:', error);
-          alert('Could not get your location. Please ensure GPS is enabled.');
-          setLoading(false);
+          setLoading(false); // Let them use manual search
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: false, timeout: 8000 } // Reduced accuracy for speed
       );
     }
   }, [mapLoaded, selectedCategory, radius]);
@@ -206,14 +216,15 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500">
              <Loader2 className="w-10 h-10 animate-spin text-brand-500 mb-4" />
-             <p className="text-[10px] font-black uppercase tracking-widest">Scouting Nearby Prospects...</p>
+             <p className="text-[10px] font-black uppercase tracking-widest text-center px-10">Scouting Nearby Prospects... <br/>(Ensure GPS is on)</p>
           </div>
         ) : places.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-20 px-6">
              <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Info className="w-10 h-10 text-slate-700" />
+                <MapPin className="w-10 h-10 text-slate-700" />
              </div>
-             <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">No results found in this radius.</p>
+             <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mb-2">No nearby prospects found.</p>
+             <p className="text-slate-600 text-[10px] font-medium leading-relaxed">Try increasing the radius or search for a specific area like "Bandra" using the bar above.</p>
           </div>
         ) : (
           places.map((place, i) => (
