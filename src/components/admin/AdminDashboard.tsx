@@ -67,7 +67,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
   const { userRole, userProfile } = useStore();
-  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'branches'|'leaves'|'audit'|'payroll'|'holidays'|'field'>('daily');
+  const [activeTab, setActiveTab] = useState<'map'|'staff'|'settings'|'approvals'|'calendar'|'daily'|'history'|'loans'|'export'|'branches'|'leaves'|'audit'|'payroll'|'holidays'|'field'|'reimbursements'>('daily');
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [activeFieldVisits, setActiveFieldVisits] = useState<any[]>([]);
