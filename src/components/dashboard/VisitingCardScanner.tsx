@@ -161,7 +161,7 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       // Heuristic for Name & Company
       // Usually, the first line is the name or company. 
       // We exclude lines that look like addresses or contain digits/emails.
-      const cleanedLines = lines.filter(l => 
+      const cleanedLines = lines.filter((l: string) => 
         !l.includes('@') && 
         !l.match(/\d{5,}/) && 
         !l.match(/www\.|http/i) &&
@@ -170,7 +170,7 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
 
       setOcrData({
         name: cleanedLines[0] || '',
-        company: cleanedLines.find(l => l.length > 5 && l !== cleanedLines[0]) || cleanedLines[1] || '',
+        company: cleanedLines.find((l: string) => l.length > 5 && l !== cleanedLines[0]) || cleanedLines[1] || '',
         designation: lines.find((l: string) => /manager|director|architect|founder|owner|partner|designer|head/i.test(l)) || '',
         email,
         phone,
