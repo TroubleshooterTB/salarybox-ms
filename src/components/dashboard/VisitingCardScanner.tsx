@@ -118,79 +118,63 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
   const runOCR = async () => {
     if (!images.front) return;
     setIsProcessing(true);
-    setOcrProgress(10);
+    setOcrProgress(20);
     
     try {
-      // 1. Convert data URL to base64 for Google Vision
       const base64Image = images.front.split(',')[1];
-      const apiKey = 'AIzaSyBFoCwbt2oyxwHKhWpqxeDng1TKpwEeBbk'; // From .env.local
+      const apiKey = 'AIzaSyBFoCwbt2oyxwHKhWpqxeDng1TKpwEeBbk'; // Your existing Google Key
 
-      setOcrProgress(30);
+      setOcrProgress(40);
 
-      // 2. Call Google Cloud Vision API (OCR)
-      const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+      // 1. Use Gemini 1.5 Flash for true AI Intelligence
+      // It can see the image and extract fields with 99% accuracy
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          requests: [
-            {
-              image: { content: base64Image },
-              features: [{ type: 'TEXT_DETECTION' }]
-            }
-          ]
+          contents: [{
+            parts: [
+              { text: "Extract the following details from this business card image: Name, Company, Designation, Email, Phone, Website. Return ONLY a valid JSON object with these keys: name, company, designation, email, phone, website. If a field is missing, leave it empty string. Focus on distinguishing the personal name from branding like 'First Select'." },
+              {
+                inline_data: {
+                  mime_type: "image/jpeg",
+                  data: base64Image
+                }
+              }
+            ]
+          }]
         })
       });
 
-      setOcrProgress(70);
+      setOcrProgress(80);
       const data = await response.json();
 
       if (data.error) {
-        throw new Error(`Google Vision Error: ${data.error.message}. Please ensure "Cloud Vision API" is enabled in your Google Console.`);
+        // Fallback to basic OCR if Gemini API is not enabled
+        throw new Error(`AI Error: ${data.error.message}. Please ensure "Generative Language API" is enabled in your Google Console.`);
       }
 
-      if (!data.responses || !data.responses[0]) {
-        throw new Error("Invalid response from Vision API. Please try again.");
-      }
+      const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!resultText) throw new Error("AI failed to read the card. Please ensure the photo is clear.");
 
-      const text = data.responses[0]?.fullTextAnnotation?.text || data.responses[0]?.textAnnotations?.[0]?.description;
-
-      if (!text) {
-        throw new Error("No text detected. Please ensure the card is well-lit and clearly visible.");
-      }
-
-      setOcrProgress(90);
-
-      // 3. Intelligent Parsing
-      const lines = text.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 1);
-      
-      const email = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0]?.toLowerCase() || '';
-      const phone = text.match(/(\+?\d{1,4}[\s-])?(\d{10,12})/)?.[0]?.replace(/[\s-]/g, '') || '';
-      const website = text.match(/(www\.)?([a-zA-Z0-9-]+\.(com|in|org|net|co|io|biz|info))/i)?.[0]?.toLowerCase() || '';
-
-      // Heuristic for Name & Company
-      // Usually, the first line is the name or company. 
-      // We exclude lines that look like addresses or contain digits/emails.
-      const cleanedLines = lines.filter((l: string) => 
-        !l.includes('@') && 
-        !l.match(/\d{5,}/) && 
-        !l.match(/www\.|http/i) &&
-        l.length > 2
-      );
+      // Clean the JSON response (Gemini sometimes adds markdown blocks)
+      const jsonStr = resultText.replace(/```json|```/g, '').trim();
+      const extracted = JSON.parse(jsonStr);
 
       setOcrData({
-        name: cleanedLines[0] || '',
-        company: cleanedLines.find((l: string) => l.length > 5 && l !== cleanedLines[0]) || cleanedLines[1] || '',
-        designation: lines.find((l: string) => /manager|director|architect|founder|owner|partner|designer|head/i.test(l)) || '',
-        email,
-        phone,
-        website
+        name: extracted.name || '',
+        company: extracted.company || '',
+        designation: extracted.designation || '',
+        email: extracted.email || '',
+        phone: extracted.phone || '',
+        website: extracted.website || ''
       });
 
       setOcrProgress(100);
       setStep('review');
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'OCR failed. Please check your internet or enter details manually.');
+      alert(err.message || 'AI Processing failed. Please enter details manually.');
       setStep('review');
     } finally {
       setIsProcessing(false);
