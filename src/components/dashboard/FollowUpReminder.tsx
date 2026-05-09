@@ -2,23 +2,28 @@ import { useState, useEffect } from 'react';
 import { Bell, Calendar, ChevronRight, X, Clock, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function FollowUpReminder() {
+export default function FollowUpReminder({ 
+  isOpen: externalOpen, 
+  onClose: onExternalClose 
+}: { 
+  isOpen?: boolean; 
+  onClose?: () => void 
+}) {
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    // Check if we already showed the reminder today
-    const lastShown = localStorage.getItem('last_followup_reminder');
-    const today = new Date().toDateString();
-    
-    if (lastShown === today) {
-      setLoading(false);
-      return;
-    }
-
     fetchActivities();
-  }, []);
+    
+    if (!externalOpen) {
+      const lastShown = localStorage.getItem('last_followup_reminder');
+      const today = new Date().toDateString();
+      if (lastShown !== today) {
+        setShow(true);
+      }
+    }
+  }, [externalOpen]);
 
   const fetchActivities = async () => {
     try {
@@ -28,9 +33,8 @@ export default function FollowUpReminder() {
         }
       });
       const data = await response.json();
-      if (data.success && data.activities.length > 0) {
+      if (data.success) {
         setActivities(data.activities);
-        setShow(true);
       }
     } catch (err) {
       console.error('Failed to fetch follow-ups:', err);
@@ -41,10 +45,13 @@ export default function FollowUpReminder() {
 
   const closeReminder = () => {
     setShow(false);
+    if (onExternalClose) onExternalClose();
     localStorage.setItem('last_followup_reminder', new Date().toDateString());
   };
 
-  if (!show || activities.length === 0) return null;
+  const isVisible = externalOpen || (show && activities.length > 0);
+
+  if (!isVisible || activities.length === 0) return null;
 
   return (
     <AnimatePresence>

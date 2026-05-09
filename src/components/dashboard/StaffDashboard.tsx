@@ -34,6 +34,7 @@ const baseMenuItems = [
   { id: 'holidays', label: 'Holiday List', icon: Globe, color: 'bg-teal-500' },
   { id: 'documents', label: 'Documents', icon: FolderOpen, color: 'bg-cyan-500' },
   { id: 'loans', label: 'Loans', icon: IndianRupee, color: 'bg-rose-500' },
+  { id: 'followups', label: 'Follow-ups', icon: Bell, color: 'bg-pink-500' },
   { id: 'settings', label: 'Settings', icon: Settings, color: 'bg-slate-600' },
 ];
 
@@ -44,6 +45,7 @@ export default function StaffDashboard() {
   const [todayPunches, setTodayPunches] = useState<any[]>([]);
   const [correctionDate, setCorrectionDate] = useState<string | undefined>(undefined);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showFollowups, setShowFollowups] = useState(false);
 
   const menuItems = [...baseMenuItems];
   if (userProfile?.field_visit_enabled) {
@@ -209,7 +211,7 @@ export default function StaffDashboard() {
   // A sleek glassmorphism mobile app shell
   return (
     <div className="min-h-screen bg-slate-950 text-white relative flex flex-col items-center overflow-hidden">
-      <FollowUpReminder />
+      <FollowUpReminder isOpen={showFollowups} onClose={() => setShowFollowups(false)} />
       {/* Background Aesthetic */}
       <div className="absolute top-0 left-0 w-full h-[35vh] bg-gradient-to-b from-brand-900/30 to-transparent z-0 pointer-events-none" />
 
@@ -335,6 +337,8 @@ export default function StaffDashboard() {
                   onClick={() => {
                     if (item.id === 'crm') {
                       window.open('https://minimalstroke.odoo.com/odoo/crm', '_blank');
+                    } else if (item.id === 'followups') {
+                      setShowFollowups(true);
                     } else {
                       setActiveTab(item.id);
                     }
