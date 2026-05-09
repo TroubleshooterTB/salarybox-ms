@@ -23,6 +23,8 @@ import SettingsView from './Settings';
 import Reimbursements from './Reimbursements';
 import NotificationBell from '../common/NotificationBell';
 import FollowUpReminder from './FollowUpReminder';
+import VisitingCardScanner from './VisitingCardScanner';
+import { ScanLine } from 'lucide-react';
 
 const baseMenuItems = [
   { id: 'profile', label: 'Profile', icon: User, color: 'bg-blue-500' },
@@ -36,6 +38,7 @@ const baseMenuItems = [
   { id: 'loans', label: 'Loans', icon: IndianRupee, color: 'bg-rose-500' },
   { id: 'followups', label: 'Follow-ups', icon: Bell, color: 'bg-pink-500' },
   { id: 'settings', label: 'Settings', icon: Settings, color: 'bg-slate-600' },
+  { id: 'card_scan', label: 'Scan Card', icon: ScanLine, color: 'bg-indigo-600' },
 ];
 
 export default function StaffDashboard() {
@@ -179,6 +182,9 @@ export default function StaffDashboard() {
   }
   if (activeTab === 'settings') {
     return <SettingsView onBack={() => setActiveTab(null)} />;
+  }
+  if (activeTab === 'card_scan') {
+    return <VisitingCardScanner onBack={() => setActiveTab(null)} />;
   }
   if (activeTab === 'history') {
     return <AttendanceCalendar 

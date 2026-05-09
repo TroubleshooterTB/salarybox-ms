@@ -1,0 +1,332 @@
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Camera, Loader2, CheckCircle2, Navigation, Smartphone, Mail, User, Briefcase, Globe, X, ScanLine, Image as ImageIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+
+interface VisitingCardScannerProps {
+  onBack: () => void;
+  onScan?: (data: any, images: any) => void;
+  prefillStage?: string; // e.g. 'Visiting Card Entry' or 'Field Visit Done'
+}
+
+export default function VisitingCardScanner({ onBack, prefillStage = 'Visiting Card Entry' }: VisitingCardScannerProps) {
+  const { session } = useAuth();
+  const [step, setStep] = useState<'capture' | 'review'>('capture');
+  const [images, setImages] = useState<{front?: string, back?: string}>({});
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ocrData, setOcrData] = useState({
+    name: '',
+    company: '',
+    email: '',
+    phone: '',
+    website: '',
+    designation: ''
+  });
+
+  const [activeCapture, setActiveCapture] = useState<'front' | 'back' | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [showCamera, setShowCamera] = useState(false);
+
+  const startCamera = async (side: 'front' | 'back') => {
+    setActiveCapture(side);
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      alert('Camera access denied');
+      setShowCamera(false);
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !activeCapture) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx?.drawImage(videoRef.current, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    
+    setImages(prev => ({ ...prev, [activeCapture]: dataUrl }));
+    stopCamera();
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+    }
+    setShowCamera(false);
+    setActiveCapture(null);
+  };
+
+  const runOCR = async () => {
+    if (!images.front) return;
+    setIsProcessing(true);
+    
+    try {
+      // Load Tesseract from CDN
+      if (!(window as any).Tesseract) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+        document.head.appendChild(script);
+        await new Promise(resolve => script.onload = resolve);
+      }
+
+      const { createWorker } = (window as any).Tesseract;
+      const worker = await createWorker('eng');
+      const { data: { text } } = await worker.recognize(images.front);
+      await worker.terminate();
+
+      // Simple parsing logic (can be improved with LLM)
+      const lines = text.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 2);
+      
+      const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const phoneMatch = text.match(/(\+?\d{1,4}[\s-])?(\d{10})/);
+      const websiteMatch = text.match(/(www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
+
+      setOcrData({
+        name: lines[0] || '',
+        company: lines[1] || '',
+        designation: lines.find((l: string) => /manager|director|architect|founder|owner/i.test(l)) || '',
+        email: emailMatch ? emailMatch[0] : '',
+        phone: phoneMatch ? phoneMatch[0] : '',
+        website: websiteMatch ? websiteMatch[0] : ''
+      });
+
+      setStep('review');
+    } catch (err) {
+      console.error(err);
+      alert('OCR Failed. Please enter details manually.');
+      setStep('review');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      // 1. Upload Images to Supabase
+      const uploadImage = async (dataUrl: string, suffix: string) => {
+        const blob = await (await fetch(dataUrl)).blob();
+        const path = `cards/${session?.user?.id}/${Date.now()}_${suffix}.jpg`;
+        const { error } = await supabase.storage.from('selfies').upload(path, blob);
+        if (error) throw error;
+        return supabase.storage.from('selfies').getPublicUrl(path).data.publicUrl;
+      };
+
+      const frontUrl = images.front ? await uploadImage(images.front, 'front') : null;
+      const backUrl = images.back ? await uploadImage(images.back, 'back') : null;
+
+      // 2. Sync to Odoo
+      const response = await fetch('/api/odoo/crm', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token') ? JSON.parse(localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token')!).access_token : ''}`
+        },
+        body: JSON.stringify({
+          name: ocrData.company || ocrData.name || 'New Card Lead',
+          contact_name: ocrData.name,
+          email: ocrData.email,
+          phone: ocrData.phone,
+          street: ocrData.website,
+          category: 'Visiting Card',
+          notes: `Visiting Card Scan.\nDesignation: ${ocrData.designation}\nFront: ${frontUrl}\nBack: ${backUrl}`,
+          stage: prefillStage // Custom stage
+        })
+      });
+
+      const resData = await response.json();
+      if (!resData.success) throw new Error(resData.error);
+
+      if (onScan) {
+        onScan(ocrData, { front: frontUrl, back: backUrl });
+      }
+
+      alert('Lead created successfully in Odoo!');
+      onBack();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="p-4 pt-6 shrink-0 z-20 bg-slate-950/80 backdrop-blur-md border-b border-slate-900 flex items-center justify-between">
+        <div className="flex items-center">
+          <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-white transition">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div>
+            <h2 className="text-lg font-black ml-2 leading-none">Card Scanner</h2>
+            <p className="text-[9px] font-bold text-brand-400 ml-2 mt-1 uppercase tracking-widest">OCR Powered Data Entry</p>
+          </div>
+        </div>
+        <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center text-brand-500">
+          <ScanLine className="w-5 h-5" />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-20 custom-scrollbar">
+        {step === 'capture' ? (
+          <div className="space-y-8">
+            <div className="space-y-4">
+               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Scan Visiting Card</h3>
+               
+               <div className="grid grid-cols-1 gap-4">
+                  {/* Front side */}
+                  <div className="relative group">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Front Side (Required)</p>
+                    <div 
+                      onClick={() => !images.front && startCamera('front')}
+                      className={`h-48 rounded-[2rem] border-2 border-dashed flex flex-col items-center justify-center transition overflow-hidden relative ${
+                        images.front ? 'border-brand-500 bg-brand-500/5' : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+                      }`}
+                    >
+                      {images.front ? (
+                        <>
+                          <img src={images.front} className="w-full h-full object-cover" />
+                          <button onClick={(e) => { e.stopPropagation(); setImages(p => ({ ...p, front: undefined })); }} className="absolute top-3 right-3 p-2 bg-slate-950/80 rounded-full text-white backdrop-blur-md">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-8 h-8 text-slate-700 mb-2" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Click to capture front</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Back side */}
+                  <div className="relative group">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Back Side (Optional)</p>
+                    <div 
+                      onClick={() => !images.back && startCamera('back')}
+                      className={`h-48 rounded-[2rem] border-2 border-dashed flex flex-col items-center justify-center transition overflow-hidden relative ${
+                        images.back ? 'border-brand-500 bg-brand-500/5' : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+                      }`}
+                    >
+                      {images.back ? (
+                        <>
+                          <img src={images.back} className="w-full h-full object-cover" />
+                          <button onClick={(e) => { e.stopPropagation(); setImages(p => ({ ...p, back: undefined })); }} className="absolute top-3 right-3 p-2 bg-slate-950/80 rounded-full text-white backdrop-blur-md">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-8 h-8 text-slate-700 mb-2" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Capture back side</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+               </div>
+            </div>
+
+            <button 
+              disabled={!images.front || isProcessing}
+              onClick={runOCR}
+              className={`w-full py-6 rounded-3xl font-black text-xs uppercase tracking-widest transition shadow-xl flex items-center justify-center space-x-3 ${
+                !images.front || isProcessing ? 'bg-slate-800 text-slate-600' : 'bg-brand-500 text-white shadow-brand-500/20 active:scale-95 hover:bg-brand-400'
+              }`}
+            >
+              {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-5 h-5" />}
+              <span>{isProcessing ? 'Reading Data...' : 'Scan & Extract Info'}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+             <div className="bg-brand-500/10 border border-brand-500/20 p-5 rounded-3xl space-y-1">
+                <h3 className="text-sm font-black text-white">Review extracted data</h3>
+                <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest">Verify and edit if needed</p>
+             </div>
+
+             <div className="space-y-4">
+                {[
+                  { key: 'name', label: 'Contact Name', icon: User },
+                  { key: 'company', label: 'Company Name', icon: Briefcase },
+                  { key: 'designation', label: 'Designation', icon: Briefcase },
+                  { key: 'email', label: 'Email Address', icon: Mail },
+                  { key: 'phone', label: 'Phone Number', icon: Smartphone },
+                  { key: 'website', label: 'Website / Link', icon: Globe },
+                ].map(field => (
+                  <div key={field.key} className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{field.label}</label>
+                    <div className="relative">
+                       <field.icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
+                       <input 
+                        type="text" 
+                        value={(ocrData as any)[field.key]}
+                        onChange={e => setOcrData({ ...ocrData, [field.key]: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white outline-none focus:border-brand-500 transition"
+                       />
+                    </div>
+                  </div>
+                ))}
+             </div>
+
+             <div className="flex space-x-3 pt-6">
+                <button onClick={() => setStep('capture')} className="flex-1 py-5 bg-slate-900 text-slate-400 rounded-3xl font-black text-[10px] uppercase tracking-widest border border-slate-800">
+                  Rescan
+                </button>
+                <button 
+                  disabled={isSubmitting}
+                  onClick={handleSubmit}
+                  className="flex-[2] py-5 bg-brand-500 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-brand-500/20 active:scale-95 transition flex items-center justify-center space-x-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4" /> <span>Sync to Odoo CRM</span></>}
+                </button>
+             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Camera Overlay */}
+      <AnimatePresence>
+        {showCamera && (
+          <div className="fixed inset-0 z-[200] bg-black flex flex-col">
+             <div className="relative flex-1">
+                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                
+                {/* Viewfinder overlay */}
+                <div className="absolute inset-0 border-[40px] border-black/40 flex items-center justify-center pointer-events-none">
+                   <div className="w-full max-w-[80%] aspect-[1.6/1] border-2 border-brand-500/50 rounded-2xl relative">
+                      <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-brand-500 rounded-tl-xl" />
+                      <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-brand-500 rounded-tr-xl" />
+                      <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-brand-500 rounded-bl-xl" />
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-brand-500 rounded-br-xl" />
+                   </div>
+                </div>
+             </div>
+
+             <div className="h-40 bg-slate-950 flex items-center justify-around px-10">
+                <button onClick={stopCamera} className="p-4 text-slate-400"><X className="w-8 h-8" /></button>
+                <button onClick={capturePhoto} className="w-20 h-20 bg-white rounded-full border-8 border-slate-800 active:scale-90 transition" />
+                <div className="w-16" /> {/* Spacer */}
+             </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+      `}</style>
+    </div>
+  );
+}

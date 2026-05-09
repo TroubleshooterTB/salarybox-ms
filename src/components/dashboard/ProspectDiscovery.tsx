@@ -134,7 +134,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     if (!window.google) {
       setDebugStatus(prev => ({ ...prev, script: 'Loading...' }));
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBWisX1RzTF_dd1ePP8LsV2asg2MpexCqg&libraries=places&v=weekly`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBWisX1RzTF_dd1ePP8LsV2asg2MpexCqg&libraries=places&v=beta`;
       script.async = true;
       script.defer = true;
       script.onload = () => {
