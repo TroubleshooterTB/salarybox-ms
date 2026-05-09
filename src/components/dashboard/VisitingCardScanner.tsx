@@ -128,8 +128,8 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       setOcrProgress(40);
 
       // 1. Use Gemini 1.5 Flash for true AI Intelligence
-      // It can see the image and extract fields with 99% accuracy
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      // Switching to stable v1 endpoint
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
