@@ -38,7 +38,8 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     contact_name: '',
     email: '',
     phone: '',
-    expected_revenue: ''
+    expected_revenue: '',
+    notes: ''
   });
 
   const syncToOdoo = async (place: any) => {
@@ -64,7 +65,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
       if (data.success) {
         alert(`Opportunity created in Odoo CRM (Field Visit Done stage)!`);
         setShowSyncForm(null);
-        setFormData({ contact_name: '', email: '', phone: '', expected_revenue: '' });
+        setFormData({ contact_name: '', email: '', phone: '', expected_revenue: '', notes: '' });
       } else {
         throw new Error(data.error || 'Failed to sync with Odoo');
       }
@@ -137,7 +138,13 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         { enableHighAccuracy: false, timeout: 5000 }
       );
     }
-  }, [mapLoaded, selectedCategory, radius]);
+  }, [mapLoaded]);
+
+  useEffect(() => {
+    if (currentPos) {
+      searchPlaces(currentPos);
+    }
+  }, [selectedCategory, radius, currentPos]);
 
   const searchPlaces = async (pos: {lat: number, lng: number}) => {
     if (!window.google || !pos) return;
@@ -422,6 +429,16 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                         onChange={e => setFormData({ ...formData, expected_revenue: e.target.value })}
                         placeholder="Amount in INR"
                         className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-brand-500 transition"
+                      />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Visit Notes (Internal)</label>
+                      <textarea 
+                        rows={3}
+                        value={formData.notes}
+                        onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                        placeholder="Key takeaways from this visit..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-medium text-white outline-none focus:border-brand-500 transition resize-none"
                       />
                    </div>
                 </div>

@@ -27,7 +27,8 @@ export async function POST(req: Request) {
       contact_name,
       email,
       phone,
-      expected_revenue
+      expected_revenue,
+      notes
     } = await req.json();
 
     // Get auth token from header
@@ -89,13 +90,13 @@ export async function POST(req: Request) {
       path: '/xmlrpc/2/object'
     });
 
-    // 3. Find "Field Visit Done" Stage ID
+    // 3. Find "Field Visit Plan" Stage ID
     let stageId: number | null = null;
     try {
       const stages: any = await callOdoo(modelsClient, 'execute_kw', [
         db, uid, api_key,
         'crm.stage', 'search_read',
-        [[['name', 'ilike', 'Field Visit Done']]],
+        [[['name', 'ilike', '%Field Visit Plan%']]],
         { fields: ['id'], limit: 1 }
       ]);
       if (stages && stages.length > 0) {
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
       email_from: email,
       phone: phone,
       expected_revenue: expected_revenue ? parseFloat(expected_revenue) : 0,
-      description: `Rating: ${rating}\nCategory: ${category}\nGoogle Place ID: ${place_id}\nSynced from SalaryBOX MS`,
+      description: notes || `Rating: ${rating}\nCategory: ${category}\nGoogle Place ID: ${place_id}\nSynced from SalaryBOX MS`,
       type: 'opportunity',
       user_id: uid 
     };

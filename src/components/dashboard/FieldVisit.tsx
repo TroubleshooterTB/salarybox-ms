@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle, Search } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle, Search, CheckCircle, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectDiscovery from './ProspectDiscovery';
 import OdooProjectList from './OdooProjectList';
@@ -24,6 +24,14 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showOdooProjects, setShowOdooProjects] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<any>(null);
+  const [syncToOdoo, setSyncToOdoo] = useState(false);
+  const [odooFormData, setOdooFormData] = useState({
+    contact_name: '',
+    email: '',
+    phone: '',
+    expected_revenue: '',
+    notes: ''
+  });
 
   useEffect(() => {
     fetchActiveVisit();
@@ -195,7 +203,34 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
       const { data: { publicUrl } } = supabase.storage.from('selfies').getPublicUrl(fileName);
 
       await logAction(activeVisit.id, 'Checkpoint', pos.lat, pos.lng, publicUrl);
+      
+      // Optional: Sync to Odoo CRM if toggled
+      if (syncToOdoo) {
+        try {
+          const syncRes = await fetch('/api/odoo/crm', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token') ? JSON.parse(localStorage.getItem('sb-gxekdcwwzebvtxdlddkb-auth-token')!).access_token : ''}`
+            },
+            body: JSON.stringify({
+              name: selectedProspect?.name || 'Manual Visit Checkpoint',
+              street: selectedProspect?.vicinity || '',
+              rating: selectedProspect?.rating || 0,
+              place_id: selectedProspect?.place_id || 'manual',
+              category: 'Field Visit',
+              ...odooFormData,
+              notes: note || odooFormData.notes
+            })
+          });
+          const syncData = await syncRes.json();
+          if (!syncData.success) console.error('Odoo sync failed:', syncData.error);
+        } catch (e) { console.error('Odoo sync error:', e); }
+      }
+
       alert('Visit Recorded!');
+      setSyncToOdoo(false);
+      setOdooFormData({ contact_name: '', email: '', phone: '', expected_revenue: '', notes: '' });
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -413,11 +448,95 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
 
                 <textarea 
                   value={note}
-                  onChange={e => setNote(e.target.value)}
+                  onChange={e => {
+                    setNote(e.target.value);
+                    if (syncToOdoo) setOdooFormData({ ...odooFormData, notes: e.target.value });
+                  }}
                   placeholder="Add visit details/client name..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-white outline-none focus:border-brand-500 transition resize-none placeholder-slate-600"
                   rows={2}
                 />
+
+                {/* Odoo Sync Toggle */}
+                <div className="pt-2 border-t border-slate-800/50">
+                   <button 
+                    onClick={() => {
+                      setSyncToOdoo(!syncToOdoo);
+                      if (!syncToOdoo && selectedProspect) {
+                        setOdooFormData({
+                          ...odooFormData,
+                          contact_name: selectedProspect.name,
+                          notes: note
+                        });
+                      }
+                    }}
+                    className={`w-full p-4 rounded-2xl flex items-center justify-between border transition-all ${
+                      syncToOdoo ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-950 border-slate-800'
+                    }`}
+                   >
+                      <div className="flex items-center space-x-3">
+                         <div className={`p-2 rounded-lg ${syncToOdoo ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                            <Globe className="w-4 h-4" />
+                         </div>
+                         <div className="text-left">
+                            <p className={`text-[10px] font-black uppercase tracking-widest ${syncToOdoo ? 'text-emerald-400' : 'text-slate-500'}`}>Sync to Odoo CRM</p>
+                            <p className="text-[9px] font-bold text-slate-600">Convert this visit into an Opportunity</p>
+                         </div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${syncToOdoo ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-700'}`}>
+                         {syncToOdoo && <CheckCircle className="w-3 h-3" />}
+                      </div>
+                   </button>
+                </div>
+
+                {syncToOdoo && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-3 pt-2 overflow-hidden"
+                  >
+                     <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                           <label className="text-[8px] font-black uppercase text-slate-500 tracking-widest ml-1">Contact</label>
+                           <input 
+                            type="text"
+                            value={odooFormData.contact_name}
+                            onChange={e => setOdooFormData({ ...odooFormData, contact_name: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-brand-500"
+                           />
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[8px] font-black uppercase text-slate-500 tracking-widest ml-1">Exp. Revenue</label>
+                           <input 
+                            type="number"
+                            value={odooFormData.expected_revenue}
+                            onChange={e => setOdooFormData({ ...odooFormData, expected_revenue: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-brand-500"
+                           />
+                        </div>
+                     </div>
+                     <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                           <label className="text-[8px] font-black uppercase text-slate-500 tracking-widest ml-1">Phone</label>
+                           <input 
+                            type="tel"
+                            value={odooFormData.phone}
+                            onChange={e => setOdooFormData({ ...odooFormData, phone: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-brand-500"
+                           />
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[8px] font-black uppercase text-slate-500 tracking-widest ml-1">Email</label>
+                           <input 
+                            type="email"
+                            value={odooFormData.email}
+                            onChange={e => setOdooFormData({ ...odooFormData, email: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-brand-500"
+                           />
+                        </div>
+                     </div>
+                  </motion.div>
+                )}
 
                 <button 
                   disabled={isSubmitting || !selfie}

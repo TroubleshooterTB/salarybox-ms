@@ -71,7 +71,7 @@ export async function GET(req: Request) {
       const stages: any = await callOdoo(modelsClient, 'execute_kw', [
         db, uid, api_key,
         'crm.stage', 'search_read',
-        [[['name', 'ilike', 'Field Visit Plan']]],
+        [[['name', 'ilike', '%Field Visit Plan%']]],
         { fields: ['id'], limit: 1 }
       ]);
       if (stages && stages.length > 0) {

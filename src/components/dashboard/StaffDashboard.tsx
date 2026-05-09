@@ -22,6 +22,7 @@ import Notes from './Notes';
 import SettingsView from './Settings';
 import Reimbursements from './Reimbursements';
 import NotificationBell from '../common/NotificationBell';
+import FollowUpReminder from './FollowUpReminder';
 
 const baseMenuItems = [
   { id: 'profile', label: 'Profile', icon: User, color: 'bg-blue-500' },
@@ -208,6 +209,7 @@ export default function StaffDashboard() {
   // A sleek glassmorphism mobile app shell
   return (
     <div className="min-h-screen bg-slate-950 text-white relative flex flex-col items-center overflow-hidden">
+      <FollowUpReminder />
       {/* Background Aesthetic */}
       <div className="absolute top-0 left-0 w-full h-[35vh] bg-gradient-to-b from-brand-900/30 to-transparent z-0 pointer-events-none" />
 
