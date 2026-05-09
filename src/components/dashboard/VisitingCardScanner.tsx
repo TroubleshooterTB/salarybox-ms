@@ -3,6 +3,7 @@ import { ArrowLeft, Camera, Loader2, CheckCircle2, Navigation, Smartphone, Mail,
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface VisitingCardScannerProps {
   onBack: () => void;
@@ -125,40 +126,35 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       // Next.js uses process.env instead of import.meta.env
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY; 
 
-      setOcrProgress(40);
-
-      // 1. Use Gemini 1.5 Flash
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: "Extract the following details from this business card image: Name, Company, Designation, Email, Phone, Website. Return ONLY a valid JSON object with these keys: name, company, designation, email, phone, website. If a field is missing, leave it empty string. Focus on distinguishing the personal name from branding like 'First Select'." },
-              {
-                inline_data: {
-                  mime_type: "image/jpeg",
-                  data: base64Image
-                }
-              }
-            ]
-          }]
-        })
-      });
-
       if (!apiKey) {
         throw new Error("API key is missing. Please ensure NEXT_PUBLIC_GEMINI_API_KEY is set in your Vercel Environment Variables and you have redeployed.");
       }
 
+      setOcrProgress(40);
+
+      // Initialize the official Google Gen AI SDK
+      const genAI = new GoogleGenerativeAI(apiKey);
+      // The SDK automatically resolves the best endpoint and stable version for this alias
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = "Extract the following details from this business card image: Name, Company, Designation, Email, Phone, Website. Return ONLY a valid JSON object with these keys: name, company, designation, email, phone, website. If a field is missing, leave it empty string. Focus on distinguishing the personal name from branding like 'First Select'.";
+
+      const imageParts = [
+        {
+          inlineData: {
+            data: base64Image,
+            mimeType: "image/jpeg"
+          }
+        }
+      ];
+
+      setOcrProgress(60);
+      const result = await model.generateContent([prompt, ...imageParts]);
       setOcrProgress(80);
-      const data = await response.json();
+      
+      const response = await result.response;
+      const resultText = response.text();
 
-      if (data.error) {
-        // Fallback to basic OCR if Gemini API is not enabled
-        throw new Error(`AI Error: ${data.error.message}. Please ensure "Generative Language API" is enabled in your Google Console.`);
-      }
-
-      const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!resultText) throw new Error("AI failed to read the card. Please ensure the photo is clear.");
 
       // Clean the JSON response (Gemini sometimes adds markdown blocks)
