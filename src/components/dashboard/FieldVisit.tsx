@@ -24,7 +24,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showOdooProjects, setShowOdooProjects] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<any>(null);
-  const [syncToOdoo, setSyncToOdoo] = useState(false);
+  const [syncToOdoo, setSyncToOdoo] = useState(true);
   const [odooFormData, setOdooFormData] = useState({
     contact_name: '',
     email: '',
@@ -307,6 +307,13 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
         onSelect={(place) => {
           setNote(`Visiting: ${place.name}\nAddress: ${place.vicinity}`);
           setSelectedProspect(place);
+          setOdooFormData(prev => ({ 
+            ...prev, 
+            contact_name: place.name,
+            phone: place.phone || '',
+            email: place.email || '',
+            notes: `Visiting: ${place.name}\nAddress: ${place.vicinity}`
+          }));
           setShowDiscovery(false);
         }}
       />
@@ -319,6 +326,14 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
         onBack={() => setShowOdooProjects(false)} 
         onSelect={(project) => {
           setNote(`Visiting Project: ${project.display_name}\n(Odoo Sync Enabled)`);
+          setSelectedProspect(project); // Treat project as a prospect for sync purposes
+          setOdooFormData(prev => ({ 
+            ...prev, 
+            contact_name: project.contact_name || project.display_name,
+            phone: project.phone || '',
+            email: project.email_from || '',
+            notes: `Visiting Project: ${project.display_name}`
+          }));
           setShowOdooProjects(false);
         }}
       />
