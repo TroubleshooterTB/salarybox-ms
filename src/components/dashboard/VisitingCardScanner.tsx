@@ -123,7 +123,7 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
     try {
       const base64Image = images.front.split(',')[1];
       // Next.js uses process.env instead of import.meta.env
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || (process.env as any).VITE_GEMINI_API_KEY || 'AIzaSyA7Ol5Md6ys-iCMYZAaUD-ZBXran2SDDyM'; 
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY; 
 
       setOcrProgress(40);
 
