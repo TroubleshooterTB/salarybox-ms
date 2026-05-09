@@ -122,7 +122,7 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
     
     try {
       const base64Image = images.front.split(',')[1];
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+      const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY; 
 
       setOcrProgress(40);
 
