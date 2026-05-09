@@ -90,8 +90,27 @@ export default function OdooProjectList({ onBack, onSelect }: OdooProjectListPro
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1 min-w-0 pr-4">
-                   <p className="text-[9px] font-black uppercase tracking-widest text-brand-400 mb-1">Odoo Project #{project.id}</p>
-                   <h3 className="font-bold text-white text-lg leading-tight">{project.display_name}</h3>
+                   <p className="text-[9px] font-black uppercase tracking-widest text-brand-400 mb-1">CRM Opportunity #{project.id}</p>
+                   <h3 className="font-bold text-white text-lg leading-tight mb-2">{project.display_name}</h3>
+                   <div className="space-y-1">
+                      {project.contact_name && (
+                         <p className="text-[10px] font-bold text-slate-400 flex items-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mr-2" />
+                            Contact: {project.contact_name}
+                         </p>
+                      )}
+                      {project.street && (
+                         <p className="text-[10px] font-bold text-slate-500 flex items-center">
+                            <MapPin className="w-3 h-3 mr-1.5" />
+                            {project.street}
+                         </p>
+                      )}
+                      {(project.phone || project.email_from) && (
+                         <p className="text-[10px] font-medium text-slate-600 truncate">
+                            {project.phone} {project.phone && project.email_from ? '|' : ''} {project.email_from}
+                         </p>
+                      )}
+                   </div>
                 </div>
                 <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400">
                    <MapPin className="w-6 h-6" />

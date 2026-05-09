@@ -111,7 +111,7 @@ export async function POST(req: Request) {
       street: street,
       email_from: email,
       phone: phone,
-      planned_revenue: expected_revenue ? parseFloat(expected_revenue) : 0,
+      expected_revenue: expected_revenue ? parseFloat(expected_revenue) : 0,
       description: `Rating: ${rating}\nCategory: ${category}\nGoogle Place ID: ${place_id}\nSynced from SalaryBOX MS`,
       type: 'opportunity',
       user_id: uid 

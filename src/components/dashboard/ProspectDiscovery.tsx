@@ -150,7 +150,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
       
       const request = {
         textQuery: `${selectedCategory.label} in this area`,
-        fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types"],
+        fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types", "internationalPhoneNumber", "websiteUri"],
         locationBias: {
           center: { lat: pos.lat, lng: pos.lng },
           radius: radius,
@@ -172,7 +172,9 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
             lng: p.location.lng()
           }
         },
-        types: p.types
+        types: p.types,
+        phone: p.internationalPhoneNumber,
+        website: p.websiteUri
       }));
 
       setPlaces(formattedResults);
@@ -338,7 +340,12 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                    disabled={syncingId === place.place_id}
                    onClick={() => {
                      setShowSyncForm(place);
-                     setFormData(prev => ({ ...prev, contact_name: place.name }));
+                     setFormData(prev => ({ 
+                       ...prev, 
+                       contact_name: place.name,
+                       phone: place.phone || '',
+                       email: place.website || '' // Pre-fill website in email field as a fallback
+                     }));
                    }}
                    className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition flex items-center justify-center space-x-2 ${
                      syncingId === place.place_id ? 'bg-slate-800 text-slate-500' : 'bg-slate-800 text-brand-400 border border-brand-500/20 hover:bg-slate-700'

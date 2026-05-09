@@ -65,12 +65,33 @@ export async function GET(req: Request) {
       path: '/xmlrpc/2/object'
     });
     
-    // Fetch Projects specifically assigned to THIS user in Odoo
+    // 1. Find "Field Visit Plan" Stage ID
+    let planStageId: number | null = null;
+    try {
+      const stages: any = await callOdoo(modelsClient, 'execute_kw', [
+        db, uid, api_key,
+        'crm.stage', 'search_read',
+        [[['name', 'ilike', 'Field Visit Plan']]],
+        { fields: ['id'], limit: 1 }
+      ]);
+      if (stages && stages.length > 0) {
+        planStageId = stages[0].id;
+      }
+    } catch (e) {
+      console.error('Error finding plan stage ID:', e);
+    }
+
+    // 2. Fetch Opportunities in "Field Visit Plan" stage assigned to THIS user
+    const domain: any[] = [['user_id', '=', uid]];
+    if (planStageId) {
+      domain.push(['stage_id', '=', planStageId]);
+    }
+
     const projects = await callOdoo(modelsClient, 'execute_kw', [
       db, uid, api_key,
-      'project.project', 'search_read',
-      [[['user_id', '=', uid]]], 
-      { fields: ['id', 'name', 'display_name'] }
+      'crm.lead', 'search_read',
+      [domain], 
+      { fields: ['id', 'name', 'display_name', 'contact_name', 'street', 'email_from', 'phone'] }
     ]);
 
     return NextResponse.json({ success: true, projects });
