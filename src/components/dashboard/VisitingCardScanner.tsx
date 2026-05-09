@@ -127,8 +127,8 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
 
       setOcrProgress(40);
 
-      // 1. Use Gemini 1.5 Flash (or Pro Vision as fallback)
-      let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      // 1. Use Gemini 1.5 Flash
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
