@@ -56,6 +56,11 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     if (data) {
       setActiveVisit(data);
       fetchLogs(data.id);
+      // Initialize location tracking for existing visit
+      getCurrentPosition().then(pos => {
+        setCurrentLocation(pos);
+        setLastCheckTime(Date.now());
+      }).catch(console.error);
     }
     setLoading(false);
   };
@@ -86,6 +91,8 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
 
       await logAction(data.id, 'Start', pos.lat, pos.lng);
       setActiveVisit(data);
+      setCurrentLocation(pos);
+      setLastCheckTime(Date.now());
       alert('Field Visit Started!');
     } catch (err: any) {
       alert(err.message);
@@ -242,7 +249,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
         }
         setCurrentLocation(pos);
       } catch (e) { console.error(e); }
-    }, 300000); // Check every 5 mins
+    }, 60000); // Check every 1 min
 
     return () => clearInterval(interval);
   }, [activeVisit, currentLocation, lastCheckTime, isStationary]);

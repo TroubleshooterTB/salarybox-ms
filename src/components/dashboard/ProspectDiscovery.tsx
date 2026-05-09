@@ -33,6 +33,13 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
   const mapRef = useRef<HTMLDivElement>(null);
   const serviceRef = useRef<any>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [showSyncForm, setShowSyncForm] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    contact_name: '',
+    email: '',
+    phone: '',
+    expected_revenue: ''
+  });
 
   const syncToOdoo = async (place: any) => {
     setSyncingId(place.place_id);
@@ -48,13 +55,16 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
           street: place.vicinity,
           rating: place.rating,
           place_id: place.place_id,
-          category: selectedCategory.label
+          category: selectedCategory.label,
+          ...formData
         })
       });
 
       const data = await response.json();
       if (data.success) {
-        alert(`Lead created in Odoo CRM!`);
+        alert(`Opportunity created in Odoo CRM (Field Visit Done stage)!`);
+        setShowSyncForm(null);
+        setFormData({ contact_name: '', email: '', phone: '', expected_revenue: '' });
       } else {
         throw new Error(data.error || 'Failed to sync with Odoo');
       }
@@ -326,7 +336,10 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                   </button>
                   <button 
                    disabled={syncingId === place.place_id}
-                   onClick={() => syncToOdoo(place)}
+                   onClick={() => {
+                     setShowSyncForm(place);
+                     setFormData(prev => ({ ...prev, contact_name: place.name }));
+                   }}
                    className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition flex items-center justify-center space-x-2 ${
                      syncingId === place.place_id ? 'bg-slate-800 text-slate-500' : 'bg-slate-800 text-brand-400 border border-brand-500/20 hover:bg-slate-700'
                    }`}
@@ -345,6 +358,93 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
           ))
         )}
       </div>
+
+      {/* CRM Sync Modal */}
+      <AnimatePresence>
+        {showSyncForm && (
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
+             <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => setShowSyncForm(null)}
+               className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+             />
+             <motion.div 
+               initial={{ opacity: 0, y: 100, scale: 0.9 }}
+               animate={{ opacity: 1, y: 0, scale: 1 }}
+               exit={{ opacity: 0, y: 100, scale: 0.9 }}
+               className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl space-y-6"
+             >
+                <div className="space-y-1">
+                   <h3 className="text-xl font-black text-white">Sync to Odoo CRM</h3>
+                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Adding to "Field Visit Done" Stage</p>
+                </div>
+
+                <div className="space-y-4">
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Contact Name</label>
+                      <input 
+                        type="text" 
+                        value={formData.contact_name}
+                        onChange={e => setFormData({ ...formData, contact_name: e.target.value })}
+                        placeholder="Name of person met"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-brand-500 transition"
+                      />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email</label>
+                        <input 
+                          type="email" 
+                          value={formData.email}
+                          onChange={e => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="Email address"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-brand-500 transition"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Phone</label>
+                        <input 
+                          type="tel" 
+                          value={formData.phone}
+                          onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                          placeholder="Phone number"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-brand-500 transition"
+                        />
+                      </div>
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Expected Revenue</label>
+                      <input 
+                        type="number" 
+                        value={formData.expected_revenue}
+                        onChange={e => setFormData({ ...formData, expected_revenue: e.target.value })}
+                        placeholder="Amount in INR"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-brand-500 transition"
+                      />
+                   </div>
+                </div>
+
+                <div className="flex space-x-3 pt-2">
+                   <button 
+                    onClick={() => setShowSyncForm(null)}
+                    className="flex-1 py-5 rounded-3xl font-black text-[10px] uppercase tracking-widest text-slate-400 bg-slate-800 hover:text-white transition"
+                   >
+                      Cancel
+                   </button>
+                   <button 
+                    disabled={syncingId !== null}
+                    onClick={() => syncToOdoo(showSyncForm)}
+                    className="flex-[2] py-5 bg-brand-500 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition flex items-center justify-center space-x-2"
+                   >
+                      {syncingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Navigation className="w-4 h-4" /> <span>Sync to Odoo</span></>}
+                   </button>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }

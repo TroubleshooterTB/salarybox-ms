@@ -18,7 +18,17 @@ const callOdoo = (client: any, method: string, args: any[]) => {
 
 export async function POST(req: Request) {
   try {
-    const { name, street, rating, place_id, category } = await req.json();
+    const { 
+      name, 
+      street, 
+      rating, 
+      place_id, 
+      category,
+      contact_name,
+      email,
+      phone,
+      expected_revenue
+    } = await req.json();
 
     // Get auth token from header
     const authHeader = req.headers.get('Authorization');
@@ -78,20 +88,48 @@ export async function POST(req: Request) {
       port: 443,
       path: '/xmlrpc/2/object'
     });
+
+    // 3. Find "Field Visit Done" Stage ID
+    let stageId: number | null = null;
+    try {
+      const stages: any = await callOdoo(modelsClient, 'execute_kw', [
+        db, uid, api_key,
+        'crm.stage', 'search_read',
+        [[['name', 'ilike', 'Field Visit Done']]],
+        { fields: ['id'], limit: 1 }
+      ]);
+      if (stages && stages.length > 0) {
+        stageId = stages[0].id;
+      }
+    } catch (e) {
+      console.error('Error finding stage ID:', e);
+    }
     
-    const leadData = {
-      name: `[Discovery] ${name}`,
+    const leadData: any = {
+      name: name || `[Discovery] ${category}`,
+      contact_name: contact_name || name,
       street: street,
-      description: `Rating: ${rating}\nCategory: ${category}\nGoogle Place ID: ${place_id}`,
-      type: 'lead',
-      user_id: uid // Assign to the logged-in user in Odoo
+      email_from: email,
+      phone: phone,
+      planned_revenue: expected_revenue ? parseFloat(expected_revenue) : 0,
+      description: `Rating: ${rating}\nCategory: ${category}\nGoogle Place ID: ${place_id}\nSynced from SalaryBOX MS`,
+      type: 'opportunity',
+      user_id: uid 
     };
+
+    if (stageId) {
+      leadData.stage_id = stageId;
+    }
 
     const leadId = await callOdoo(modelsClient, 'execute_kw', [
       db, uid, api_key,
       'crm.lead', 'create',
       [leadData]
     ]);
+
+    if (typeof leadId !== 'number') {
+      throw new Error(`Odoo creation failed: ${JSON.stringify(leadId)}`);
+    }
 
     return NextResponse.json({ success: true, lead_id: leadId });
   } catch (err: any) {
