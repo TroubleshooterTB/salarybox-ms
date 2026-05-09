@@ -5,7 +5,8 @@ import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, Al
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectDiscovery from './ProspectDiscovery';
 import OdooProjectList from './OdooProjectList';
-import { Globe } from 'lucide-react';
+import VisitingCardScanner from './VisitingCardScanner';
+import { Globe, ScanLine } from 'lucide-react';
 
 export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const { session } = useStore();
@@ -36,6 +37,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     expected_revenue: '',
     notes: ''
   });
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     fetchActiveVisit();
@@ -387,6 +389,25 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
             notes: `Visiting Project: ${project.display_name}`
           }));
           setShowOdooProjects(false);
+        }}
+      />
+    );
+  }
+  if (showScanner) {
+    return (
+      <VisitingCardScanner 
+        onBack={() => setShowScanner(false)} 
+        prefillStage="Field Visit Done"
+        onScan={(data, urls) => {
+          setOdooFormData(prev => ({
+            ...prev,
+            contact_name: data.name || prev.contact_name,
+            email: data.email || prev.email,
+            phone: data.phone || prev.phone,
+            notes: `${prev.notes}\nExtracted from Card: ${data.company} - ${data.designation}\nCard Front: ${urls.front}\nCard Back: ${urls.back}`
+          }));
+          setNote(`Card Scanned: ${data.name} (${data.company})`);
+          setShowScanner(false);
         }}
       />
     );

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Camera, Loader2, CheckCircle2, Navigation, Smartphone, Mail, User, Briefcase, Globe, X, ScanLine, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
+import useStore from '../../store';
 
 interface VisitingCardScannerProps {
   onBack: () => void;
@@ -10,9 +10,12 @@ interface VisitingCardScannerProps {
   prefillStage?: string; // e.g. 'Visiting Card Entry' or 'Field Visit Done'
 }
 
-export default function VisitingCardScanner({ onBack, prefillStage = 'Visiting Card Entry' }: VisitingCardScannerProps) {
-  const { session } = useAuth();
+export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Visiting Card Entry' }: VisitingCardScannerProps) {
+  const { session } = useStore();
+  const [mode, setMode] = useState<'scan' | 'history'>('scan');
   const [step, setStep] = useState<'capture' | 'review'>('capture');
+  const [history, setHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [images, setImages] = useState<{front?: string, back?: string}>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,6 +31,22 @@ export default function VisitingCardScanner({ onBack, prefillStage = 'Visiting C
   const [activeCapture, setActiveCapture] = useState<'front' | 'back' | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showCamera, setShowCamera] = useState(false);
+
+  useEffect(() => {
+    if (mode === 'history') fetchHistory();
+  }, [mode]);
+
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    const { data } = await supabase
+      .from('field_visit_logs')
+      .select('*')
+      .eq('user_id', session?.user?.id)
+      .eq('type', 'Card Scan')
+      .order('timestamp', { ascending: false });
+    setHistory(data || []);
+    setLoadingHistory(false);
+  };
 
   const startCamera = async (side: 'front' | 'back') => {
     setActiveCapture(side);
@@ -147,6 +166,16 @@ export default function VisitingCardScanner({ onBack, prefillStage = 'Visiting C
       const resData = await response.json();
       if (!resData.success) throw new Error(resData.error);
 
+      // 3. Save to local history (field_visit_logs)
+      await supabase.from('field_visit_logs').insert({
+        user_id: session?.user?.id,
+        type: 'Card Scan',
+        note: `Scanned: ${ocrData.name} (${ocrData.company}).\nDesignation: ${ocrData.designation}`,
+        photo_url: frontUrl,
+        audio_url: backUrl, // Reusing audio_url for back image link
+        timestamp: new Date().toISOString()
+      });
+
       if (onScan) {
         onScan(ocrData, { front: frontUrl, back: backUrl });
       }
@@ -176,10 +205,56 @@ export default function VisitingCardScanner({ onBack, prefillStage = 'Visiting C
         <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center text-brand-500">
           <ScanLine className="w-5 h-5" />
         </div>
+        <div className="flex items-center space-x-2">
+           <button 
+            onClick={() => setMode('scan')}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${mode === 'scan' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-slate-900 text-slate-500 border border-slate-800'}`}
+           >
+              Scan
+           </button>
+           <button 
+            onClick={() => setMode('history')}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${mode === 'history' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-slate-900 text-slate-500 border border-slate-800'}`}
+           >
+              History
+           </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-20 custom-scrollbar">
-        {step === 'capture' ? (
+        {mode === 'history' ? (
+          <div className="space-y-4">
+             {loadingHistory ? (
+               <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-brand-500" /></div>
+             ) : history.length === 0 ? (
+               <div className="text-center py-20 opacity-50">
+                  <ScanLine className="w-12 h-12 mx-auto mb-4 text-slate-700" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">No cards scanned yet</p>
+               </div>
+             ) : (
+               history.map((item, i) => (
+                 <motion.div 
+                   initial={{ opacity: 0, y: 10 }}
+                   animate={{ opacity: 1, y: 0 }}
+                   transition={{ delay: i * 0.05 }}
+                   key={item.id}
+                   className="bg-slate-900 border border-slate-800 p-4 rounded-3xl flex items-center space-x-4"
+                 >
+                    <div className="w-16 h-16 bg-slate-950 rounded-2xl overflow-hidden shrink-0 border border-slate-800">
+                       <img src={item.photo_url} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                       <h4 className="font-bold text-white text-sm truncate">{item.note.split('\n')[0].replace('Scanned: ', '')}</h4>
+                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{new Date(item.timestamp).toLocaleDateString()}</p>
+                    </div>
+                    <button onClick={() => window.open(item.photo_url, '_blank')} className="p-2 text-slate-500 hover:text-white transition">
+                       <ImageIcon className="w-5 h-5" />
+                    </button>
+                 </motion.div>
+               ))
+             )}
+          </div>
+        ) : step === 'capture' ? (
           <div className="space-y-8">
             <div className="space-y-4">
                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Scan Visiting Card</h3>
