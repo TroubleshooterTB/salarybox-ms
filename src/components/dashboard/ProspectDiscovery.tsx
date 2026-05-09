@@ -51,8 +51,9 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
   const generatePitch = (place: any) => {
     setIsGeneratingPitch(true);
     setTimeout(() => {
-      const type = place.types?.includes('architect') ? 'Architect' : 'Builder/Client';
-      const pitch = `Hello! I'm reaching out from Minimal Stroke. We saw your impressive work as a ${type} and would love to discuss how our premium interior materials can add value to your upcoming projects at ${place.name}. Would you be open to a quick 5-min chat?`;
+      const type = place.types?.includes('architect') ? 'Architect' : 'Professional';
+      const websiteMention = place.website ? `I was checking out your website (${new URL(place.website).hostname}) and your portfolio is outstanding.` : '';
+      const pitch = `Hello! I'm reaching out from Minimal Stroke. ${websiteMention} We saw your work as a ${type} and would love to discuss how our premium interior materials can add value to your upcoming projects at ${place.name}. Would you be open to a quick 5-min chat?`;
       setGeneratedPitch(pitch);
       setIsGeneratingPitch(false);
     }, 1000);
@@ -203,7 +204,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
       
       const request = {
         textQuery: `${selectedCategory.label} in this area`,
-        fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types"],
+        fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types", "websiteUri", "editorialSummary"],
         locationBias: {
           center: { lat: pos.lat, lng: pos.lng },
           radius: radius,
@@ -225,7 +226,9 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
             lng: p.location.lng()
           }
         },
-        types: p.types
+        types: p.types,
+        website: p.websiteUri,
+        summary: p.editorialSummary?.text
       }));
 
       setPlaces(formattedResults);
@@ -527,16 +530,19 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
              />
              <motion.div 
                initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-               className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-t-[3rem] sm:rounded-[3rem] p-8 shadow-2xl overflow-hidden"
+               className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-t-[3.5rem] p-8 pb-12 shadow-2xl overflow-hidden"
              >
+                {/* Handle for bottom sheet feel */}
+                <div className="w-12 h-1.5 bg-slate-800 rounded-full mx-auto -mt-4 mb-6" />
+
                 <div className="flex items-center justify-between mb-8">
                    <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-500">
                          <MapPin className="w-6 h-6" />
                       </div>
-                      <div>
-                         <h3 className="text-xl font-black text-white">{showBrief.name}</h3>
-                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Prospect Insights</p>
+                      <div className="min-w-0">
+                         <h3 className="text-xl font-black text-white truncate">{showBrief.name}</h3>
+                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{selectedCategory.label} Insight</p>
                       </div>
                    </div>
                    <button onClick={() => setShowBrief(null)} className="p-2 text-slate-500 hover:text-white transition">
@@ -545,6 +551,35 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                 </div>
 
                 <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                   {/* Website Quick Link */}
+                   {showBrief.website && (
+                     <button 
+                      onClick={() => window.open(showBrief.website, '_blank')}
+                      className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl flex items-center justify-between hover:border-brand-500/50 transition group"
+                     >
+                        <div className="flex items-center space-x-3">
+                           <div className="w-8 h-8 bg-brand-500/10 text-brand-400 rounded-lg flex items-center justify-center">
+                              <Globe className="w-4 h-4" />
+                           </div>
+                           <div className="text-left">
+                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Business Website</p>
+                              <p className="text-xs font-bold text-brand-400 truncate max-w-[150px]">{new URL(showBrief.website).hostname}</p>
+                           </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-brand-500 transition" />
+                     </button>
+                   )}
+
+                   {/* Summary Insight */}
+                   {showBrief.summary && (
+                     <div className="bg-brand-500/5 border border-brand-500/20 p-4 rounded-2xl">
+                        <p className="text-[10px] font-black text-brand-400 uppercase tracking-widest mb-2 flex items-center space-x-2">
+                           <Info className="w-3 h-3" />
+                           <span>Business Intel</span>
+                        </p>
+                        <p className="text-xs text-slate-400 leading-relaxed font-medium italic">"{showBrief.summary}"</p>
+                     </div>
+                   )}
                    {/* Previous Visits Alert */}
                    {previousVisits.length > 0 ? (
                      <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl space-y-2">
