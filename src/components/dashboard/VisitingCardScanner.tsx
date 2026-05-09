@@ -135,8 +135,8 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       // Initialize the official Google Gen AI SDK
       const genAI = new GoogleGenerativeAI(apiKey);
       // The SDK automatically resolves the best endpoint and stable version for this alias
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+      let result;
+      
       const prompt = "Extract the following details from this business card image: Name, Company, Designation, Email, Phone, Website. Return ONLY a valid JSON object with these keys: name, company, designation, email, phone, website. If a field is missing, leave it empty string. Focus on distinguishing the personal name from branding like 'First Select'.";
 
       const imageParts = [
@@ -149,7 +149,19 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       ];
 
       setOcrProgress(60);
-      const result = await model.generateContent([prompt, ...imageParts]);
+
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        result = await model.generateContent([prompt, ...imageParts]);
+      } catch (e: any) {
+        console.warn("Flash model failed, falling back to Pro model:", e);
+        try {
+          const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+          result = await fallbackModel.generateContent([prompt, ...imageParts]);
+        } catch (fallbackErr: any) {
+          throw new Error(`AI Model Error: Both Flash and Pro models failed. Please verify your API key has access to Gemini 1.5 models. (Original error: ${e.message})`);
+        }
+      }
       setOcrProgress(80);
       
       const response = await result.response;
