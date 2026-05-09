@@ -18,6 +18,7 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [images, setImages] = useState<{front?: string, back?: string}>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ocrData, setOcrData] = useState({
     name: '',
@@ -85,12 +86,44 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
     setActiveCapture(null);
   };
 
+  const preProcessImage = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // 1. Grayscale
+        ctx.filter = 'grayscale(100%) contrast(150%) brightness(110%)';
+        ctx.drawImage(img, 0, 0);
+        
+        // 2. Simple Thresholding (Manual implementation for browser)
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+          const val = avg > 128 ? 255 : 0;
+          data[i] = data[i+1] = data[i+2] = val;
+        }
+        ctx.putImageData(imageData, 0, 0);
+        
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = dataUrl;
+    });
+  };
+
   const runOCR = async () => {
     if (!images.front) return;
     setIsProcessing(true);
     
     try {
-      // Load Tesseract from CDN
+      // 1. Pre-process image for better OCR
+      const processedImage = await preProcessImage(images.front);
+
+      // 2. Load Tesseract from CDN
       if (!(window as any).Tesseract) {
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
@@ -99,30 +132,44 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       }
 
       const { createWorker } = (window as any).Tesseract;
-      const worker = await createWorker('eng');
-      const { data: { text } } = await worker.recognize(images.front);
+      const worker = await createWorker('eng', 1, {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            setOcrProgress(Math.floor(m.progress * 100));
+          }
+        }
+      });
+      
+      const { data: { text } } = await worker.recognize(processedImage);
       await worker.terminate();
 
-      // Simple parsing logic (can be improved with LLM)
+      if (!text || text.trim().length < 5) {
+        throw new Error("No clear text found. Please try a clearer photo.");
+      }
+
+      // 3. Robust parsing logic
       const lines = text.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 2);
       
       const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      const phoneMatch = text.match(/(\+?\d{1,4}[\s-])?(\d{10})/);
-      const websiteMatch = text.match(/(www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
+      const phoneMatch = text.match(/(\+?\d{1,4}[\s-])?(\d{10,12})/);
+      const websiteMatch = text.match(/(www\.)?([a-zA-Z0-9-]+\.(com|in|org|net|co|io))/i);
 
+      // Attempt to find name and company from common patterns
+      const cleanedLines = lines.filter(l => !l.includes('@') && !l.match(/\d{5,}/));
+      
       setOcrData({
-        name: lines[0] || '',
-        company: lines[1] || '',
-        designation: lines.find((l: string) => /manager|director|architect|founder|owner/i.test(l)) || '',
-        email: emailMatch ? emailMatch[0] : '',
-        phone: phoneMatch ? phoneMatch[0] : '',
-        website: websiteMatch ? websiteMatch[0] : ''
+        name: cleanedLines[0] || '',
+        company: cleanedLines.find(l => l.length > 5 && !l.includes('www')) || cleanedLines[1] || '',
+        designation: lines.find((l: string) => /manager|director|architect|founder|owner|executive|partner/i.test(l)) || '',
+        email: emailMatch ? emailMatch[0].toLowerCase() : '',
+        phone: phoneMatch ? phoneMatch[0].replace(/[\s-]/g, '') : '',
+        website: websiteMatch ? websiteMatch[0].toLowerCase() : ''
       });
 
       setStep('review');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('OCR Failed. Please enter details manually.');
+      alert(err.message || 'OCR Failed. Please enter details manually.');
       setStep('review');
     } finally {
       setIsProcessing(false);
@@ -315,12 +362,23 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
             <button 
               disabled={!images.front || isProcessing}
               onClick={runOCR}
-              className={`w-full py-6 rounded-3xl font-black text-xs uppercase tracking-widest transition shadow-xl flex items-center justify-center space-x-3 ${
+              className={`w-full py-6 rounded-3xl font-black text-xs uppercase tracking-widest transition shadow-xl flex flex-col items-center justify-center space-y-2 ${
                 !images.front || isProcessing ? 'bg-slate-800 text-slate-600' : 'bg-brand-500 text-white shadow-brand-500/20 active:scale-95 hover:bg-brand-400'
               }`}
             >
-              {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-5 h-5" />}
-              <span>{isProcessing ? 'Reading Data...' : 'Scan & Extract Info'}</span>
+              <div className="flex items-center space-x-3">
+                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-5 h-5" />}
+                <span>{isProcessing ? `Processing (${ocrProgress}%)` : 'Scan & Extract Info'}</span>
+              </div>
+              {isProcessing && (
+                <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${ocrProgress}%` }}
+                    className="h-full bg-brand-500"
+                  />
+                </div>
+              )}
             </button>
           </div>
         ) : (
