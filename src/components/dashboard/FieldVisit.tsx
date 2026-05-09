@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import useStore from '../../store';
-import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle, Search, CheckCircle, Smartphone } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Square, MapPin, Camera, Loader2, Navigation, AlertTriangle, Search, CheckCircle, Smartphone, Mic, StopCircle, Trash2, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectDiscovery from './ProspectDiscovery';
 import OdooProjectList from './OdooProjectList';
@@ -24,6 +24,10 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showOdooProjects, setShowOdooProjects] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<any>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [syncToOdoo, setSyncToOdoo] = useState(true);
   const [odooFormData, setOdooFormData] = useState({
     contact_name: '',
@@ -115,7 +119,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const logAction = async (visitId: string, type: string, lat: number, lng: number, selfieUrl?: string, dist = 0) => {
+  const logAction = async (visitId: string, type: string, lat: number, lng: number, selfieUrl?: string, dist = 0, audioUrl?: string) => {
     const { error } = await supabase
       .from('field_visit_logs')
       .insert({
@@ -124,6 +128,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
         latitude: lat,
         longitude: lng,
         selfie_url: selfieUrl,
+        audio_url: audioUrl,
         distance_from_last: dist,
         note: selectedProspect ? `${note} [GPID:${selectedProspect.place_id}]` : note
       });
@@ -131,6 +136,8 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     fetchLogs(visitId);
     setNote('');
     setSelfie(null);
+    setAudioBlob(null);
+    setAudioUrl(null);
   };
 
   const getCurrentPosition = (): Promise<{lat: number, lng: number}> => {
@@ -208,7 +215,17 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
 
       const { data: { publicUrl } } = supabase.storage.from('selfies').getPublicUrl(fileName);
 
-      await logAction(activeVisit.id, 'Checkpoint', pos.lat, pos.lng, publicUrl);
+      // Upload audio if exists
+      let audioPublicUrl = '';
+      if (audioBlob) {
+        const audioName = `${session?.user?.id}/${Date.now()}.webm`;
+        const { error: audioError } = await supabase.storage.from('selfies').upload(audioName, audioBlob);
+        if (!audioError) {
+          audioPublicUrl = supabase.storage.from('selfies').getPublicUrl(audioName).data.publicUrl;
+        }
+      }
+
+      await logAction(activeVisit.id, 'Checkpoint', pos.lat, pos.lng, publicUrl, undefined, audioPublicUrl);
       
       // Optional: Sync to Odoo CRM if toggled
       if (syncToOdoo) {
@@ -248,6 +265,35 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     setShowCamera(true);
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
     if (videoRef.current) videoRef.current.srcObject = stream;
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      const chunks: Blob[] = [];
+      
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      alert('Microphone access denied or not available.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
   };
 
   const takeSelfie = () => {
@@ -559,6 +605,33 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
                   </motion.div>
                 )}
 
+                {/* Audio Recorder */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                   <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                        isRecording ? 'bg-rose-500 animate-pulse text-white' : 
+                        audioUrl ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'
+                      }`}>
+                         {isRecording ? <Mic className="w-5 h-5" /> : audioUrl ? <Volume2 className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                      </div>
+                      <div>
+                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Voice Memo</p>
+                         <p className="text-[9px] font-bold text-slate-600">
+                            {isRecording ? 'Recording audio...' : audioUrl ? 'Voice note recorded' : 'Optional audio note'}
+                         </p>
+                      </div>
+                   </div>
+                   <div className="flex items-center space-x-2">
+                      {isRecording ? (
+                        <button onClick={stopRecording} className="p-2 bg-rose-500 text-white rounded-lg"><StopCircle className="w-4 h-4" /></button>
+                      ) : audioUrl ? (
+                        <button onClick={() => { setAudioUrl(null); setAudioBlob(null); }} className="p-2 bg-slate-800 text-rose-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      ) : (
+                        <button onClick={startRecording} className="p-2 bg-brand-500 text-white rounded-lg shadow-lg shadow-brand-500/20"><Mic className="w-4 h-4" /></button>
+                      )}
+                   </div>
+                </div>
+
                 <button 
                   disabled={isSubmitting || !selfie}
                   onClick={captureCheckpoint}
@@ -589,10 +662,18 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
                       {log.note && <p className="text-xs text-slate-400 mt-0.5 truncate italic">"{log.note}"</p>}
                       {log.distance_from_last > 0 && <p className="text-[9px] font-black text-brand-400 uppercase tracking-widest mt-1">+{log.distance_from_last.toFixed(2)} KM</p>}
                     </div>
-                    {log.selfie_url && (
-                      <img src={log.selfie_url} className="w-10 h-10 rounded-lg object-cover border border-slate-700" />
-                    )}
-                  </div>
+                        {log.selfie_url && (
+                          <img src={log.selfie_url} className="w-10 h-10 rounded-lg object-cover border border-slate-700" />
+                        )}
+                        {log.audio_url && (
+                          <button 
+                            onClick={() => new Audio(log.audio_url).play()}
+                            className="w-10 h-10 bg-brand-500/10 text-brand-400 rounded-lg flex items-center justify-center border border-brand-500/20"
+                          >
+                             <Volume2 className="w-4 h-4" />
+                          </button>
+                        )}
+                    </div>
                 ))}
               </div>
             </>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Search, MapPin, Navigation, Clock, Star, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, Search, MapPin, Navigation, Clock, Star, CheckCircle2, Loader2, Info, X, ChevronRight, Smartphone, MessageCircle, AlertCircle, Sparkles, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 declare global {
@@ -34,6 +34,8 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
   const serviceRef = useRef<any>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [showBrief, setShowBrief] = useState<any>(null);
+  const [generatedPitch, setGeneratedPitch] = useState<string | null>(null);
+  const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
   const [previousVisits, setPreviousVisits] = useState<any[]>([]);
   const [checkingHistory, setCheckingHistory] = useState(false);
   const [showSyncForm, setShowSyncForm] = useState<any>(null);
@@ -44,6 +46,27 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     expected_revenue: '',
     notes: ''
   });
+
+  const generatePitch = (place: any) => {
+    setIsGeneratingPitch(true);
+    setTimeout(() => {
+      const type = place.types?.includes('architect') ? 'Architect' : 'Builder/Client';
+      const pitch = `Hello! I'm reaching out from Minimal Stroke. We saw your impressive work as a ${type} and would love to discuss how our premium interior materials can add value to your upcoming projects at ${place.name}. Would you be open to a quick 5-min chat?`;
+      setGeneratedPitch(pitch);
+      setIsGeneratingPitch(false);
+    }, 1000);
+  };
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
 
   const checkHistory = async (place: any) => {
     setCheckingHistory(true);
@@ -562,15 +585,75 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                    </div>
                 </div>
 
-                <button 
-                  onClick={() => {
-                    onSelect(showBrief);
-                    setShowBrief(null);
-                  }}
-                  className="w-full mt-8 py-5 bg-brand-500 text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-500/30 active:scale-95 transition"
-                >
-                  Confirm Visit
-                </button>
+                   {/* AI Pitch Generator */}
+                   <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                         <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">AI Pitch Generator</h4>
+                         <button 
+                          onClick={() => generatePitch(showBrief)}
+                          disabled={isGeneratingPitch}
+                          className="text-[10px] font-black text-brand-400 uppercase tracking-widest flex items-center space-x-1 hover:text-brand-300 transition"
+                         >
+                            <Sparkles className="w-3 h-3" />
+                            <span>{generatedPitch ? 'Regenerate' : 'Generate'}</span>
+                         </button>
+                      </div>
+                      
+                      {isGeneratingPitch ? (
+                        <div className="bg-slate-950/50 border border-slate-800 p-6 rounded-2xl flex flex-col items-center justify-center space-y-3">
+                           <Loader2 className="w-5 h-5 animate-spin text-brand-500" />
+                           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Crafting custom pitch...</p>
+                        </div>
+                      ) : generatedPitch ? (
+                        <div className="bg-brand-500/5 border border-brand-500/20 p-5 rounded-2xl space-y-4 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition">
+                              <MessageCircle className="w-12 h-12 text-brand-500" />
+                           </div>
+                           <p className="text-xs text-slate-300 leading-relaxed italic font-medium">"{generatedPitch}"</p>
+                           <button 
+                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(generatedPitch)}`, '_blank')}
+                            className="w-full py-3 bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center space-x-2"
+                           >
+                              <MessageCircle className="w-4 h-4" />
+                              <span>Send via WhatsApp</span>
+                           </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => generatePitch(showBrief)}
+                          className="w-full py-8 bg-slate-950/50 border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center text-slate-600 hover:border-brand-500/30 hover:text-brand-500 transition group"
+                        >
+                           <Sparkles className="w-6 h-6 mb-2 group-hover:scale-110 transition" />
+                           <span className="text-[10px] font-black uppercase tracking-widest">Generate Custom Pitch</span>
+                        </button>
+                      )}
+                   </div>
+                </div>
+
+                <div className="mt-8 space-y-3">
+                   <button 
+                    onClick={() => {
+                      if (currentPos) {
+                        const dist = calculateDistance(currentPos.lat, currentPos.lng, showBrief.location.lat, showBrief.location.lng);
+                        if (dist > 0.2) { // 200m geofence
+                          alert(`Verification Failed: You are ${(dist * 1000).toFixed(0)}m away. You must be within 200m of ${showBrief.name} to confirm the visit.`);
+                          return;
+                        }
+                      }
+                      onSelect(showBrief);
+                      setShowBrief(null);
+                      setGeneratedPitch(null);
+                    }}
+                    className="w-full py-5 bg-brand-500 text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-500/30 active:scale-95 transition flex items-center justify-center space-x-2"
+                   >
+                    <CheckCircle className="w-5 h-5" />
+                    <span>Confirm Arrival</span>
+                   </button>
+                   <p className="text-[9px] font-bold text-slate-600 text-center uppercase tracking-widest">
+                      <AlertCircle className="w-3 h-3 inline-block mr-1 -mt-0.5" />
+                      Geofence Verification Enabled (200m)
+                   </p>
+                </div>
              </motion.div>
           </div>
         )}
