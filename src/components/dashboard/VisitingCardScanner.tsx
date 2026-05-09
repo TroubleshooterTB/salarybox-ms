@@ -118,61 +118,74 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
   const runOCR = async () => {
     if (!images.front) return;
     setIsProcessing(true);
+    setOcrProgress(10);
     
     try {
-      // 1. Pre-process image for better OCR
-      const processedImage = await preProcessImage(images.front);
+      // 1. Convert data URL to base64 for Google Vision
+      const base64Image = images.front.split(',')[1];
+      const apiKey = 'AIzaSyBFoCwbt2oyxwHKhWpqxeDng1TKpwEeBbk'; // From .env.local
 
-      // 2. Load Tesseract from CDN
-      if (!(window as any).Tesseract) {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-        document.head.appendChild(script);
-        await new Promise(resolve => script.onload = resolve);
-      }
+      setOcrProgress(30);
 
-      const { createWorker } = (window as any).Tesseract;
-      const worker = await createWorker('eng', 1, {
-        logger: (m: any) => {
-          if (m.status === 'recognizing text') {
-            setOcrProgress(Math.floor(m.progress * 100));
-          }
-        }
+      // 2. Call Google Cloud Vision API (OCR)
+      const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: [
+            {
+              image: { content: base64Image },
+              features: [{ type: 'TEXT_DETECTION' }]
+            }
+          ]
+        })
       });
-      
-      const { data: { text } } = await worker.recognize(processedImage);
-      await worker.terminate();
 
-      if (!text || text.trim().length < 5) {
-        throw new Error("No clear text found. Please try a clearer photo.");
+      setOcrProgress(70);
+      const data = await response.json();
+      const text = data.responses[0]?.fullTextAnnotation?.text;
+
+      if (!text) {
+        throw new Error("No text detected. Please ensure the card is well-lit and clearly visible.");
       }
 
-      // 3. Robust parsing logic
-      const lines = text.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 2);
-      
-      const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      const phoneMatch = text.match(/(\+?\d{1,4}[\s-])?(\d{10,12})/);
-      const websiteMatch = text.match(/(www\.)?([a-zA-Z0-9-]+\.(com|in|org|net|co|io))/i);
+      setOcrProgress(90);
 
-      // Attempt to find name and company from common patterns
-      const cleanedLines = lines.filter((l: string) => !l.includes('@') && !l.match(/\d{5,}/));
+      // 3. Intelligent Parsing
+      const lines = text.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 1);
       
+      const email = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0]?.toLowerCase() || '';
+      const phone = text.match(/(\+?\d{1,4}[\s-])?(\d{10,12})/)?.[0]?.replace(/[\s-]/g, '') || '';
+      const website = text.match(/(www\.)?([a-zA-Z0-9-]+\.(com|in|org|net|co|io|biz|info))/i)?.[0]?.toLowerCase() || '';
+
+      // Heuristic for Name & Company
+      // Usually, the first line is the name or company. 
+      // We exclude lines that look like addresses or contain digits/emails.
+      const cleanedLines = lines.filter(l => 
+        !l.includes('@') && 
+        !l.match(/\d{5,}/) && 
+        !l.match(/www\.|http/i) &&
+        l.length > 2
+      );
+
       setOcrData({
         name: cleanedLines[0] || '',
-        company: cleanedLines.find((l: string) => l.length > 5 && !l.includes('www')) || cleanedLines[1] || '',
-        designation: lines.find((l: string) => /manager|director|architect|founder|owner|executive|partner/i.test(l)) || '',
-        email: emailMatch ? emailMatch[0].toLowerCase() : '',
-        phone: phoneMatch ? phoneMatch[0].replace(/[\s-]/g, '') : '',
-        website: websiteMatch ? websiteMatch[0].toLowerCase() : ''
+        company: cleanedLines.find(l => l.length > 5 && l !== cleanedLines[0]) || cleanedLines[1] || '',
+        designation: lines.find((l: string) => /manager|director|architect|founder|owner|partner|designer|head/i.test(l)) || '',
+        email,
+        phone,
+        website
       });
 
+      setOcrProgress(100);
       setStep('review');
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'OCR Failed. Please enter details manually.');
+      alert(err.message || 'OCR failed. Please check your internet or enter details manually.');
       setStep('review');
     } finally {
       setIsProcessing(false);
+      setOcrProgress(0);
     }
   };
 
