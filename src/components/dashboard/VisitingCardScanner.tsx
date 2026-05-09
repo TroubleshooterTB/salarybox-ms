@@ -146,26 +146,8 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
         })
       });
 
-      // If Flash fails, try Pro Vision (older but very stable model)
-      if (!response.ok) {
-        console.warn("Flash failed, trying Pro Vision fallback...");
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: "Extract business card details as JSON: name, company, designation, email, phone, website." },
-                {
-                  inline_data: {
-                    mime_type: "image/jpeg",
-                    data: base64Image
-                  }
-                }
-              ]
-            }]
-          })
-        });
+      if (!apiKey) {
+        throw new Error("API key is missing. Please ensure NEXT_PUBLIC_GEMINI_API_KEY is set in your Vercel Environment Variables and you have redeployed.");
       }
 
       setOcrProgress(80);
