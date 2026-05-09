@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Search, MapPin, Navigation, Clock, Star, CheckCircle2, Loader2, Info, X, ChevronRight, Smartphone, MessageCircle, AlertCircle, Sparkles, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../../lib/supabase';
 
 declare global {
   interface Window {
@@ -375,6 +376,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                       <Clock className="w-2.5 h-2.5" />
                       <span>{place.opening_hours.open_now ? 'Open Now' : 'Closed'}</span>
                    </div>
+                )}
               </div>
 
                <div className="flex items-center space-x-2 pt-2">
@@ -583,7 +585,6 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                          </div>
                       </div>
                    </div>
-                </div>
 
                    {/* AI Pitch Generator */}
                    <div className="space-y-4">
@@ -633,8 +634,13 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                 <div className="mt-8 space-y-3">
                    <button 
                     onClick={() => {
-                      if (currentPos) {
-                        const dist = calculateDistance(currentPos.lat, currentPos.lng, showBrief.location.lat, showBrief.location.lng);
+                      if (currentPos && showBrief.geometry?.location) {
+                        const dist = calculateDistance(
+                          currentPos.lat, 
+                          currentPos.lng, 
+                          showBrief.geometry.location.lat, 
+                          showBrief.geometry.location.lng
+                        );
                         if (dist > 0.2) { // 200m geofence
                           alert(`Verification Failed: You are ${(dist * 1000).toFixed(0)}m away. You must be within 200m of ${showBrief.name} to confirm the visit.`);
                           return;
