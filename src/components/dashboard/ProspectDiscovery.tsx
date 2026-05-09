@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Search, MapPin, Navigation, Clock, Star, CheckCircle2, Loader2, Info, X, ChevronRight, Smartphone, MessageCircle, AlertCircle, Sparkles, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Search, MapPin, Navigation, Clock, Star, CheckCircle2, Loader2, Info, X, ChevronRight, Smartphone, MessageCircle, AlertCircle, Sparkles, CheckCircle, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 

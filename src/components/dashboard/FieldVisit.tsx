@@ -243,7 +243,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
               place_id: selectedProspect?.place_id || 'manual',
               category: 'Field Visit',
               ...odooFormData,
-              notes: note || odooFormData.notes
+              notes: `${note || odooFormData.notes}${audioPublicUrl ? `\n\nVoice Memo: ${audioPublicUrl}` : ''}`
             })
           });
           const syncData = await syncRes.json();
