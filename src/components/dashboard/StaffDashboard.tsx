@@ -5,7 +5,7 @@ import {
   User, Clock, 
   CalendarDays, IndianRupee, 
   Palmtree, FolderOpen, Globe, Settings,
-  Briefcase, MessageSquare, ExternalLink, MapPin, Loader2
+  Briefcase, MessageSquare, ExternalLink, MapPin, Loader2, Bell
 } from 'lucide-react';
 import useStore from '../../store';
 import { supabase } from '../../lib/supabase';
