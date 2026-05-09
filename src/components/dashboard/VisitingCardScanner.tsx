@@ -127,9 +127,8 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
 
       setOcrProgress(40);
 
-      // 1. Use Gemini 1.5 Flash for true AI Intelligence
-      // Switching to stable v1 endpoint
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      // 1. Use Gemini 1.5 Flash (or Pro Vision as fallback)
+      let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,6 +145,28 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
           }]
         })
       });
+
+      // If Flash fails, try Pro Vision (older but very stable model)
+      if (!response.ok) {
+        console.warn("Flash failed, trying Pro Vision fallback...");
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: "Extract business card details as JSON: name, company, designation, email, phone, website." },
+                {
+                  inline_data: {
+                    mime_type: "image/jpeg",
+                    data: base64Image
+                  }
+                }
+              ]
+            }]
+          })
+        });
+      }
 
       setOcrProgress(80);
       const data = await response.json();
