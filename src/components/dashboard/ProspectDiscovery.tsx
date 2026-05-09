@@ -33,6 +33,9 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
   const mapRef = useRef<HTMLDivElement>(null);
   const serviceRef = useRef<any>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [showBrief, setShowBrief] = useState<any>(null);
+  const [previousVisits, setPreviousVisits] = useState<any[]>([]);
+  const [checkingHistory, setCheckingHistory] = useState(false);
   const [showSyncForm, setShowSyncForm] = useState<any>(null);
   const [formData, setFormData] = useState({
     contact_name: '',
@@ -41,6 +44,25 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
     expected_revenue: '',
     notes: ''
   });
+
+  const checkHistory = async (place: any) => {
+    setCheckingHistory(true);
+    try {
+      const { data } = await supabase
+        .from('field_visit_logs')
+        .select('*, visit_id(user_id, profiles(full_name))')
+        .ilike('note', `%GPID:${place.place_id}%`)
+        .order('timestamp', { ascending: false });
+      
+      setPreviousVisits(data || []);
+      setShowBrief(place);
+    } catch (e) {
+      console.error('History check failed:', e);
+      setShowBrief(place);
+    } finally {
+      setCheckingHistory(false);
+    }
+  };
 
   const syncToOdoo = async (place: any) => {
     setSyncingId(place.place_id);
@@ -330,22 +352,21 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
                       <Clock className="w-2.5 h-2.5" />
                       <span>{place.opening_hours.open_now ? 'Open Now' : 'Closed'}</span>
                    </div>
-                )}
               </div>
 
                <div className="flex items-center space-x-2 pt-2">
                   <button 
-                   onClick={() => onSelect(place)}
-                   className="flex-1 bg-brand-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-brand-500/20 active:scale-95 transition flex items-center justify-center space-x-2"
+                    onClick={() => checkHistory(place)}
+                    className="flex-1 py-4 bg-brand-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-brand-400 active:scale-95 transition flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/20"
                   >
-                     <CheckCircle2 className="w-4 h-4" />
-                     <span>Visit</span>
+                    <MapPin className="w-4 h-4" />
+                    <span>Insights</span>
                   </button>
                   <button 
                    disabled={syncingId === place.place_id}
                     onClick={() => {
                       setShowSyncForm(place);
-                      setFormData(prev => ({ ...prev, contact_name: place.name }));
+                      setFormData(prev => ({ ...prev, contact_name: place.name, place_id: place.place_id }));
                     }}
                    className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition flex items-center justify-center space-x-2 ${
                      syncingId === place.place_id ? 'bg-slate-800 text-slate-500' : 'bg-slate-800 text-brand-400 border border-brand-500/20 hover:bg-slate-700'
@@ -470,6 +491,90 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
       `}</style>
+      {/* Prospect Brief & Insights Modal */}
+      <AnimatePresence>
+        {showBrief && (
+          <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-4">
+             <motion.div 
+               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+               onClick={() => setShowBrief(null)}
+               className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"
+             />
+             <motion.div 
+               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+               className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-t-[3rem] sm:rounded-[3rem] p-8 shadow-2xl overflow-hidden"
+             >
+                <div className="flex items-center justify-between mb-8">
+                   <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-500">
+                         <MapPin className="w-6 h-6" />
+                      </div>
+                      <div>
+                         <h3 className="text-xl font-black text-white">{showBrief.name}</h3>
+                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Prospect Insights</p>
+                      </div>
+                   </div>
+                   <button onClick={() => setShowBrief(null)} className="p-2 text-slate-500 hover:text-white transition">
+                      <X className="w-6 h-6" />
+                   </button>
+                </div>
+
+                <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                   {/* Previous Visits Alert */}
+                   {previousVisits.length > 0 ? (
+                     <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl space-y-2">
+                        <div className="flex items-center space-x-2 text-amber-500">
+                           <Clock className="w-4 h-4" />
+                           <span className="text-[10px] font-black uppercase tracking-widest">Already Visited</span>
+                        </div>
+                        <p className="text-xs text-amber-200/80 font-medium">
+                           This prospect was visited by <span className="text-amber-400">{(previousVisits[0].visit_id as any)?.profiles?.full_name || 'Staff'}</span> on {new Date(previousVisits[0].timestamp).toLocaleDateString()}.
+                        </p>
+                     </div>
+                   ) : (
+                     <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center space-x-3 text-emerald-500">
+                        <CheckCircle className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Fresh Prospect</span>
+                     </div>
+                   )}
+
+                   {/* AI/Business Suggestions */}
+                   <div className="space-y-4">
+                      <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Preparation Guide</h4>
+                      <div className="space-y-3">
+                         <div className="flex items-start space-x-3 bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
+                            <div className="w-6 h-6 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                               <Smartphone className="w-3 h-3" />
+                            </div>
+                            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                               {showBrief.types?.includes('architect') ? 'Ask about their current portfolio and upcoming design projects.' : 'Focus on the quality and durability of our materials for their ongoing construction.'}
+                            </p>
+                         </div>
+                         <div className="flex items-start space-x-3 bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
+                            <div className="w-6 h-6 bg-indigo-500/20 text-indigo-400 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                               <Star className="w-3 h-3" />
+                            </div>
+                            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                               {showBrief.rating > 4 ? 'This business has a great reputation. Highlight how our premium services match their standards.' : 'They might be looking for more reliable partners. Emphasize our timely delivery and support.'}
+                            </p>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    onSelect(showBrief);
+                    setShowBrief(null);
+                  }}
+                  className="w-full mt-8 py-5 bg-brand-500 text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-500/30 active:scale-95 transition"
+                >
+                  Confirm Visit
+                </button>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

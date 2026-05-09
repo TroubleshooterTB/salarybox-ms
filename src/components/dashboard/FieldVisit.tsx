@@ -47,8 +47,14 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
       .gte('timestamp', `${today}T00:00:00`)
       .order('timestamp', { ascending: false });
     
-    // Filter by current user manually if query is complex, or add user_id to logs
-    if (data) setLogs(data);
+    if (data) {
+      // Filter logs by current user
+      const userLogs = data.filter(log => {
+        const visit = log.visit_id as any;
+        return visit && visit.user_id === session.user.id;
+      });
+      setLogs(userLogs);
+    }
   };
 
   const fetchActiveVisit = async () => {
@@ -119,7 +125,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
         longitude: lng,
         selfie_url: selfieUrl,
         distance_from_last: dist,
-        note: note
+        note: selectedProspect ? `${note} [GPID:${selectedProspect.place_id}]` : note
       });
     if (error) console.error(error);
     fetchLogs(visitId);
