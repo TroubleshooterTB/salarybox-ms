@@ -204,7 +204,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
       
       const request = {
         textQuery: `${selectedCategory.label} in this area`,
-        fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types", "websiteUri", "editorialSummary"],
+        fields: ["displayName", "location", "businessStatus", "rating", "userRatingCount", "formattedAddress", "id", "types"],
         locationBias: {
           center: { lat: pos.lat, lng: pos.lng },
           radius: radius,
@@ -226,9 +226,7 @@ export default function ProspectDiscovery({ onBack, onSelect }: ProspectDiscover
             lng: p.location.lng()
           }
         },
-        types: p.types,
-        website: p.websiteUri,
-        summary: p.editorialSummary?.text
+        types: p.types
       }));
 
       setPlaces(formattedResults);

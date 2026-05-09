@@ -133,7 +133,7 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
 
       const { createWorker } = (window as any).Tesseract;
       const worker = await createWorker('eng', 1, {
-        logger: m => {
+        logger: (m: any) => {
           if (m.status === 'recognizing text') {
             setOcrProgress(Math.floor(m.progress * 100));
           }
@@ -155,11 +155,11 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       const websiteMatch = text.match(/(www\.)?([a-zA-Z0-9-]+\.(com|in|org|net|co|io))/i);
 
       // Attempt to find name and company from common patterns
-      const cleanedLines = lines.filter(l => !l.includes('@') && !l.match(/\d{5,}/));
+      const cleanedLines = lines.filter((l: string) => !l.includes('@') && !l.match(/\d{5,}/));
       
       setOcrData({
         name: cleanedLines[0] || '',
-        company: cleanedLines.find(l => l.length > 5 && !l.includes('www')) || cleanedLines[1] || '',
+        company: cleanedLines.find((l: string) => l.length > 5 && !l.includes('www')) || cleanedLines[1] || '',
         designation: lines.find((l: string) => /manager|director|architect|founder|owner|executive|partner/i.test(l)) || '',
         email: emailMatch ? emailMatch[0].toLowerCase() : '',
         phone: phoneMatch ? phoneMatch[0].replace(/[\s-]/g, '') : '',

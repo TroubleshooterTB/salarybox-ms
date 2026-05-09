@@ -533,6 +533,22 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
                     <span className="text-[10px] font-black uppercase tracking-widest">Take Mandatory Selfie</span>
                   </button>
                 )}
+                 <div className="flex space-x-3">
+                   <button 
+                    onClick={() => setShowScanner(true)}
+                    className="flex-1 py-3 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl flex items-center justify-center space-x-2 hover:bg-indigo-500/20 transition"
+                   >
+                      <ScanLine className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Scan Card</span>
+                   </button>
+                   <button 
+                    className={`flex-1 py-3 border rounded-xl flex items-center justify-center space-x-2 transition ${isRecording ? 'bg-rose-500 text-white animate-pulse border-rose-500' : 'bg-slate-950 text-slate-500 border-slate-800 hover:border-slate-700'}`}
+                    onClick={isRecording ? stopRecording : startRecording}
+                   >
+                      {isRecording ? <StopCircle className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                      <span className="text-[10px] font-black uppercase tracking-widest">{isRecording ? 'Stop' : 'Voice'}</span>
+                   </button>
+                 </div>
 
                 <textarea 
                   value={note}
