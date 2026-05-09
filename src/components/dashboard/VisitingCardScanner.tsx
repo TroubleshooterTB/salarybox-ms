@@ -136,6 +136,7 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
       const genAI = new GoogleGenerativeAI(apiKey);
       // The SDK automatically resolves the best endpoint and stable version for this alias
       let result;
+      let lastError;
       
       const prompt = "Extract the following details from this business card image: Name, Company, Designation, Email, Phone, Website. Return ONLY a valid JSON object with these keys: name, company, designation, email, phone, website. If a field is missing, leave it empty string. Focus on distinguishing the personal name from branding like 'First Select'.";
 
@@ -150,18 +151,33 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
 
       setOcrProgress(60);
 
-      try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        result = await model.generateContent([prompt, ...imageParts]);
-      } catch (e: any) {
-        console.warn("Flash model failed, falling back to Pro model:", e);
+      // Comprehensive waterfall of models to try
+      const modelsToTry = [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-pro"
+      ];
+
+      for (const modelName of modelsToTry) {
         try {
-          const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-          result = await fallbackModel.generateContent([prompt, ...imageParts]);
-        } catch (fallbackErr: any) {
-          throw new Error(`AI Model Error: Both Flash and Pro models failed. Please verify your API key has access to Gemini 1.5 models. (Original error: ${e.message})`);
+          console.log(`Trying Gemini model: ${modelName}...`);
+          const model = genAI.getGenerativeModel({ model: modelName });
+          result = await model.generateContent([prompt, ...imageParts]);
+          // If we get here, it succeeded! Break out of the loop.
+          break;
+        } catch (e: any) {
+          console.warn(`Model ${modelName} failed:`, e.message);
+          lastError = e;
+          // Continue to the next model in the array
         }
       }
+
+      if (!result) {
+        throw new Error(`AI Model Error: All model variants failed. Your API key might not have access to these vision models. (Last error: ${lastError?.message})`);
+      }
+
       setOcrProgress(80);
       
       const response = await result.response;
