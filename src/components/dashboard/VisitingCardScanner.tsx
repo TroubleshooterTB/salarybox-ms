@@ -143,7 +143,16 @@ export default function VisitingCardScanner({ onBack, onScan, prefillStage = 'Vi
 
       setOcrProgress(70);
       const data = await response.json();
-      const text = data.responses[0]?.fullTextAnnotation?.text;
+
+      if (data.error) {
+        throw new Error(`Google Vision Error: ${data.error.message}. Please ensure "Cloud Vision API" is enabled in your Google Console.`);
+      }
+
+      if (!data.responses || !data.responses[0]) {
+        throw new Error("Invalid response from Vision API. Please try again.");
+      }
+
+      const text = data.responses[0]?.fullTextAnnotation?.text || data.responses[0]?.textAnnotations?.[0]?.description;
 
       if (!text) {
         throw new Error("No text detected. Please ensure the card is well-lit and clearly visible.");
