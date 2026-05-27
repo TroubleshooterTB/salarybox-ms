@@ -93,137 +93,33 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
         profileQuery = profileQuery.eq('branch', selectedBranch);
       }
       const { data: profiles } = await profileQuery;
-      
       const targetMonthStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}`;
-      const startDate = new Date(exportYear, exportMonth, 1).toISOString();
-      const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
+      const { data: runData } = await supabase.from('payroll_runs').select('data').eq('month_year', targetMonthStr).maybeSingle();
 
-      const [
-        { data: attendance }, 
-        { data: adjustments }, 
-        { data: branches }, 
-        { data: loanSchedules },
-        { data: approvedLeaves },
-        { data: holidays },
-        { data: loans },
-        { data: fieldVisits },
-        { data: fieldVisitLogs }
-      ] = await Promise.all([
-        supabase.from('attendance').select('user_id, timestamp, type, status').gte('timestamp', startDate).lte('timestamp', endDate),
-        supabase.from('payroll_adjustments').select('*').eq('month_year', targetMonthStr),
-        supabase.from('branches').select('*'),
-        supabase.from('loan_schedules').select('*').eq('target_month', targetMonthStr),
-        supabase.from('leave_requests').select('*').eq('status', 'Approved').gte('start_date', startDate).lte('start_date', endDate),
-        supabase.from('holidays').select('*').gte('date', startDate).lte('date', endDate),
-        supabase.from('loans').select('*').order('transaction_date', { ascending: false }),
-        supabase.from('field_visits').select('*').gte('start_time', startDate).lte('start_time', endDate),
-        supabase.from('field_visit_logs').select('*').gte('timestamp', startDate).lte('timestamp', endDate)
-      ]);
+      if (!runData) {
+         alert(`Payroll for ${monthLabel} has not been processed yet. Please go to the Final Payroll Engine tab, verify the matrix, and click "Lock & Export" to generate the salary data for this month.`);
+         setLoading(false);
+         return;
+      }
 
-      const rows = await Promise.all((profiles || []).map(async p => {
-        const pAtt = attendance?.filter(a => a.user_id === p.id) || [];
-        const adj = adjustments?.find(a => a.user_id === p.id);
-        const dayMap = new Map<number, any[]>();
-        for (const rec of pAtt) {
-          const d = new Date(rec.timestamp).getDate();
-          if (!dayMap.has(d)) dayMap.set(d, []);
-          dayMap.get(d)!.push(rec);
-        }
-
-        let presentDays = 0, halfDays = 0, lateDays = 0;
-        let actualPaidHours = 0;
-
-        for (const [, recs] of dayMap) {
-          const sorted = [...recs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          let dayWorkMs = 0;
-          for (let i = 0; i < sorted.length - 1; i++) {
-            if (sorted[i].type === 'In' && sorted[i+1].type === 'Out') {
-              dayWorkMs += new Date(sorted[i+1].timestamp).getTime() - new Date(sorted[i].timestamp).getTime();
-            }
-          }
-          actualPaidHours += dayWorkMs / 3600000;
-          const last = recs.filter(r => r.type === 'Out').at(-1) ?? recs.at(-1);
-          if (last?.status === 'Present') presentDays++;
-          else if (last?.status === 'Half Day') halfDays++;
-          else if (last?.status === 'Late') { presentDays++; lateDays++; }
-        }
-
-        // Field Visit KM Calculation
-        const pVisits = fieldVisits?.filter(v => v.user_id === p.id) || [];
-        let totalKm = 0;
-        for (const v of pVisits) {
-          // Check if there are any manual logs or logs with reports (selfies/checkpoints)
-          const vLogs = fieldVisitLogs?.filter(l => l.visit_id === v.id) || [];
-          const hasReport = vLogs.some(l => l.action !== 'Auto' || l.selfie_url);
-          if (hasReport) {
-            totalKm += v.total_km || 0;
-          }
-        }
-
-        const branchData = (branches || []).find(b => b.name === p.branch);
-        const standardShiftHours = branchData?.shift_hours || 8;
-        const expectedWorkHours = (presentDays + lateDays + (halfDays * 0.5)) * standardShiftHours;
-        const overtimeHours = Math.max(0, actualPaidHours - expectedWorkHours);
-        const loanSched = loanSchedules?.find(s => s.user_id === p.id);
-        const loanDeduction = loanSched?.deduction_amount ?? 0;
-        const employeeLeaves = (approvedLeaves || []).filter(l => l.user_id === p.id);
-        const paidLeavesCount = employeeLeaves.reduce((acc, l) => {
-          if (l.leave_type !== 'Unpaid') {
-            const start = new Date(l.start_date);
-            const end = new Date(l.end_date);
-            const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
-            return acc + (l.is_half_day ? 0.5 : days);
-          }
-          return acc;
-        }, 0);
-        const holidaysCount = (holidays || []).length;
-        const currentLoan = loans?.find(l => l.user_id === p.id);
-
-        const payroll = calculatePayroll({
-          baseSalary: p.ctc_amount || 0,
-          year: exportYear,
-          month: exportMonth,
-          presentDays,
-          paidLeaves: paidLeavesCount,
-          publicHolidays: holidaysCount, 
-          halfDays,
-          lateDays,
-          overtimeHours,
-          overtimeType: p.overtime_applicable ? 'Hourly' : 'None',
-          standardShiftHours: standardShiftHours,
-          loanDeduction,
-          professionalTaxApplicable: p.professional_tax_applicable !== false,
-          joiningDate: p.joining_date,
-          dateOfLeaving: p.date_of_leaving,
-          bonus: adj?.bonus || 0,
-          incentive: adj?.incentive || 0,
-          fines: adj?.fines || 0,
-          otherDeductions: adj?.other_deductions || 0,
-          pfEnabled: p.pf_enabled,
-          esiEnabled: p.esi_enabled,
-          overtimeHourlyRate: p.overtime_hourly_rate || 0,
-          fieldVisitKm: totalKm,
-          petrolAllowanceRate: p.petrol_allowance_rate || 3.75
-        });
-
-        return {
+      const rows = runData.data.map((p: any) => ({
           'EMP ID': p.employee_id,
           'Name': p.full_name,
           'Branch': p.branch || '',
           'Designation': p.job_title || '',
-          'Monthly Base CTC': payroll.baseMonthSalary.toFixed(0),
-          'Payable Days': payroll.payableDays,
-          'Gross Earned': payroll.grossEarned.toFixed(0),
-          'OT Hours': payroll.overtimeHours.toFixed(2),
-          'OT Pay': payroll.overtimePay.toFixed(0),
-          'Field Visit KM': payroll.fieldVisitKm.toFixed(2),
-          'Petrol Allowance': payroll.fieldVisitAllowance.toFixed(0),
-          'Total Earnings': payroll.totalEarnings.toFixed(0),
-          'Loan EMI': payroll.loanDeduction,
-          'Loan Balance': currentLoan?.remaining_balance ?? 0,
-          'Net Take Home': payroll.netPay.toFixed(0),
-          'Total CTC to Company': payroll.ctcToCompany.toFixed(0)
-        };
+          'Monthly Base CTC': Math.round(p.payroll.baseMonthSalary),
+          'Payable Days': p.payroll.payableDays?.toFixed(1),
+          'Gross Earned': Math.round(p.payroll.grossEarned),
+          'OT Hours': Number(p.payroll.overtimeHours.toFixed(2)),
+          'OT Hours Amount': Math.round(p.payroll.overtimePay),
+          'OT Days': (p.weeklyOffOTDays || 0) + ((p.weeklyOffOTHalfDays || 0) * 0.5),
+          'OT Days Amount': Math.round(p.payroll.weeklyOffOTPay || 0),
+          'Field Visit KM': Number(p.payroll.fieldVisitKm.toFixed(2)),
+          'Petrol Allowance': Math.round(p.payroll.fieldVisitAllowance),
+          'Total Earnings': Math.round(p.payroll.totalEarnings),
+          'Loan EMI': Math.round(p.payroll.loanDeduction),
+          'Net Take Home': Math.round(p.payroll.netPay),
+          'Total CTC to Company': Math.round(p.payroll.ctcToCompany)
       }));
 
       const ws = XLSX.utils.json_to_sheet(rows);

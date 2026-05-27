@@ -66,11 +66,15 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
           sl_total: editForm.sl_total,
           cl_total: editForm.cl_total,
        };
+       let err;
        if (editingBalance.quota_id) {
-           await supabase.from('leave_quotas').update(payload).eq('id', editingBalance.quota_id);
+           const { error } = await supabase.from('leave_quotas').update(payload).eq('id', editingBalance.quota_id);
+           err = error;
        } else {
-           await supabase.from('leave_quotas').insert(payload);
+           const { error } = await supabase.from('leave_quotas').insert(payload);
+           err = error;
        }
+       if (err) throw err;
        setEditingBalance(null);
        fetchData();
     } catch(err: any) {
