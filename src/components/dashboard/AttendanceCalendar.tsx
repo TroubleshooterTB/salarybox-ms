@@ -211,13 +211,22 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     const dayPunches = attendance.filter(a => new Date(a.timestamp).getDate() === day);
     if (dayPunches.length === 0) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      const dateStr = date.toISOString().split('T')[0];
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const dStr = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${dStr}`;
       
       // Check Holidays first
       const holiday = holidays.find(h => h.date === dateStr);
       if (holiday) return { status: 'Holiday', name: holiday.name };
 
       if (date.getDay() === 0) return { status: 'Week Off' };
+      
+      // If it's a past date and not a week off, and no punches, it's Absent
+      const today = new Date();
+      if (date < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+         return { status: 'Absent' };
+      }
       return null;
     }
     const lastPunch = dayPunches.at(-1);

@@ -174,9 +174,17 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                }
             }
 
-            if (lastOutRecord && durationMins > stdHours * 60) {
-              totalOvertimeHours += (durationMins - stdHours * 60) / 60;
+            let dailyOTMins = 0;
+            if (minsLate <= -30) {
+               dailyOTMins += Math.abs(minsLate); // early OT
             }
+            
+            if (lastOutRecord && durationMins > stdHours * 60) {
+              const durationOT = durationMins - stdHours * 60;
+              dailyOTMins = Math.max(dailyOTMins, durationOT);
+            }
+            
+            totalOvertimeHours += dailyOTMins / 60;
 
           } else {
             if (records.length > 0) {

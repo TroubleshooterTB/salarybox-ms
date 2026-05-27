@@ -1,52 +1,84 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Loader2, Download } from 'lucide-react';
+import { Search, Loader2, Download, Edit2, X, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: string }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingBalance, setEditingBalance] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ pl_total: 15, sl_total: 12, cl_total: 10 });
+  const [saving, setSaving] = useState(false);
   const currentYear = new Date().getFullYear();
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      
-      let profileQuery = supabase.from('profiles').select('id, full_name, employee_id, branch, department');
-      if (selectedBranch && selectedBranch !== 'All Branches') {
-        profileQuery = profileQuery.eq('branch', selectedBranch);
-      }
-      const { data: profiles } = await profileQuery;
-
-      const { data: balances } = await supabase
-        .from('leave_balances')
-        .select('*')
-        .eq('year', currentYear);
-
-      if (profiles) {
-        const matrix = profiles.map(p => {
-          const b = balances?.find(b => b.user_id === p.id) || {
-            privileged_leave_total: 15, privileged_leave_used: 0,
-            sick_leave_total: 12, sick_leave_used: 0,
-            casual_leave_total: 10, casual_leave_used: 0
-          };
-          return {
-            ...p,
-            pl: `${b.privileged_leave_total - b.privileged_leave_used} / ${b.privileged_leave_total}`,
-            sl: `${b.sick_leave_total - b.sick_leave_used} / ${b.sick_leave_total}`,
-            cl: `${b.casual_leave_total - b.casual_leave_used} / ${b.casual_leave_total}`,
-            pl_raw: b.privileged_leave_total - b.privileged_leave_used,
-            sl_raw: b.sick_leave_total - b.sick_leave_used,
-            cl_raw: b.casual_leave_total - b.casual_leave_used
-          };
-        });
-        setData(matrix);
-      }
-      setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    let profileQuery = supabase.from('profiles').select('id, full_name, employee_id, branch, department');
+    if (selectedBranch && selectedBranch !== 'All Branches') {
+      profileQuery = profileQuery.eq('branch', selectedBranch);
     }
+    const { data: profiles } = await profileQuery;
+    const { data: balances } = await supabase.from('leave_quotas').select('*').eq('year', currentYear);
+
+    if (profiles) {
+      const matrix = profiles.map(p => {
+        const b = balances?.find(b => b.user_id === p.id) || {
+          pl_total: 15, pl_used: 0,
+          sl_total: 12, sl_used: 0,
+          cl_total: 10, cl_used: 0
+        };
+        return {
+          ...p,
+          quota_id: balances?.find(b => b.user_id === p.id)?.id,
+          pl_total: b.pl_total, pl_used: b.pl_used,
+          sl_total: b.sl_total, sl_used: b.sl_used,
+          cl_total: b.cl_total, cl_used: b.cl_used,
+          pl: `${b.pl_total - b.pl_used} / ${b.pl_total}`,
+          sl: `${b.sl_total - b.sl_used} / ${b.sl_total}`,
+          cl: `${b.cl_total - b.cl_used} / ${b.cl_total}`,
+          pl_raw: b.pl_total - b.pl_used,
+          sl_raw: b.sl_total - b.sl_used,
+          cl_raw: b.cl_total - b.cl_used
+        };
+      });
+      setData(matrix);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchData();
   }, [selectedBranch, currentYear]);
+
+  const handleEditClick = (item: any) => {
+    setEditingBalance(item);
+    setEditForm({ pl_total: item.pl_total, sl_total: item.sl_total, cl_total: item.cl_total });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+       const payload = {
+          user_id: editingBalance.id,
+          year: currentYear,
+          pl_total: editForm.pl_total,
+          sl_total: editForm.sl_total,
+          cl_total: editForm.cl_total,
+       };
+       if (editingBalance.quota_id) {
+           await supabase.from('leave_quotas').update(payload).eq('id', editingBalance.quota_id);
+       } else {
+           await supabase.from('leave_quotas').insert(payload);
+       }
+       setEditingBalance(null);
+       fetchData();
+    } catch(err: any) {
+       alert(err.message);
+    } finally {
+       setSaving(false);
+    }
+  };
 
   const filteredData = data.filter(item => 
     item.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,8 +101,8 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
   };
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-8 space-y-6 relative h-full flex flex-col">
+      <div className="flex justify-between items-center shrink-0">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Leave Balance Matrix</h2>
           <p className="text-slate-500 text-sm font-medium">Tracking SL/PL/CL quotas for {currentYear}</p>
@@ -84,7 +116,7 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
         </button>
       </div>
 
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-4 shrink-0">
         <div className="flex-1 relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input 
@@ -97,30 +129,31 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden flex-1 flex flex-col">
+        <div className="overflow-auto flex-1 custom-scrollbar">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100">
+            <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-100">
+              <tr>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Name</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Employee ID</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Branch</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-emerald-50/30">Privilege (PL)</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-rose-50/30">Sick (SL)</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-brand-50/30">Casual (CL)</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center">
+                  <td colSpan={7} className="px-6 py-20 text-center">
                     <Loader2 className="w-8 h-8 animate-spin text-brand-500 mx-auto mb-2" />
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Balances...</p>
                   </td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center font-medium text-slate-400">No records found.</td>
+                  <td colSpan={7} className="px-6 py-20 text-center font-medium text-slate-400">No records found.</td>
                 </tr>
               ) : (
                 filteredData.map(item => (
@@ -150,6 +183,11 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
                         {item.cl}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <button onClick={() => handleEditClick(item)} className="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition">
+                         <Edit2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -157,6 +195,38 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
           </table>
         </div>
       </div>
+
+      {editingBalance && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+               <div>
+                  <h3 className="text-lg font-bold text-slate-800">Edit Quotas</h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{editingBalance.full_name}</p>
+               </div>
+               <button onClick={() => setEditingBalance(null)} className="p-2 text-slate-400 hover:bg-slate-200 rounded-full"><X className="w-4 h-4"/></button>
+             </div>
+             <div className="p-6 space-y-4">
+                <div className="space-y-1">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">PL Total Quota</label>
+                   <input type="number" value={editForm.pl_total} onChange={e=>setEditForm({...editForm, pl_total: parseInt(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">SL Total Quota</label>
+                   <input type="number" value={editForm.sl_total} onChange={e=>setEditForm({...editForm, sl_total: parseInt(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">CL Total Quota</label>
+                   <input type="number" value={editForm.cl_total} onChange={e=>setEditForm({...editForm, cl_total: parseInt(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
+                </div>
+                <button onClick={handleSave} disabled={saving} className="w-full flex items-center justify-center space-x-2 bg-emerald-500 text-white py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 transition">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}
+                  <span>Save Quotas</span>
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

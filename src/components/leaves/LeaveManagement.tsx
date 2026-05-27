@@ -32,14 +32,18 @@ export default function LeaveManagement({ onBack, prefillDate }: { onBack: () =>
     if (!session) return;
     const currentYear = new Date().getFullYear();
     const { data } = await supabase
-      .from('leave_balances')
+      .from('leave_quotas')
       .select('*')
       .eq('user_id', session.user.id)
       .eq('year', currentYear)
       .maybeSingle();
     
     if (data) {
-      setBalances(data);
+      setBalances({
+        sick_leave_total: data.sl_total, sick_leave_used: data.sl_used,
+        privileged_leave_total: data.pl_total, privileged_leave_used: data.pl_used,
+        casual_leave_total: data.cl_total, casual_leave_used: data.cl_used
+      });
     } else {
       // Initialize if not found
       setBalances({
@@ -67,6 +71,22 @@ export default function LeaveManagement({ onBack, prefillDate }: { onBack: () =>
     if (requestedDays <= 0) {
       alert('Invalid date range.');
       return;
+    }
+
+    // Check if applying for past month
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const targetStartDate = new Date(formData.start_date);
+    
+    if (targetStartDate.getMonth() !== currentMonth || targetStartDate.getFullYear() !== currentYear) {
+       const isPreviousMonth = (targetStartDate.getMonth() === currentMonth - 1 && targetStartDate.getFullYear() === currentYear) || 
+                               (targetStartDate.getMonth() === 11 && currentMonth === 0 && targetStartDate.getFullYear() === currentYear - 1);
+       if (targetStartDate < today && (!isPreviousMonth || currentDay > 3)) {
+           alert('You can only apply for past month leaves until the 3rd of the current month.');
+           return;
+       }
     }
 
     // Check balance

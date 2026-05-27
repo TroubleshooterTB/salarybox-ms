@@ -162,7 +162,11 @@ export async function POST(req: NextRequest) {
         resolvedStatus = 'Half Day';
       } else if (minsLate > gracePeriod) {
         // Late but within half-day threshold
-        resolvedStatus = 'Late';
+        if (profile.branch?.toLowerCase().includes('factory')) {
+          resolvedStatus = 'Half Day'; // Factory branch penalty
+        } else {
+          resolvedStatus = 'Late';
+        }
       } else {
         resolvedStatus = 'Present';
       }
