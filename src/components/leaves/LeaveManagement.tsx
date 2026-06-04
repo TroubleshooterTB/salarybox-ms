@@ -73,21 +73,7 @@ export default function LeaveManagement({ onBack, prefillDate }: { onBack: () =>
       return;
     }
 
-    // Check if applying for past month
-    const today = new Date();
-    const currentDay = today.getDate();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    const targetStartDate = new Date(formData.start_date);
-    
-    if (targetStartDate.getMonth() !== currentMonth || targetStartDate.getFullYear() !== currentYear) {
-       const isPreviousMonth = (targetStartDate.getMonth() === currentMonth - 1 && targetStartDate.getFullYear() === currentYear) || 
-                               (targetStartDate.getMonth() === 11 && currentMonth === 0 && targetStartDate.getFullYear() === currentYear - 1);
-       if (targetStartDate < today && (!isPreviousMonth || currentDay > 3)) {
-           alert('You can only apply for past month leaves until the 3rd of the current month.');
-           return;
-       }
-    }
+
 
     // Check balance
     const typeKey = LEAVE_TYPES.find(t => t.id === formData.leave_type)?.key;
