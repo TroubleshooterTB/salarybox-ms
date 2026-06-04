@@ -166,7 +166,8 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
         // 2. Deduct from Leave Quotas
         const start = new Date(leave.start_date);
         const end = new Date(leave.end_date);
-        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const calendarDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const deductionDays = leave.is_half_day ? 0.5 : calendarDays;
         
         const quotaType = (leave.leave_type === 'Privileged Leave' || leave.leave_type === 'Statutory' || leave.leave_type === 'PL') ? 'pl_used' : (leave.leave_type === 'Sick Leave' || leave.leave_type === 'Medical' || leave.leave_type === 'SL') ? 'sl_used' : 'cl_used';
         
@@ -180,7 +181,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
         if (qData) {
             const currentVal = (qData as any)[quotaType] || 0;
             const { error: quotaError } = await supabase.from('leave_quotas')
-                .update({ [quotaType]: currentVal + days })
+                .update({ [quotaType]: currentVal + deductionDays })
                 .eq('user_id', leave.user_id)
                 .eq('year', start.getFullYear());
                 
@@ -196,7 +197,7 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
         // 3. Inject attendance rows to sync with calendar visually
         const punchType = leave.leave_type === 'Unpaid' ? 'Absent' : 'Paid Leave';
         const attendancePayloads = [];
-        for (let d = 0; d < days; d++) {
+        for (let d = 0; d < calendarDays; d++) {
            const targetDate = new Date(start);
            targetDate.setDate(targetDate.getDate() + d);
            const y = targetDate.getFullYear();
