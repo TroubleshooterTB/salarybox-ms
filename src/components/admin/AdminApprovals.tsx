@@ -172,14 +172,15 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
         
         // Direct quota deduction bypassing missing RPC
         const { data: qData } = await supabase.from('leave_quotas')
-            .select(quotaType)
+            .select('pl_used, sl_used, cl_used')
             .eq('user_id', leave.user_id)
             .eq('year', start.getFullYear())
             .maybeSingle();
             
         if (qData) {
+            const currentVal = (qData as any)[quotaType] || 0;
             const { error: quotaError } = await supabase.from('leave_quotas')
-                .update({ [quotaType]: (qData[quotaType] || 0) + days })
+                .update({ [quotaType]: currentVal + days })
                 .eq('user_id', leave.user_id)
                 .eq('year', start.getFullYear());
                 
