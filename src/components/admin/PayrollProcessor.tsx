@@ -40,17 +40,23 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         { data: allLoans },
         { data: allLeaves },
         { data: allHolidays },
-        { data: allFieldVisits },
-        { data: allFieldVisitLogs }
+        { data: allFieldVisits }
       ] = await Promise.all([
         supabase.from('attendance').select('*').in('user_id', profileIds).gte('timestamp', startDate).lte('timestamp', endDate),
         supabase.from('payroll_adjustments').select('*').in('user_id', profileIds).eq('month_year', monthYear),
         supabase.from('loan_schedules').select('*').in('user_id', profileIds).eq('target_month', monthYear),
         supabase.from('leave_requests').select('*').in('user_id', profileIds).eq('status', 'Approved').lte('start_date', endDate.split('T')[0]),
         supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0]),
-        supabase.from('field_visits').select('*').in('user_id', profileIds).gte('start_time', startDate).lte('start_time', endDate),
-        supabase.from('field_visit_logs').select('*').in('visit_id', supabase.from('field_visits').select('id').in('user_id', profileIds).gte('start_time', startDate).lte('start_time', endDate) as any).gte('timestamp', startDate).lte('timestamp', endDate)
+        supabase.from('field_visits').select('*').in('user_id', profileIds).gte('start_time', startDate).lte('start_time', endDate)
       ]);
+
+      // Fetch field visit logs separately using actual visit IDs
+      const visitIds = (allFieldVisits || []).map((v: any) => v.id);
+      let allFieldVisitLogs: any[] | null = [];
+      if (visitIds.length > 0) {
+        const { data } = await supabase.from('field_visit_logs').select('*').in('visit_id', visitIds);
+        allFieldVisitLogs = data;
+      }
 
       // 4. Process each employee
       const calculatedData = profiles.map(p => {
