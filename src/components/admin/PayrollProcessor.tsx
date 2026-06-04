@@ -19,8 +19,8 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       const startDate = new Date(year, month, 1).toISOString();
       const endDate = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
-      // 1. Fetch all profiles for the branch
-      let profileQuery = supabase.from('profiles').select('*').eq('is_active', true);
+      // 1. Fetch all profiles for the branch (removed is_active filter due to missing column)
+      let profileQuery = supabase.from('profiles').select('*');
       if (selectedBranch && selectedBranch !== 'All Branches') {
         profileQuery = profileQuery.eq('branch', selectedBranch);
       }
@@ -351,8 +351,9 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Days</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Basic</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">OT/Earned</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-violet-500">Weekly Off OT</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Total Earned</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-emerald-500">OT Hours</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-violet-500">OT Days</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-blue-500">Field Visit</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-amber-500">Branch OT</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right text-rose-500">Deductions</th>
@@ -375,7 +376,16 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                     </td>
                     <td className="px-6 py-5 text-right">
                        <p className="text-xs font-bold text-slate-800">₹{Math.round(p.payroll.totalEarnings).toLocaleString()}</p>
-                       <p className="text-[10px] font-black text-emerald-500 uppercase tracking-tighter">OT: ₹{Math.round(p.payroll.overtimePay)}</p>
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                       {p.payroll.overtimeHours > 0 ? (
+                         <div>
+                           <p className="text-xs font-black text-emerald-600">₹{Math.round(p.payroll.overtimePay).toLocaleString()}</p>
+                           <p className="text-[9px] font-bold text-emerald-400">{p.payroll.overtimeHours.toFixed(1)}h OT</p>
+                         </div>
+                       ) : (
+                         <span className="text-[10px] text-slate-300 font-bold">—</span>
+                       )}
                     </td>
                     <td className="px-6 py-5 text-right">
                        {(p.weeklyOffOTDays > 0 || p.weeklyOffOTHalfDays > 0) ? (

@@ -168,20 +168,28 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
         const end = new Date(leave.end_date);
         const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
-        const quotaType = leave.leave_type === 'Statutory' ? 'pl_used' : leave.leave_type === 'Medical' ? 'sl_used' : 'cl_used';
+        const quotaType = (leave.leave_type === 'Privileged Leave' || leave.leave_type === 'Statutory' || leave.leave_type === 'PL') ? 'pl_used' : (leave.leave_type === 'Sick Leave' || leave.leave_type === 'Medical' || leave.leave_type === 'SL') ? 'sl_used' : 'cl_used';
         
-        // This assumes a schema where leave_quotas exists and has these columns.
-        // We use an incrementing update.
-        const { error: quotaError } = await supabase.rpc('increment_leave_usage', {
-            target_user_id: leave.user_id,
-            target_year: start.getFullYear(),
-            column_name: quotaType,
-            increment_by: days
-        });
-        
-        if (quotaError) {
-            console.error('Quota deduction failed:', quotaError);
-            alert('Leave approved but quota deduction failed. Please check manually.');
+        // Direct quota deduction bypassing missing RPC
+        const { data: qData } = await supabase.from('leave_quotas')
+            .select(quotaType)
+            .eq('user_id', leave.user_id)
+            .eq('year', start.getFullYear())
+            .maybeSingle();
+            
+        if (qData) {
+            const { error: quotaError } = await supabase.from('leave_quotas')
+                .update({ [quotaType]: (qData[quotaType] || 0) + days })
+                .eq('user_id', leave.user_id)
+                .eq('year', start.getFullYear());
+                
+            if (quotaError) {
+                console.error('Quota deduction failed:', quotaError);
+                alert('Leave approved but quota deduction failed. Please check manually.');
+            }
+        } else {
+            console.error('Leave quota record not found for user year.');
+            alert('Leave approved but could not find quota record to deduct.');
         }
 
         // 3. Inject attendance rows to sync with calendar visually
