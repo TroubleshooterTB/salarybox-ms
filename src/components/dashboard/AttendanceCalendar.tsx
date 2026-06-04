@@ -230,7 +230,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       return null;
     }
     const lastPunch = dayPunches.at(-1);
-    return { status: lastPunch?.status, raw: dayPunches };
+    return { status: lastPunch?.status, raw: dayPunches, reason: lastPunch?.reason };
   };
 
   const getStats = () => {
@@ -343,7 +343,18 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
             {padding.map(i => <div key={`p-${i}`} className="aspect-square" />)}
             {days.map(day => {
               const data = getDayData(day);
-              const config = data ? statusMap[data.status] : null;
+              let config = data ? statusMap[data.status] : null;
+              
+              if (data?.reason && (data.status === 'Paid Leave' || data.status === 'Half Day')) {
+                 if (data.reason.includes('Sick Leave') || data.reason.includes('SL')) {
+                    config = { color: 'bg-rose-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD SL' : 'SL' };
+                 } else if (data.reason.includes('Casual Leave') || data.reason.includes('CL')) {
+                    config = { color: 'bg-orange-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD CL' : 'CL' };
+                 } else if (data.reason.includes('Privileged Leave') || data.reason.includes('PL')) {
+                    config = { color: 'bg-blue-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD PL' : 'PL' };
+                 }
+              }
+              
               const hasPunches = (data?.raw?.length ?? 0) > 0;
 
               return (
