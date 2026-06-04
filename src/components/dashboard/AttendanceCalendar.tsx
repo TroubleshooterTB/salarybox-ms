@@ -347,11 +347,11 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
               
               if (data?.reason && (data.status === 'Paid Leave' || data.status === 'Half Day')) {
                  if (data.reason.includes('Sick Leave') || data.reason.includes('SL')) {
-                    config = { color: 'bg-rose-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD SL' : 'SL' };
+                    config = { color: 'bg-pink-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD SL' : 'SL' };
                  } else if (data.reason.includes('Casual Leave') || data.reason.includes('CL')) {
-                    config = { color: 'bg-orange-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD CL' : 'CL' };
+                    config = { color: 'bg-purple-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD CL' : 'CL' };
                  } else if (data.reason.includes('Privileged Leave') || data.reason.includes('PL')) {
-                    config = { color: 'bg-blue-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD PL' : 'PL' };
+                    config = { color: 'bg-indigo-500', text: 'text-white', badge: data.status === 'Half Day' ? 'HD PL' : 'PL' };
                  }
               }
               
