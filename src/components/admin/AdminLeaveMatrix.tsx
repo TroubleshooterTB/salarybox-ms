@@ -213,15 +213,15 @@ export default function AdminLeaveMatrix({ selectedBranch }: { selectedBranch: s
              <div className="p-6 space-y-4">
                 <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">PL Total Quota</label>
-                   <input type="number" value={editForm.pl_total} onChange={e=>setEditForm({...editForm, pl_total: parseInt(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
+                   <input type="number" step="0.5" value={editForm.pl_total} onChange={e=>setEditForm({...editForm, pl_total: parseFloat(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
                 </div>
                 <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">SL Total Quota</label>
-                   <input type="number" value={editForm.sl_total} onChange={e=>setEditForm({...editForm, sl_total: parseInt(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
+                   <input type="number" step="0.5" value={editForm.sl_total} onChange={e=>setEditForm({...editForm, sl_total: parseFloat(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
                 </div>
                 <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">CL Total Quota</label>
-                   <input type="number" value={editForm.cl_total} onChange={e=>setEditForm({...editForm, cl_total: parseInt(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
+                   <input type="number" step="0.5" value={editForm.cl_total} onChange={e=>setEditForm({...editForm, cl_total: parseFloat(e.target.value)||0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700" />
                 </div>
                 <button onClick={handleSave} disabled={saving} className="w-full flex items-center justify-center space-x-2 bg-emerald-500 text-white py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 transition">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}
