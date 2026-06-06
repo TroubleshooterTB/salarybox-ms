@@ -311,6 +311,32 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
     }
   };
 
+  const handleLockIndividual = async (p: any) => {
+    if (!window.confirm(`Lock payroll for ${p.full_name}? This will securely append their verified data to the month's final registry.`)) return;
+    setProcessing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/payroll-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session?.access_token,
+          monthYear,
+          payrollData: [p]
+        })
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      
+      alert(`${p.full_name}'s payroll has been locked successfully!`);
+    } catch (err: any) {
+      alert('Lock failed: ' + err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto flex flex-col h-screen overflow-hidden">
       <div className="flex justify-between items-center mb-8 shrink-0">
@@ -436,10 +462,18 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                        <p className="text-xs font-bold text-rose-500">₹{Math.round(p.payroll.totalDeductions).toLocaleString()}</p>
                        <p className="text-[9px] font-bold text-slate-400">Loans: ₹{Math.round(p.payroll.loanDeduction)}</p>
                     </td>
-                    <td className="px-6 py-5 text-right">
+                    <td className="px-6 py-5 text-right flex flex-col items-end space-y-2">
                        <div className="bg-emerald-50 px-4 py-2 rounded-xl inline-block border border-emerald-100">
                           <span className="text-sm font-black text-emerald-700">₹{Math.round(p.payroll.netPay).toLocaleString()}</span>
                        </div>
+                       <button 
+                         onClick={() => handleLockIndividual(p)}
+                         disabled={userRole !== 'Super Admin'}
+                         className="text-[9px] font-bold text-slate-500 hover:text-emerald-600 uppercase flex items-center space-x-1 transition"
+                       >
+                         <Lock className="w-3 h-3" />
+                         <span>Lock Individual</span>
+                       </button>
                     </td>
                   </tr>
                 ))}
