@@ -128,7 +128,7 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           'Branch': p.branch || '',
           'Designation': p.job_title || '',
           'Monthly Base CTC': Math.round(p.payroll.baseMonthSalary),
-          'Payable Days': p.payroll.payableDays?.toFixed(1),
+          'Payable Days': (p.payroll.payableDays + p.weeklyOffOTDays + (p.weeklyOffOTHalfDays * 0.5) + p.payroll.holidayOTDays + (p.payroll.holidayOTHalfDays * 0.5)).toFixed(1),
           'Gross Earned': Math.round(p.payroll.grossEarned),
           'OT Hours': Number(p.payroll.overtimeHours.toFixed(2)),
           'OT Hours Amount': Math.round(p.payroll.overtimePay),

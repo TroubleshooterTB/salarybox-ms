@@ -173,8 +173,14 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
 
             if (forcedStatus === 'Half Day' || (lastOutRecord && durationHrs > 0 && durationHrs < (stdHours / 2 + 0.5))) {
                halfDays++;
+               if (approvedLeave && approvedLeave.leave_type !== 'Unpaid') {
+                 if (approvedLeave.is_half_day) paidLeaves += 0.5; else paidLeaves++;
+               }
             } else if (durationHrs > 0 && durationHrs < 1.5) {
                // Barely present -> effectively absent
+               if (approvedLeave && approvedLeave.leave_type !== 'Unpaid') {
+                 if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+               }
             } else {
                if (minsLate > 0) {
                  presentDays++;
@@ -406,7 +412,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.employee_id}</p>
                     </td>
                     <td className="px-6 py-5 text-center">
-                       <span className="text-sm font-black text-slate-700">{p.payroll.payableDays.toFixed(1)}</span>
+                       <span className="text-sm font-black text-slate-700">{(p.payroll.payableDays + p.weeklyOffOTDays + (p.weeklyOffOTHalfDays * 0.5) + p.payroll.holidayOTDays + (p.payroll.holidayOTHalfDays * 0.5)).toFixed(1)}</span>
                        <p className="text-[10px] font-bold text-slate-400">/ {p.payroll.monthDays}</p>
                        {p.attendanceStats && (
                          <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-tighter" title="Present + WeekOff + Leave + Holiday">

@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       'Bank Account': p.bank_account_details,
       'IFSC Code': p.bank_ifsc,
       'Days in Month': p.payroll.monthDays,
-      'Payable Days': p.payroll.payableDays?.toFixed(1),
+      'Payable Days': (p.payroll.payableDays + p.weeklyOffOTDays + (p.weeklyOffOTHalfDays * 0.5) + p.payroll.holidayOTDays + (p.payroll.holidayOTHalfDays * 0.5)).toFixed(1),
       'Base Salary': Math.round(p.payroll.baseMonthSalary),
       'Prorated Basic': Math.round(p.payroll.proratedBaseSalary),
       'Gross Earned': Math.round(p.payroll.grossEarned),
