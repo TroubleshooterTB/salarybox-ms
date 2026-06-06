@@ -46,7 +46,7 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const startDate = new Date(exportYear, exportMonth, 1).toISOString();
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
       
-      const profileIds = profiles.map((p: any) => p.id);
+      const profileIds = profiles?.map((p: any) => p.id) || [];
       
       const attendance = await fetchInChunks('attendance', 'user_id', profileIds, q => q.gte('timestamp', startDate).lte('timestamp', endDate));
       const leaves = await fetchInChunks('leave_requests', 'user_id', profileIds, q => q.eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0]));
