@@ -77,7 +77,7 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           else if (lastRec?.status === 'Late') statusCode = 'L';
           else if (lastRec?.status === 'Paid Leave') statusCode = 'PL';
           else if (lastRec?.status === 'Absent') statusCode = 'A';
-          else if (approvedLeave) statusCode = approvedLeave.is_half_day ? 'HD' : 'PL';
+          else if (approvedLeave) statusCode = approvedLeave.leave_type === 'Unpaid' ? 'A' : (approvedLeave.is_half_day ? 'HD' : 'PL');
 
           baseRow[`D${i}_Status`] = statusCode;
           baseRow[`D${i}_IN`] = inPunch ? formatTime(inPunch.timestamp) : '';

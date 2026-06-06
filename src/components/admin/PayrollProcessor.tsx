@@ -141,7 +141,9 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
             if (!approvedLeave) {
                paidWeekOffs++; 
             } else {
-               if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+               if (approvedLeave.leave_type !== 'Unpaid') {
+                 if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+               }
             }
             continue;
           }
@@ -203,7 +205,9 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
               else if (lastRecord.status === 'Paid Leave') paidLeaves++;
               else if (lastRecord.status === 'Half Day Leave') { paidLeaves += 0.5; halfDays++; }
             } else if (approvedLeave) {
-              if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+              if (approvedLeave.leave_type !== 'Unpaid') {
+                if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+              }
             }
           }
         }

@@ -233,7 +233,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
       // Check Leaves
       const approvedLeave = leaves.find(l => dateStr >= l.start_date && dateStr <= l.end_date);
-      if (approvedLeave) return { status: approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave', reason: approvedLeave.reason || approvedLeave.leave_type };
+      if (approvedLeave) return { status: approvedLeave.leave_type === 'Unpaid' ? 'Absent' : (approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave'), reason: approvedLeave.reason || approvedLeave.leave_type };
 
       if (date.getDay() === 0) return { status: 'Week Off' };
       
