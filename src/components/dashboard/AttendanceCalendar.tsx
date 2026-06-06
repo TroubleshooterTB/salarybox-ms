@@ -21,6 +21,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
   const [reason, setReason] = useState('');
   const [dayNotes, setDayNotes] = useState<any[]>([]);
   const [holidays, setHolidays] = useState<any[]>([]);
+  const [leaves, setLeaves] = useState<any[]>([]);
   const [newNote, setNewNote] = useState('');
   const [isNoteLoading, setIsNoteLoading] = useState(false);
 
@@ -59,6 +60,16 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
         .gte('date', startOfMonth.split('T')[0])
         .lte('date', endOfMonth.split('T')[0]);
       if (hData) setHolidays(hData);
+
+      // Fetch Leaves
+      const { data: lData } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .eq('user_id', targetUserId)
+        .eq('status', 'Approved')
+        .lte('start_date', endOfMonth.split('T')[0])
+        .gte('end_date', startOfMonth.split('T')[0]);
+      if (lData) setLeaves(lData);
 
       setLoading(false);
     }
@@ -219,6 +230,10 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       // Check Holidays first
       const holiday = holidays.find(h => h.date === dateStr);
       if (holiday) return { status: 'Holiday', name: holiday.name };
+
+      // Check Leaves
+      const approvedLeave = leaves.find(l => dateStr >= l.start_date && dateStr <= l.end_date);
+      if (approvedLeave) return { status: approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave', reason: approvedLeave.reason || approvedLeave.leave_type };
 
       if (date.getDay() === 0) return { status: 'Week Off' };
       

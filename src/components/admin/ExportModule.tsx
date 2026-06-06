@@ -44,7 +44,9 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const { data: profiles } = await profileQuery;
       const startDate = new Date(exportYear, exportMonth, 1).toISOString();
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
+      
       const { data: attendance } = await supabase.from('attendance').select('*').gte('timestamp', startDate).lte('timestamp', endDate);
+      const { data: leaves } = await supabase.from('leave_requests').select('*').eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0]);
 
       const formatTime = (ts: string) =>
         new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
@@ -63,12 +65,16 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           const outPunch = dayRecs.filter(a => a.type === 'Out').sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
           const lastRec = dayRecs.filter(a => a.type === 'Out').at(-1) ?? dayRecs.at(-1);
 
+          const dStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+          const approvedLeave = leaves?.find(l => l.user_id === p.id && dStr >= l.start_date && dStr <= l.end_date);
+
           let statusCode = '';
           if (lastRec?.status === 'Present') statusCode = 'P';
           else if (lastRec?.status === 'Half Day') statusCode = 'HD';
           else if (lastRec?.status === 'Late') statusCode = 'L';
           else if (lastRec?.status === 'Paid Leave') statusCode = 'PL';
           else if (lastRec?.status === 'Absent') statusCode = 'A';
+          else if (approvedLeave) statusCode = approvedLeave.is_half_day ? 'HD' : 'PL';
 
           baseRow[`D${i}_Status`] = statusCode;
           baseRow[`D${i}_IN`] = inPunch ? formatTime(inPunch.timestamp) : '';
