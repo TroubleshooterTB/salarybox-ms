@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { calculatePayroll } from '../../lib/payrollEngine';
+import { fetchInChunks } from '../../lib/chunkedFetch';
 import { Calculator, Download, Lock, Loader2, IndianRupee } from 'lucide-react';
 import useStore from '../../store';
 
@@ -35,19 +36,19 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       const profileIds = profiles.map(p => p.id);
       
       const [
-        { data: allAttendance },
-        { data: allAdjustments },
-        { data: allLoans },
-        { data: allLeaves },
+        allAttendance,
+        allAdjustments,
+        allLoans,
+        allLeaves,
         { data: allHolidays },
-        { data: allFieldVisits }
+        allFieldVisits
       ] = await Promise.all([
-        supabase.from('attendance').select('*').gte('timestamp', startDate).lte('timestamp', endDate),
-        supabase.from('payroll_adjustments').select('*').eq('month_year', monthYear),
-        supabase.from('loan_schedules').select('*').eq('target_month', monthYear),
-        supabase.from('leave_requests').select('*').eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0]),
+        fetchInChunks('attendance', 'user_id', profileIds, q => q.gte('timestamp', startDate).lte('timestamp', endDate)),
+        fetchInChunks('payroll_adjustments', 'user_id', profileIds, q => q.eq('month_year', monthYear)),
+        fetchInChunks('loan_schedules', 'user_id', profileIds, q => q.eq('target_month', monthYear)),
+        fetchInChunks('leave_requests', 'user_id', profileIds, q => q.eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0])),
         supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0]),
-        supabase.from('field_visits').select('*').gte('start_time', startDate).lte('start_time', endDate)
+        fetchInChunks('field_visits', 'user_id', profileIds, q => q.gte('start_time', startDate).lte('start_time', endDate))
       ]);
 
       // Fetch field visit logs separately using actual visit IDs
@@ -174,7 +175,8 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                // Barely present -> effectively absent
             } else {
                if (minsLate > 0) {
-                 halfDays++;
+                 presentDays++;
+                 lateDays++;
                } else {
                  presentDays++;
                }

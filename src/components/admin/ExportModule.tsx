@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { calculatePayroll, getDaysInMonth } from '../../lib/payrollEngine';
+import { fetchInChunks } from '../../lib/chunkedFetch';
 import { Download, FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function ExportModule({ selectedBranch }: { selectedBranch: string }) {
@@ -45,8 +46,10 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const startDate = new Date(exportYear, exportMonth, 1).toISOString();
       const endDate = new Date(exportYear, exportMonth + 1, 0, 23, 59, 59).toISOString();
       
-      const { data: attendance } = await supabase.from('attendance').select('*').gte('timestamp', startDate).lte('timestamp', endDate);
-      const { data: leaves } = await supabase.from('leave_requests').select('*').eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0]);
+      const profileIds = profiles.map((p: any) => p.id);
+      
+      const attendance = await fetchInChunks('attendance', 'user_id', profileIds, q => q.gte('timestamp', startDate).lte('timestamp', endDate));
+      const leaves = await fetchInChunks('leave_requests', 'user_id', profileIds, q => q.eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0]));
 
       const formatTime = (ts: string) =>
         new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
