@@ -44,7 +44,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         allFieldVisits
       ] = await Promise.all([
         fetchInChunks('attendance', 'user_id', profileIds, q => q.gte('timestamp', startDate).lte('timestamp', endDate)),
-        fetchInChunks('payroll_adjustments', 'user_id', profileIds, q => q.eq('month_year', monthYear)),
+        fetchInChunks('payroll_adjustments', 'profile_id', profileIds, q => q.eq('month_year', monthYear)),
         fetchInChunks('loan_schedules', 'user_id', profileIds, q => q.eq('target_month', monthYear)),
         fetchInChunks('leave_requests', 'user_id', profileIds, q => q.eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0])),
         supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0]),
@@ -62,7 +62,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       // 4. Process each employee
       const calculatedData = profiles.map(p => {
         const att = allAttendance?.filter(a => a.user_id === p.id) || [];
-        const adj = allAdjustments?.find(a => a.user_id === p.id);
+        const adj = allAdjustments?.find(a => a.profile_id === p.id);
         const l = allLoans?.filter(a => a.user_id === p.id).reduce((sum, current) => sum + (current.deduction_amount || 0), 0) || 0;
         const lvs = allLeaves?.filter(l => l.user_id === p.id) || [];
         const branchInfo = branchMap.get(p.branch) as any;

@@ -330,7 +330,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     const { data } = await supabase
       .from('payroll_adjustments')
       .select('*')
-      .eq('user_id', profile.id)
+      .eq('profile_id', profile.id)
       .eq('month_year', adjForm.month_year)
       .maybeSingle();
     
@@ -352,14 +352,14 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
   const handleSaveAdjustments = async () => {
     setAdjLoading(true);
     const { error } = await supabase.from('payroll_adjustments').upsert({
-      user_id: selectedStaffForAdj.id,
+      profile_id: selectedStaffForAdj.id,
       month_year: adjForm.month_year,
       bonus: adjForm.bonus,
       incentive: adjForm.incentive,
       fines: adjForm.fines,
       other_deductions: adjForm.other_deductions,
       remarks: adjForm.remarks
-    }, { onConflict: 'user_id,month_year' });
+    }, { onConflict: 'profile_id,month_year' });
 
     if (error) alert(error.message);
     else {
@@ -410,7 +410,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
     const [{ data: att }, { data: adj }, { data: loans }] = await Promise.all([
       supabase.from('attendance').select('status, type, timestamp').eq('user_id', p.id).gte('timestamp', startDate).lte('timestamp', endDate),
-      supabase.from('payroll_adjustments').select('*').eq('user_id', p.id).eq('month_year', targetMonth).maybeSingle(),
+      supabase.from('payroll_adjustments').select('*').eq('profile_id', p.id).eq('month_year', targetMonth).maybeSingle(),
       supabase.from('loan_schedules').select('deduction_amount').eq('user_id', p.id).eq('target_month', targetMonth).maybeSingle()
     ]);
 

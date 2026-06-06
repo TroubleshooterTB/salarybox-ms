@@ -52,7 +52,7 @@ export default function StaffProfile({ onBack }: { onBack: () => void }) {
     const { data: adj } = await supabase
       .from('payroll_adjustments')
       .select('*')
-      .eq('user_id', profile.id)
+      .eq('profile_id', profile.id)
       .eq('month_year', targetMonth)
       .maybeSingle();
 
