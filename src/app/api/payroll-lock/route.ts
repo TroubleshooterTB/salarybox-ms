@@ -32,11 +32,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    // 2. Commit to payroll_runs table
+    // 2. Fetch existing payroll run for the month
+    const { data: existingRun } = await supabaseAdmin
+      .from('payroll_runs')
+      .select('data, is_locked')
+      .eq('month_year', monthYear)
+      .maybeSingle();
+
+    if (existingRun?.is_locked) {
+      return NextResponse.json({ error: 'This month is already finalized and locked.' }, { status: 403 });
+    }
+
+    let mergedData = payrollData;
+    if (existingRun?.data) {
+      // Merge by employee_id: update existing, append new
+      const existingMap = new Map(existingRun.data.map((p: any) => [p.employee_id, p]));
+      payrollData.forEach((p: any) => {
+        existingMap.set(p.employee_id, p);
+      });
+      mergedData = Array.from(existingMap.values());
+    }
+
+    // 3. Commit to payroll_runs table
     const { error: lockError } = await supabaseAdmin
       .from('payroll_runs')
       .upsert(
-        { month_year: monthYear, is_locked: true, data: payrollData, created_at: new Date().toISOString() },
+        { 
+          month_year: monthYear, 
+          data: mergedData, 
+          created_at: existingRun ? undefined : new Date().toISOString() 
+        },
         { onConflict: 'month_year' }
       );
 

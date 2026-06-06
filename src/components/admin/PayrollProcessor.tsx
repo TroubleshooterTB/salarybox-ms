@@ -265,9 +265,9 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
   };
 
 
-  const handleLockAndExport = async () => {
+  const handleSaveAndExport = async () => {
     if (!payrollData.length) return alert('Calculate payroll first');
-    if (!window.confirm('Locking payroll will freeze attendance for this month. Proceed to Export?')) return;
+    if (!window.confirm('Save this batch to the database and generate a CSV? This will not lock the month.')) return;
 
     setProcessing(true);
     try {
@@ -300,8 +300,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       link.click();
       document.body.removeChild(link);
 
-      setIsLocked(true);
-      alert('Payroll locked and export triggered!');
+      alert('Payroll saved and export triggered!');
     } catch (err: any) {
       alert('Export failed: ' + err.message);
     } finally {
@@ -332,13 +331,13 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
               <span>Verify Matrix</span>
            </button>
            <button 
-              onClick={handleLockAndExport} 
-              disabled={processing || isLocked || !payrollData.length || userRole !== 'Super Admin'}
+              onClick={handleSaveAndExport} 
+              disabled={processing || !payrollData.length || userRole !== 'Super Admin'}
               className="flex items-center space-x-2 bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition disabled:opacity-50"
-              title={userRole !== 'Super Admin' ? 'Only Super Admin can lock payroll' : ''}
+              title={userRole !== 'Super Admin' ? 'Only Super Admin can save & export payroll' : ''}
             >
-              {isLocked ? <Lock className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-              <span>{isLocked ? 'Locked' : (userRole === 'Super Admin' ? 'Lock & Export' : 'Super Admin Only')}</span>
+              <Download className="w-4 h-4" />
+              <span>{userRole === 'Super Admin' ? 'Save & Export CSV' : 'Super Admin Only'}</span>
            </button>
         </div>
       </div>

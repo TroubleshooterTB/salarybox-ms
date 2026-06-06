@@ -96,13 +96,24 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       const targetMonthStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}`;
       const { data: runData } = await supabase.from('payroll_runs').select('data').eq('month_year', targetMonthStr).maybeSingle();
 
-      if (!runData) {
-         alert(`Payroll for ${monthLabel} has not been processed yet. Please go to the Final Payroll Engine tab, verify the matrix, and click "Lock & Export" to generate the salary data for this month.`);
+      if (!runData || !runData.data) {
+         alert(`Payroll for ${monthLabel} has not been processed yet. Please go to the Final Payroll Engine tab, verify the matrix, and click "Save & Export CSV" to generate the salary data for this month.`);
          setLoading(false);
          return;
       }
 
-      const rows = runData.data.map((p: any) => ({
+      let filteredData = runData.data;
+      if (selectedBranch && selectedBranch !== 'All Branches') {
+         filteredData = runData.data.filter((p: any) => p.branch === selectedBranch);
+      }
+
+      if (filteredData.length === 0) {
+         alert(`No processed payroll found for ${selectedBranch} in ${monthLabel}. Please process it first in the Final Payroll Engine.`);
+         setLoading(false);
+         return;
+      }
+
+      const rows = filteredData.map((p: any) => ({
           'EMP ID': p.employee_id,
           'Name': p.full_name,
           'Branch': p.branch || '',
@@ -214,7 +225,11 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
   const handleLock = async () => {
     if (!window.confirm(`Are you sure you want to lock payroll for ${monthLabel}? This will prevent all attendance and leave edits for this period.`)) return;
     setLocking(true);
-    const { error } = await supabase.from('payroll_lockdown').insert({ month_year: monthKey });
+    // Lock in payroll_lockdown
+    const { error } = await supabase.from('payroll_lockdown').upsert({ month_year: monthKey });
+    // Ensure payroll_runs is also locked for db triggers
+    await supabase.from('payroll_runs').update({ is_locked: true }).eq('month_year', monthKey);
+    
     if (!error) setIsLocked(true);
     setLocking(false);
   };
