@@ -132,10 +132,10 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           if (isWeeklyOff && !isHolidayRecord) {
             if (inPunches.length > 0) {
               const durationHrs = durationMins / 60;
-              if (durationHrs < 5 || durationMins === 0) {
-                weeklyOffOTHalfDays++;
-              } else {
+              if (durationHrs > 5) {
                 weeklyOffOTDays++;
+              } else if (durationHrs > 3) {
+                weeklyOffOTHalfDays++;
               }
             }
             if (!approvedLeave) {
@@ -149,9 +149,9 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           if (isHolidayRecord) {
             if (inPunches.length > 0) {
                const durationHrs = durationMins / 60;
-               if (durationHrs >= 5) {
+               if (durationHrs > 5) {
                  holidayOTDays++;
-               } else if (durationHrs >= 1) {
+               } else if (durationHrs > 3) {
                  holidayOTHalfDays++;
                }
                holidayOTHours += durationHrs;
