@@ -80,7 +80,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           dayMap.get(d)!.push(r);
         });
 
-        let presentDays = 0, halfDays = 0, lateDays = 0, paidLeaves = 0;
+        let presentDays = 0, halfDays = 0, lateDays = 0, paidLeaves = 0, paidWeekOffs = 0;
         let totalOvertimeHours = 0;
         let weeklyOffOTDays = 0;
         let weeklyOffOTHalfDays = 0;
@@ -138,7 +138,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
               }
             }
             if (!approvedLeave) {
-               presentDays++; 
+               paidWeekOffs++; 
             } else {
                if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
             }
@@ -212,7 +212,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         const payrollInput = {
           baseSalary: p.ctc_amount || 0,
           year, month,
-          presentDays, paidLeaves, publicHolidays, halfDays, lateDays,
+          presentDays: presentDays + paidWeekOffs, paidLeaves, publicHolidays, halfDays, lateDays,
           overtimeHours: totalOvertimeHours, overtimeType: (p.overtime_applicable ? 'Hourly' : 'None') as any, standardShiftHours,
           loanDeduction: l,
           professionalTaxApplicable: p.professional_tax_applicable !== false,
@@ -226,6 +226,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
           esiEnabled: p.esi_enabled,
           weeklyOffOTDays,
           weeklyOffOTHalfDays,
+          attendanceStats: { presentDays, paidWeekOffs, paidLeaves, publicHolidays, halfDays },
           overtimeHourlyRate: p.overtime_hourly_rate || 0,
           branchOvertimeHours: totalOvertimeHours,
           holidayOTDays,
@@ -375,6 +376,9 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                     <td className="px-6 py-5 text-center">
                        <span className="text-sm font-black text-slate-700">{p.payroll.payableDays.toFixed(1)}</span>
                        <p className="text-[10px] font-bold text-slate-400">/ {p.payroll.monthDays}</p>
+                       <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-tighter" title="Present + WeekOff + Leave + Holiday">
+                         {p.attendanceStats.presentDays + (p.attendanceStats.halfDays * 0.5)}P • {p.attendanceStats.paidWeekOffs}W • {p.attendanceStats.paidLeaves}L • {p.attendanceStats.publicHolidays}H
+                       </p>
                     </td>
                     <td className="px-6 py-5 text-right font-mono text-xs font-bold">
                        ₹{Math.round(p.payroll.baseMonthSalary).toLocaleString()}
