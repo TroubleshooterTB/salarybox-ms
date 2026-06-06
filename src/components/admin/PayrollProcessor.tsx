@@ -42,12 +42,12 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
         { data: allHolidays },
         { data: allFieldVisits }
       ] = await Promise.all([
-        supabase.from('attendance').select('*').in('user_id', profileIds).gte('timestamp', startDate).lte('timestamp', endDate),
-        supabase.from('payroll_adjustments').select('*').in('user_id', profileIds).eq('month_year', monthYear),
-        supabase.from('loan_schedules').select('*').in('user_id', profileIds).eq('target_month', monthYear),
-        supabase.from('leave_requests').select('*').in('user_id', profileIds).eq('status', 'Approved').lte('start_date', endDate.split('T')[0]),
+        supabase.from('attendance').select('*').gte('timestamp', startDate).lte('timestamp', endDate),
+        supabase.from('payroll_adjustments').select('*').eq('month_year', monthYear),
+        supabase.from('loan_schedules').select('*').eq('target_month', monthYear),
+        supabase.from('leave_requests').select('*').eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0]),
         supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0]),
-        supabase.from('field_visits').select('*').in('user_id', profileIds).gte('start_time', startDate).lte('start_time', endDate)
+        supabase.from('field_visits').select('*').gte('start_time', startDate).lte('start_time', endDate)
       ]);
 
       // Fetch field visit logs separately using actual visit IDs
@@ -376,9 +376,11 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                     <td className="px-6 py-5 text-center">
                        <span className="text-sm font-black text-slate-700">{p.payroll.payableDays.toFixed(1)}</span>
                        <p className="text-[10px] font-bold text-slate-400">/ {p.payroll.monthDays}</p>
-                       <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-tighter" title="Present + WeekOff + Leave + Holiday">
-                         {p.attendanceStats.presentDays + (p.attendanceStats.halfDays * 0.5)}P • {p.attendanceStats.paidWeekOffs}W • {p.attendanceStats.paidLeaves}L • {p.attendanceStats.publicHolidays}H
-                       </p>
+                       {p.attendanceStats && (
+                         <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-tighter" title="Present + WeekOff + Leave + Holiday">
+                           {p.attendanceStats.presentDays + (p.attendanceStats.halfDays * 0.5)}P • {p.attendanceStats.paidWeekOffs}W • {p.attendanceStats.paidLeaves}L • {p.attendanceStats.publicHolidays}H
+                         </p>
+                       )}
                     </td>
                     <td className="px-6 py-5 text-right font-mono text-xs font-bold">
                        ₹{Math.round(p.payroll.baseMonthSalary).toLocaleString()}
