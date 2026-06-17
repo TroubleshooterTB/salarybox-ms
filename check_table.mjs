@@ -9,38 +9,20 @@ async function test() {
   if (!urlMatch || !keyMatch) return;
   const supabaseAdmin = createClient(urlMatch[1], keyMatch[1]);
   
-  const email = 'test_ms999@minimalstroke.com';
-  console.log("Creating user...");
-  const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password: 'password123',
-    email_confirm: true,
-    user_metadata: { full_name: 'Test User', role: 'Employee' },
-  });
+  console.log("Testing fetchTodaysLogs query...");
+  const { data, error } = await supabaseAdmin
+    .from('field_visit_logs')
+    .select('*, field_visits(user_id)')
+    .order('timestamp', { ascending: false })
+    .limit(5);
 
-  if (authErr) {
-    console.error("Auth error:", authErr);
-    return;
-  }
-  
-  console.log("Created Auth User:", authData.user.id);
-  
-  console.log("Upserting Profile...");
-  const { error: profErr } = await supabaseAdmin.from('profiles').upsert({
-    id: authData.user.id,
-    full_name: 'Test User',
-    employee_id: 'MS999',
-    role: 'Employee'
-  });
-  
-  if (profErr) {
-    console.error("Profile Error:", profErr);
+  if (error) {
+    console.error("Query Error:", error);
   } else {
-    console.log("Profile upserted successfully!");
+    console.log("Query returned", data?.length, "rows");
+    if (data && data.length > 0) {
+      console.log("Sample log:", JSON.stringify(data[0], null, 2));
+    }
   }
-  
-  // Cleanup
-  console.log("Cleaning up...");
-  await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
 }
 test();

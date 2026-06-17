@@ -28,18 +28,27 @@ export async function POST(req: NextRequest) {
     let finalSelfieUrl = null;
 
     const [{ data: profile }, { data: settings }] = await Promise.all([
-      supabaseAdmin.from('profiles').select('branch, allow_remote_punch, full_name, employee_id').eq('id', user.id).single(),
+      supabaseAdmin.from('profiles').select('branch, multiple_branches, allow_remote_punch, full_name, employee_id').eq('id', user.id).single(),
       supabaseAdmin.from('company_settings').select('global_geofence_radius, late_half_day_threshold_mins').eq('id', 1).single(),
     ]);
 
-    if (!profile?.branch) {
+    const allowedBranches = profile?.multiple_branches?.length > 0 
+      ? profile.multiple_branches 
+      : (profile?.branch ? [profile.branch] : []);
+
+    if (allowedBranches.length === 0) {
       return NextResponse.json({ error: 'Forbidden: No branch assigned to this profile' }, { status: 403 });
+    }
+
+    let targetBranchName = allowedBranches[0];
+    if (punchData.branch && allowedBranches.includes(punchData.branch)) {
+      targetBranchName = punchData.branch;
     }
 
     const { data: branchData } = await supabaseAdmin
       .from('branches')
       .select('latitude, longitude, radius_meters, geofence_enabled, shift_start')
-      .eq('name', profile.branch)
+      .eq('name', targetBranchName)
       .single();
 
     // Geofence check (skip if remote punch allowed or geofence disabled)
@@ -49,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     console.log('Punch Debug:', {
       userId: user.id,
-      branch: profile.branch,
+      branch: targetBranchName,
       allow_remote_punch: profile.allow_remote_punch,
       isRemoteAllowed,
       isGeofenceActive,
@@ -81,9 +90,9 @@ export async function POST(req: NextRequest) {
       if (distance > radius) {
         return NextResponse.json(
           { 
-            error: `OUT_OF_RANGE: You are ${Math.round(distance)}m away from ${profile.branch}. Allowed radius: ${radius}m.`,
+            error: `OUT_OF_RANGE: You are ${Math.round(distance)}m away from ${targetBranchName}. Allowed radius: ${radius}m.`,
             debug: {
-              branch: profile.branch,
+              branch: targetBranchName,
               branchLat: branchData.latitude,
               branchLng: branchData.longitude,
               yourLat: punchData.latitude,
@@ -162,7 +171,7 @@ export async function POST(req: NextRequest) {
         resolvedStatus = 'Half Day';
       } else if (minsLate > gracePeriod) {
         // Late but within half-day threshold
-        if (profile.branch?.toLowerCase().includes('factory')) {
+        if (targetBranchName?.toLowerCase().includes('factory')) {
           resolvedStatus = 'Half Day'; // Factory branch penalty
         } else {
           resolvedStatus = 'Late';
@@ -182,7 +191,7 @@ export async function POST(req: NextRequest) {
       address_string: punchData.address_string,
       selfie_url: finalSelfieUrl,
       status: resolvedStatus,
-      branch: profile.branch,
+      branch: targetBranchName,
       employee_name: profile.full_name || '',
       employee_id: profile.employee_id || '',
     };

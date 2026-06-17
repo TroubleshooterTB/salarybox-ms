@@ -44,15 +44,21 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
       
       // 1. Fetch user profile and dynamic branches
       const [{ data: profile }, { data: bs }] = await Promise.all([
-        supabase.from('profiles').select('allow_remote_punch, branch').eq('id', session.user.id).single(),
+        supabase.from('profiles').select('allow_remote_punch, branch, multiple_branches').eq('id', session.user.id).single(),
         supabase.from('branches').select('*').eq('is_active', true)
       ]);
       
+      let allowedBranches: string[] = [];
       if (profile) {
         setAllowRemotePunch(profile.allow_remote_punch === true);
         setUserBranch(profile.branch);
+        allowedBranches = profile.multiple_branches?.length > 0 
+          ? profile.multiple_branches 
+          : (profile.branch ? [profile.branch] : []);
       }
-      const loadedBranches = bs || [];
+      
+      // Filter branches to only those the user is allowed to punch at
+      const loadedBranches = (bs || []).filter(b => allowedBranches.includes(b.name));
 
       // 2. Start GPS tracker
       if (!navigator.geolocation) {
@@ -193,7 +199,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
             address_string: addressString,
             selfie_base64: selfieBase64, // Send raw image string for server upload
             status: status,
-            branch: userBranch || (nearestBranch?.name || 'Main')
+            branch: nearestBranch?.name || userBranch || 'Main'
           }
         })
       });
@@ -223,7 +229,7 @@ export default function CameraPunch({ onBack }: { onBack: () => void }) {
           address_string: addressString,
           selfie_base64: selfieBase64,
           status,
-          branch: userBranch || (nearestBranch?.name || 'Main'),
+          branch: nearestBranch?.name || userBranch || 'Main',
           timestamp: new Date().toISOString(),
           id: crypto.randomUUID()
         };

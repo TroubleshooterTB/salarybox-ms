@@ -20,6 +20,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
   const [note, setNote] = useState('');
   
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [lastCheckLocation, setLastCheckLocation] = useState<{lat: number, lng: number} | null>(null);
   const [lastCheckTime, setLastCheckTime] = useState<number>(Date.now());
   const [isStationary, setIsStationary] = useState(false);
   const [showDiscovery, setShowDiscovery] = useState(false);
@@ -49,17 +50,13 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     const today = new Date().toISOString().split('T')[0];
     const { data } = await supabase
       .from('field_visit_logs')
-      .select('*, visit_id(user_id)')
+      .select('*, field_visits!inner(user_id)')
+      .eq('field_visits.user_id', session.user.id)
       .gte('timestamp', `${today}T00:00:00`)
       .order('timestamp', { ascending: false });
     
     if (data) {
-      // Filter logs by current user
-      const userLogs = data.filter(log => {
-        const visit = log.visit_id as any;
-        return visit && visit.user_id === session.user.id;
-      });
-      setLogs(userLogs);
+      setLogs(data);
     }
   };
 
@@ -79,6 +76,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
       // Initialize location tracking for existing visit
       getCurrentPosition().then(pos => {
         setCurrentLocation(pos);
+        setLastCheckLocation(pos);
         setLastCheckTime(Date.now());
       }).catch(console.error);
     }
@@ -112,6 +110,7 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
       await logAction(data.id, 'Start', pos.lat, pos.lng);
       setActiveVisit(data);
       setCurrentLocation(pos);
+      setLastCheckLocation(pos);
       setLastCheckTime(Date.now());
       alert('Field Visit Started!');
     } catch (err: any) {
@@ -311,37 +310,50 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     }
   };
 
-  // Stationary Tracking (30 mins)
+  // Stationary Tracking (30 mins) & Periodic Checkpoints
   useEffect(() => {
     if (activeVisit?.status !== 'Active') return;
 
     const interval = setInterval(async () => {
       try {
         const pos = await getCurrentPosition();
-        if (currentLocation) {
-          const dist = calculateDistance(currentLocation.lat, currentLocation.lng, pos.lat, pos.lng);
-          if (dist < 0.05) { // Less than 50 meters
-             const duration = (Date.now() - lastCheckTime) / 60000;
-             if (duration >= 30 && !isStationary) {
-                setIsStationary(true);
-                await logAction(activeVisit.id, 'Stationary', pos.lat, pos.lng, undefined, 0);
-                // Trigger notification via edge function or logic
-             }
-          } else {
+        setCurrentLocation(pos);
+
+        if (lastCheckLocation) {
+          const dist = calculateDistance(lastCheckLocation.lat, lastCheckLocation.lng, pos.lat, pos.lng);
+          const duration = (Date.now() - lastCheckTime) / 60000;
+
+          // Moved more than 50 meters
+          if (dist >= 0.05) {
              setIsStationary(false);
              setLastCheckTime(Date.now());
+             setLastCheckLocation(pos);
+             
              await logAction(activeVisit.id, 'Checkpoint', pos.lat, pos.lng, undefined, dist);
              const newTotalKm = (activeVisit.total_km || 0) + dist;
              await supabase.from('field_visits').update({ total_km: newTotalKm }).eq('id', activeVisit.id);
              setActiveVisit({...activeVisit, total_km: newTotalKm});
+          } 
+          // Half hour update logging (Periodic log every 30 minutes if they haven't moved enough to trigger a checkpoint)
+          else if (duration >= 30) {
+             setIsStationary(true);
+             setLastCheckTime(Date.now());
+             setLastCheckLocation(pos);
+             
+             // Log the small distance accumulated over 30 mins, even if < 50m
+             await logAction(activeVisit.id, 'Periodic Checkpoint (Stationary)', pos.lat, pos.lng, undefined, dist);
+             const newTotalKm = (activeVisit.total_km || 0) + dist;
+             await supabase.from('field_visits').update({ total_km: newTotalKm }).eq('id', activeVisit.id);
+             setActiveVisit({...activeVisit, total_km: newTotalKm});
           }
+        } else {
+          setLastCheckLocation(pos);
         }
-        setCurrentLocation(pos);
       } catch (e) { console.error(e); }
     }, 60000); // Check every 1 min
 
     return () => clearInterval(interval);
-  }, [activeVisit, currentLocation, lastCheckTime, isStationary]);
+  }, [activeVisit, lastCheckLocation, lastCheckTime, isStationary]);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371; // km
