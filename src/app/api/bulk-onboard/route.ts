@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
         const email = `${staff.employee_id.toLowerCase().replace(/\s/g, '')}@minimalstroke.com`;
 
         // Create auth user
+        let userId;
         const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
           email,
           password: staff.password || 'password123',
@@ -45,14 +46,37 @@ export async function POST(req: NextRequest) {
           user_metadata: { full_name: staff.full_name, role: staff.role || 'Employee' },
         });
 
-        if (authErr) throw authErr;
+        if (authErr) {
+          if (authErr.message.includes('already registered') || authErr.code === 'user_already_exists') {
+            // User exists in auth.users but not in profiles (was deleted or orphaned)
+            // Fetch the user by email to get their ID and update them
+            const { data: existingUsers, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
+            if (listErr) throw listErr;
+            
+            const existingUser = existingUsers.users.find(u => u.email === email);
+            if (!existingUser) throw new Error("User exists but could not be found");
+            
+            userId = existingUser.id;
+            
+            // Update their password and metadata to match the new registration
+            await supabaseAdmin.auth.admin.updateUserById(userId, {
+              password: staff.password || 'password123',
+              user_metadata: { full_name: staff.full_name, role: staff.role || 'Employee' }
+            });
+          } else {
+            throw authErr;
+          }
+        } else {
+          userId = authData.user.id;
+        }
 
-        // Create profile
-        const { error: profErr } = await supabaseAdmin.from('profiles').insert({
-          id: authData.user.id,
+        // Create profile (Use upsert because Supabase auth trigger might have already created it)
+        const { error: profErr } = await supabaseAdmin.from('profiles').upsert({
+          id: userId,
           full_name: staff.full_name,
           employee_id: staff.employee_id,
           branch: staff.branch,
+          multiple_branches: staff.multiple_branches || (staff.branch ? [staff.branch] : []),
           department: staff.department || 'Management',
           job_title: staff.job_title || 'Staff',
           role: staff.role || 'Employee',
@@ -78,8 +102,8 @@ export async function POST(req: NextRequest) {
         if (profErr) throw profErr;
 
         // Default leave balances
-        await supabaseAdmin.from('leaves').insert({
-          user_id: authData.user.id,
+        await supabaseAdmin.from('leaves').upsert({
+          user_id: userId,
           privilege_balance: 11,
           sick_balance: 4,
           casual_balance: 4,
