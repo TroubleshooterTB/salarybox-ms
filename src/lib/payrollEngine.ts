@@ -219,3 +219,207 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
     ctcToCompany
   };
 };
+
+export const processEmployeePayroll = (
+  p: any, year: number, month: number, 
+  att: any[], adj: any, l: number, lvs: any[], 
+  branchInfo: any, allHolidays: any[], 
+  allFieldVisits: any[], allFieldVisitLogs: any[]
+) => {
+        // Get branch shift start time for late calculation
+        const shiftStartStr = branchInfo?.shift_start || '09:00';
+        const [shiftH, shiftM] = shiftStartStr.split(':').map(Number);
+
+        // Group by calendar day securely parsing UTC timestamps
+        const dayMap = new Map<number, any[]>();
+        att.forEach(r => {
+          const rawDate = new Date(r.timestamp);
+          const istDate = new Date(rawDate.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+          const d = istDate.getDate();
+          if (!dayMap.has(d)) dayMap.set(d, []);
+          dayMap.get(d)!.push(r);
+        });
+
+        let presentDays = 0, halfDays = 0, lateDays = 0, paidLeaves = 0, paidWeekOffs = 0;
+        let totalOvertimeHours = 0;
+        let weeklyOffOTDays = 0;
+        let weeklyOffOTHalfDays = 0;
+        let holidayOTDays = 0;
+        let holidayOTHalfDays = 0;
+        let holidayOTHours = 0;
+
+        const publicHolidays = (allHolidays || []).filter((h: any) => h.branch === null || h.branch === p.branch).length;
+
+        const weeklyOffDay = p.weekly_off_day ?? 0; // default Sunday
+        const weeklyOffDay2 = p.weekly_off_day_2 ?? -1;
+        const monthDaysCount = new Date(year, month + 1, 0).getDate();
+
+        for (let day = 1; day <= monthDaysCount; day++) {
+          const records = dayMap.get(day) || [];
+          const currentDate = new Date(year, month, day);
+          
+          const y = currentDate.getFullYear();
+          const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const d = String(day).padStart(2, '0');
+          const dateStr = `${y}-${m}-${d}`;
+          
+          const dayOfWeek = currentDate.getDay();
+          const approvedLeave = lvs.find((lv: any) => dateStr >= lv.start_date && dateStr <= lv.end_date);
+          const isHolidayRecord = (allHolidays || []).some((h: any) => dateStr === h.date && (h.branch === null || h.branch === p.branch));
+
+          const inPunches = records.filter(r => r.type === 'In').sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          const outPunches = records.filter(r => r.type === 'Out').sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          let durationMins = 0;
+          let firstInTime: Date | null = null;
+          let lastOutRecord: any = null;
+
+          if (inPunches.length > 0) {
+            firstInTime = new Date(inPunches[0].timestamp);
+            for (let i = 0; i < inPunches.length; i++) {
+              const inT = new Date(inPunches[i].timestamp).getTime();
+              const outP = outPunches.find(o => new Date(o.timestamp).getTime() > inT);
+              if (outP && (!lastOutRecord || new Date(outP.timestamp).getTime() > new Date(lastOutRecord.timestamp).getTime())) {
+                lastOutRecord = outP;
+              }
+            }
+            durationMins = lastOutRecord ? Math.round((new Date(lastOutRecord.timestamp).getTime() - firstInTime.getTime()) / 60000) : 0;
+          }
+
+          const isWeeklyOff = (weeklyOffDay >= 0 && dayOfWeek === weeklyOffDay) || (weeklyOffDay2 >= 0 && dayOfWeek === weeklyOffDay2);
+
+          if (isWeeklyOff && !isHolidayRecord) {
+            if (inPunches.length > 0) {
+              const durationHrs = durationMins / 60;
+              if (durationHrs > 5) {
+                weeklyOffOTDays++;
+              } else if (durationHrs > 3) {
+                weeklyOffOTHalfDays++;
+              }
+            }
+            if (!approvedLeave) {
+               paidWeekOffs++; 
+            } else {
+               if (approvedLeave.leave_type !== 'Unpaid') {
+                 if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+               }
+            }
+            continue;
+          }
+
+          if (isHolidayRecord) {
+            if (inPunches.length > 0) {
+               const durationHrs = durationMins / 60;
+               if (durationHrs > 5) {
+                 holidayOTDays++;
+               } else if (durationHrs > 3) {
+                 holidayOTHalfDays++;
+               }
+               holidayOTHours += durationHrs;
+            }
+            continue;
+          }
+
+          if (inPunches.length > 0) {
+            const istDate = new Date(firstInTime!.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+            const inMinutes = istDate.getHours() * 60 + istDate.getMinutes();
+            const minsLate = inMinutes - (shiftH * 60 + shiftM);
+            const durationHrs = durationMins / 60;
+            const forcedStatus = lastOutRecord?.status;
+
+            const isShowroom = p.branch === 'Showroom' || p.job_title?.toLowerCase().includes('showroom');
+            const stdHours = isShowroom ? 10 : 8;
+
+            if (forcedStatus === 'Half Day' || (lastOutRecord && durationHrs > 0 && durationHrs < (stdHours / 2 + 0.5))) {
+               halfDays++;
+               if (approvedLeave && approvedLeave.leave_type !== 'Unpaid') {
+                 if (approvedLeave.is_half_day) paidLeaves += 0.5; else paidLeaves++;
+               }
+            } else if (durationHrs > 0 && durationHrs < 1.5) {
+               if (approvedLeave && approvedLeave.leave_type !== 'Unpaid') {
+                 if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+               }
+            } else {
+               if (minsLate > 0) {
+                 presentDays++;
+                 lateDays++;
+               } else {
+                 presentDays++;
+               }
+            }
+
+            let dailyOTMins = 0;
+            if (minsLate <= -30) {
+               dailyOTMins += Math.abs(minsLate); 
+            }
+            
+            if (lastOutRecord && durationMins > stdHours * 60) {
+              const durationOT = durationMins - stdHours * 60;
+              dailyOTMins = Math.max(dailyOTMins, durationOT);
+            }
+            
+            totalOvertimeHours += dailyOTMins / 60;
+
+          } else {
+            if (records.length > 0) {
+              const lastRecord = records[records.length - 1];
+              if (lastRecord.status === 'Present') presentDays++;
+              else if (lastRecord.status === 'Half Day') halfDays++;
+              else if (lastRecord.status === 'Late') { presentDays++; lateDays++; }
+              else if (lastRecord.status === 'Paid Leave') paidLeaves++;
+              else if (lastRecord.status === 'Half Day Leave') { paidLeaves += 0.5; halfDays++; }
+            } else if (approvedLeave) {
+              if (approvedLeave.leave_type !== 'Unpaid') {
+                if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
+              }
+            }
+          }
+        }
+
+        const isShowroom = p.branch === 'Showroom' || p.job_title?.toLowerCase().includes('showroom');
+        const standardShiftHours = isShowroom ? 10 : 8;
+
+        const payrollInput: any = {
+          baseSalary: p.ctc_amount || 0,
+          year, month,
+          presentDays: presentDays + paidWeekOffs, paidLeaves, publicHolidays, halfDays, lateDays,
+          overtimeHours: totalOvertimeHours, overtimeType: (p.overtime_applicable ? 'Hourly' : 'None') as any, standardShiftHours,
+          loanDeduction: l,
+          professionalTaxApplicable: p.professional_tax_applicable !== false,
+          joiningDate: p.joining_date,
+          dateOfLeaving: p.date_of_leaving,
+          bonus: adj?.bonus || 0,
+          incentive: adj?.incentive || 0,
+          fines: adj?.fines || 0,
+          otherDeductions: adj?.other_deductions || 0,
+          pfEnabled: p.pf_enabled,
+          esiEnabled: p.esi_enabled,
+          weeklyOffOTDays,
+          weeklyOffOTHalfDays,
+          attendanceStats: { presentDays, paidWeekOffs, paidLeaves, publicHolidays, halfDays },
+          overtimeHourlyRate: p.overtime_hourly_rate || 0,
+          branchOvertimeHours: totalOvertimeHours,
+          holidayOTDays,
+          holidayOTHalfDays,
+          holidayOTHours,
+          fieldVisitKm: 0, 
+          petrolAllowanceRate: p.petrol_allowance_rate || 3.75
+        };
+
+        const pVisits = allFieldVisits?.filter((v: any) => v.user_id === p.id) || [];
+        const pLogs = allFieldVisitLogs || [];
+        let totalKm = 0;
+        pVisits.forEach((v: any) => {
+          const vLogs = pLogs.filter((lg: any) => lg.visit_id === v.id);
+          const hasReport = vLogs.some((lg: any) => lg.action !== 'Auto' || lg.selfie_url);
+          if (hasReport) totalKm += (v.total_km || 0);
+        });
+
+        const finalPayroll = calculatePayroll({
+          ...payrollInput,
+          fieldVisitKm: totalKm,
+          petrolAllowanceRate: p.petrol_allowance_rate || 3.75
+        });
+
+        return { ...p, payroll: finalPayroll, weeklyOffOTDays, weeklyOffOTHalfDays, branchOTHours: Math.round(totalOvertimeHours * 10) / 10, attendanceStats: payrollInput.attendanceStats };
+};

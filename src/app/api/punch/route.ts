@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     ]);
 
     const allowedBranches = profile?.multiple_branches?.length > 0 
-      ? profile.multiple_branches 
+      ? profile?.multiple_branches 
       : (profile?.branch ? [profile.branch] : []);
 
     if (allowedBranches.length === 0) {
@@ -53,13 +53,13 @@ export async function POST(req: NextRequest) {
 
     // Geofence check (skip if remote punch allowed or geofence disabled)
     let distance = 0;
-    const isRemoteAllowed = profile.allow_remote_punch === true;
+    const isRemoteAllowed = profile?.allow_remote_punch === true;
     const isGeofenceActive = branchData && branchData.geofence_enabled !== false;
 
     console.log('Punch Debug:', {
       userId: user.id,
       branch: targetBranchName,
-      allow_remote_punch: profile.allow_remote_punch,
+      allow_remote_punch: profile?.allow_remote_punch,
       isRemoteAllowed,
       isGeofenceActive,
       branchLat: branchData?.latitude,
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
               yourLng: punchData.longitude,
               distance_m: Math.round(distance),
               allowed_radius_m: radius,
-              allow_remote_punch: profile.allow_remote_punch,
+              allow_remote_punch: profile?.allow_remote_punch,
               geofence_enabled: branchData.geofence_enabled,
             }
           },
@@ -192,8 +192,8 @@ export async function POST(req: NextRequest) {
       selfie_url: finalSelfieUrl,
       status: resolvedStatus,
       branch: targetBranchName,
-      employee_name: profile.full_name || '',
-      employee_id: profile.employee_id || '',
+      employee_name: profile?.full_name || '',
+      employee_id: profile?.employee_id || '',
     };
 
     console.log('INSERT PAYLOAD:', JSON.stringify(insertPayload));

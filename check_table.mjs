@@ -9,20 +9,12 @@ async function test() {
   if (!urlMatch || !keyMatch) return;
   const supabaseAdmin = createClient(urlMatch[1], keyMatch[1]);
   
-  console.log("Testing fetchTodaysLogs query...");
-  const { data, error } = await supabaseAdmin
-    .from('field_visit_logs')
-    .select('*, field_visits(user_id)')
-    .order('timestamp', { ascending: false })
-    .limit(5);
-
+  const { data: users, error } = await supabaseAdmin.auth.admin.listUsers();
   if (error) {
-    console.error("Query Error:", error);
+    console.error("Error listing users:", error);
   } else {
-    console.log("Query returned", data?.length, "rows");
-    if (data && data.length > 0) {
-      console.log("Sample log:", JSON.stringify(data[0], null, 2));
-    }
+    const user = users.users.find(u => u.email === 'ms001@minimalstroke.com');
+    console.log("User found:", user ? { email: user.email, confirmed_at: user.email_confirmed_at } : 'Not found');
   }
 }
 test();

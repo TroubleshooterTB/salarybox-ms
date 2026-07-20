@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Plus, Edit2, Search, Loader2, Play, Square, ShieldCheck, Landmark, Coins, FileText, CalendarDays, Trash2, MapPin } from 'lucide-react';
-import { calculatePayroll } from '../../lib/payrollEngine';
+import { processEmployeePayroll } from '../../lib/payrollEngine';
 import PayslipView from './PayslipView';
 import AttendanceCalendar from '../dashboard/AttendanceCalendar';
 import { useLanguage } from '../../lib/i18n';
@@ -152,7 +152,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
   const handleResetPassword = async (userId?: string, password?: string) => {
     const targetId = userId || editingId;
-    const targetPass = password || newPass;
+    const targetPass = (password || newPass).trim();
     const targetName = userId ? selectedStaffForPass?.full_name : formData.full_name;
 
     if (!targetPass) return alert('Please enter a new password');
@@ -259,6 +259,7 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         petrol_allowance_rate: parseFloat(formData.petrol_allowance_rate as any) || 3.75,
         field_visit_enabled: formData.field_visit_enabled || false,
         field_visit_allowance_eligible: formData.field_visit_allowance_eligible || false,
+        password: formData.password?.trim() || 'password123',
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
 
@@ -408,42 +409,31 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     const startDate = new Date(year, month - 1, 1).toISOString();
     const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-    const [{ data: att }, { data: adj }, { data: loans }] = await Promise.all([
-      supabase.from('attendance').select('status, type, timestamp').eq('user_id', p.id).gte('timestamp', startDate).lte('timestamp', endDate),
+    const [
+      { data: att }, 
+      { data: adj }, 
+      { data: loans },
+      { data: lvs },
+      { data: branchInfo },
+      { data: allHolidays },
+      { data: allFieldVisits },
+      { data: allFieldVisitLogs }
+    ] = await Promise.all([
+      supabase.from('attendance').select('*').eq('user_id', p.id).gte('timestamp', startDate).lte('timestamp', endDate),
       supabase.from('payroll_adjustments').select('*').eq('profile_id', p.id).eq('month_year', targetMonth).maybeSingle(),
-      supabase.from('loan_schedules').select('deduction_amount').eq('user_id', p.id).eq('target_month', targetMonth).maybeSingle()
+      supabase.from('loan_schedules').select('deduction_amount').eq('user_id', p.id).eq('target_month', targetMonth).maybeSingle(),
+      supabase.from('leaves').select('*').eq('user_id', p.id).eq('status', 'Approved'),
+      supabase.from('branches').select('*').eq('name', p.branch).maybeSingle(),
+      supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0]),
+      supabase.from('field_visits').select('*').eq('user_id', p.id).gte('created_at', startDate).lte('created_at', endDate),
+      supabase.from('field_visit_logs').select('*').gte('timestamp', startDate).lte('timestamp', endDate)
     ]);
 
-    // Simple attendance counting
-    const dayMap = new Map();
-    att?.forEach(r => {
-      const d = new Date(r.timestamp).getDate();
-      if (!dayMap.has(d)) dayMap.set(d, r);
-    });
-    
-    let presentDays = 0, halfDays = 0, lateDays = 0;
-    dayMap.forEach(r => {
-      if (r.status === 'Present') presentDays++;
-      else if (r.status === 'Half Day') halfDays++;
-      else if (r.status === 'Late') { presentDays++; lateDays++; }
-    });
-
-    const payroll = calculatePayroll({
-      baseSalary: p.ctc_amount || 0,
-      year, month: month - 1,
-      presentDays, paidLeaves: 1, publicHolidays: 1, halfDays, lateDays,
-      overtimeHours: 0, overtimeType: 'None', standardShiftHours: 8,
-      loanDeduction: loans?.deduction_amount || 0,
-      professionalTaxApplicable: p.professional_tax_applicable !== false,
-      joiningDate: p.joining_date,
-      dateOfLeaving: p.date_of_leaving,
-      bonus: adj?.bonus || 0,
-      incentive: adj?.incentive || 0,
-      fines: adj?.fines || 0,
-      otherDeductions: adj?.other_deductions || 0,
-      pfEnabled: p.pf_enabled,
-      esiEnabled: p.esi_enabled
-    });
+    const { payroll } = processEmployeePayroll(
+      p, year, month - 1,
+      att || [], adj || {}, loans?.deduction_amount || 0, lvs || [],
+      branchInfo || {}, allHolidays || [], allFieldVisits || [], allFieldVisitLogs || []
+    );
 
     setPayslipData({ staff: p, payroll, monthYear: targetMonth });
     setShowPayslip(true);
