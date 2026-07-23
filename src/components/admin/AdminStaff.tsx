@@ -265,7 +265,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
       if (editingId) {
         // Update existing
-        const { error } = await supabase.from('profiles').update(payload).eq('id', editingId);
+        const { password, ...updatePayload } = payload;
+        const { error } = await supabase.from('profiles').update(updatePayload).eq('id', editingId);
         if (error) throw error;
 
         // Logging the update
