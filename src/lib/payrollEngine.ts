@@ -379,8 +379,13 @@ export const processEmployeePayroll = (
         const isShowroom = p.branch === 'Showroom' || p.job_title?.toLowerCase().includes('showroom');
         const standardShiftHours = isShowroom ? 10 : 8;
 
+        let annualCTC = p.ctc_amount || 0;
+        if (p.salary_type === 'Monthly') {
+           annualCTC = (p.ctc_amount || 0) * 12;
+        }
+
         const payrollInput: any = {
-          baseSalary: p.ctc_amount || 0,
+          baseSalary: annualCTC,
           year, month,
           presentDays: presentDays + paidWeekOffs, paidLeaves, publicHolidays, halfDays, lateDays,
           overtimeHours: totalOvertimeHours, overtimeType: (p.overtime_applicable ? 'Hourly' : 'None') as any, standardShiftHours,
