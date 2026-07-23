@@ -248,12 +248,76 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     return { status: lastPunch?.status, raw: dayPunches, reason: lastPunch?.reason };
   };
 
+  const computeSandwichedDays = () => {
+      const sandwiched = new Set<number>();
+      let blockStart = -1;
+      
+      const dayStatuses = [];
+      for (let day = 1; day <= daysInMonth; day++) {
+          const data = getDayData(day);
+          const status = data?.status;
+          
+          let dayType = 'Working_Present';
+          if (status === 'Week Off') {
+              dayType = 'WeeklyOff';
+          } else if (status === 'Holiday') {
+              dayType = 'Holiday';
+          } else if (status === 'Absent' || status === 'Paid Leave' || status === 'Half Day Leave') {
+              dayType = 'Working_Leave';
+          } else {
+              dayType = 'Working_Present'; 
+          }
+          dayStatuses.push({ day, dayType });
+      }
+
+      for (let i = 0; i < dayStatuses.length; i++) {
+          const stat = dayStatuses[i];
+          if (stat.dayType === 'WeeklyOff' || stat.dayType === 'Holiday') {
+              if (blockStart === -1) blockStart = i;
+          } else {
+              if (blockStart !== -1) {
+                  let beforeAbsent = false;
+                  let afterAbsent = false;
+
+                  if (blockStart > 0) {
+                      const beforeStatus = dayStatuses[blockStart - 1].dayType;
+                      if (beforeStatus === 'Working_Leave') {
+                          beforeAbsent = true;
+                      }
+                  }
+                  
+                  if (stat.dayType === 'Working_Leave') {
+                      afterAbsent = true;
+                  }
+
+                  if (beforeAbsent && afterAbsent) {
+                      for (let j = blockStart; j < i; j++) {
+                          sandwiched.add(dayStatuses[j].day);
+                      }
+                  }
+                  blockStart = -1;
+              }
+          }
+      }
+      return sandwiched;
+  };
+  
+  const sandwichedDays = computeSandwichedDays();
+
+  const getEffectiveDayData = (day: number) => {
+     const data = getDayData(day);
+     if (sandwichedDays.has(day)) {
+         return { ...data, status: 'Sandwiched' };
+     }
+     return data;
+  };
+
   const getStats = () => {
     const stats = { present: 0, absent: 0, halfDay: 0, paidLeave: 0, weekOff: 0 };
     for (let d = 1; d <= daysInMonth; d++) {
-      const data = getDayData(d);
+      const data = getEffectiveDayData(d);
       if (data?.status === 'Present' || data?.status === 'Late') stats.present++;
-      else if (data?.status === 'Absent') stats.absent++;
+      else if (data?.status === 'Absent' || data?.status === 'Sandwiched') stats.absent++;
       else if (data?.status === 'Half Day') stats.halfDay++;
       else if (data?.status === 'Paid Leave') stats.paidLeave++;
       else if (data?.status === 'Half Day Leave') stats.paidLeave += 0.5;
@@ -275,7 +339,8 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     'Half Day Leave': { color: 'bg-[linear-gradient(135deg,#a855f7_50%,#f59e0b_50%)]', text: 'text-white', badge: 'HD LVE' },
     'Week Off': { color: 'bg-[#94a3b8]', text: 'text-white' },
     'Week Off OT': { color: 'bg-[#0ea5e9]', text: 'text-white', badge: 'WO OT' },
-    'Holiday': { color: 'bg-[#fde047]', text: 'text-slate-900', badge: 'HOL' }
+    'Holiday': { color: 'bg-[#fde047]', text: 'text-slate-900', badge: 'HOL' },
+    'Sandwiched': { color: 'bg-[#ef4444]', text: 'text-white', badge: 'SANDWICH' }
   };
 
   const formatTime = (ts: string) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -357,7 +422,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
             <div className="grid grid-cols-7 gap-2">
             {padding.map(i => <div key={`p-${i}`} className="aspect-square" />)}
             {days.map(day => {
-              const data = getDayData(day);
+              const data = getEffectiveDayData(day);
               let config = data ? statusMap[data.status] : null;
               
               if (data?.reason && (data.status === 'Paid Leave' || data.status === 'Half Day')) {
@@ -377,7 +442,7 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                   key={day}
                   // Unified Click Handler: Opens detail sheet for everyone
                   onClick={() => {
-                    const data = getDayData(day);
+                    const data = getEffectiveDayData(day);
                     setSelectedDayData({ day, punches: data?.raw ?? [] });
                     fetchDayNotes(day);
                   }}
@@ -440,9 +505,9 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h3 className="text-lg font-black text-slate-900">{formatDate(selectedDayData.day)}</h3>
-                    {getDayData(selectedDayData.day)?.status === 'Holiday' && (
-                      <p className="text-sm font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg inline-block mt-1 uppercase tracking-tighter border border-amber-100">
-                        ✨ {getDayData(selectedDayData.day)?.name}
+                    {(getEffectiveDayData(selectedDayData.day)?.status === 'Holiday' || getEffectiveDayData(selectedDayData.day)?.status === 'Sandwiched') && (
+                      <p className={`text-sm font-black px-2 py-0.5 rounded-lg inline-block mt-1 uppercase tracking-tighter border ${getEffectiveDayData(selectedDayData.day)?.status === 'Sandwiched' ? 'text-rose-600 bg-rose-50 border-rose-100' : 'text-amber-600 bg-amber-50 border-amber-100'}`}>
+                        ✨ {getEffectiveDayData(selectedDayData.day)?.status === 'Sandwiched' ? 'Sandwiched Leave' : getEffectiveDayData(selectedDayData.day)?.name}
                       </p>
                     )}
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">

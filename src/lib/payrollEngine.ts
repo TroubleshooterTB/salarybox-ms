@@ -248,13 +248,19 @@ export const processEmployeePayroll = (
         let holidayOTHalfDays = 0;
         let holidayOTHours = 0;
 
-        const publicHolidays = (allHolidays || []).filter((h: any) => h.branch === null || h.branch === p.branch).length;
+        let publicHolidays = (allHolidays || []).filter((h: any) => h.branch === null || h.branch === p.branch).length;
 
         const weeklyOffDay = p.weekly_off_day ?? 0; // default Sunday
         const weeklyOffDay2 = p.weekly_off_day_2 ?? -1;
         const monthDaysCount = new Date(year, month + 1, 0).getDate();
 
+        let dailyStats: any[] = [];
+
         for (let day = 1; day <= monthDaysCount; day++) {
+          const start_present = presentDays;
+          const start_halfDays = halfDays;
+          const start_paidLeaves = paidLeaves;
+          const start_paidWeekOffs = paidWeekOffs;
           const records = dayMap.get(day) || [];
           const currentDate = new Date(year, month, day);
           
@@ -374,6 +380,82 @@ export const processEmployeePayroll = (
               }
             }
           }
+          
+          let dayType = 'Working_Present';
+          if (isWeeklyOff && !isHolidayRecord) {
+             dayType = 'WeeklyOff';
+          } else if (isHolidayRecord) {
+             dayType = 'Holiday';
+          } else {
+             if (inPunches.length > 0) {
+                dayType = 'Working_Present';
+             } else {
+                if (records.length > 0) {
+                   const lastRecord = records[records.length - 1];
+                   if (['Present', 'Half Day', 'Late'].includes(lastRecord.status)) {
+                      dayType = 'Working_Present';
+                   } else if (['Paid Leave', 'Half Day Leave'].includes(lastRecord.status)) {
+                      dayType = 'Working_Leave';
+                   } else {
+                      dayType = 'Working_Absent';
+                   }
+                } else if (approvedLeave) {
+                   dayType = 'Working_Leave';
+                } else {
+                   dayType = 'Working_Absent';
+                }
+             }
+          }
+
+          dailyStats.push({
+             day,
+             dateStr,
+             dayType,
+             added_present: presentDays - start_present,
+             added_halfDays: halfDays - start_halfDays,
+             added_paidLeaves: paidLeaves - start_paidLeaves,
+             added_paidWeekOffs: paidWeekOffs - start_paidWeekOffs,
+             isSandwiched: false
+          });
+        }
+
+        // Apply Sandwich Rule
+        let blockStart = -1;
+        for (let i = 0; i < dailyStats.length; i++) {
+            const stat = dailyStats[i];
+            if (stat.dayType === 'WeeklyOff' || stat.dayType === 'Holiday') {
+                if (blockStart === -1) blockStart = i;
+            } else {
+                if (blockStart !== -1) {
+                    let beforeAbsent = false;
+                    let afterAbsent = false;
+
+                    if (blockStart > 0) {
+                        const beforeStatus = dailyStats[blockStart - 1].dayType;
+                        if (beforeStatus === 'Working_Absent' || beforeStatus === 'Working_Leave') {
+                            beforeAbsent = true;
+                        }
+                    }
+                    if (stat.dayType === 'Working_Absent' || stat.dayType === 'Working_Leave') {
+                        afterAbsent = true;
+                    }
+
+                    if (beforeAbsent && afterAbsent) {
+                        for (let j = blockStart; j < i; j++) {
+                            const sandwichedStat = dailyStats[j];
+                            presentDays -= sandwichedStat.added_present;
+                            halfDays -= sandwichedStat.added_halfDays;
+                            paidLeaves -= sandwichedStat.added_paidLeaves;
+                            paidWeekOffs -= sandwichedStat.added_paidWeekOffs;
+                            if (sandwichedStat.dayType === 'Holiday') {
+                                publicHolidays--;
+                            }
+                            sandwichedStat.isSandwiched = true;
+                        }
+                    }
+                    blockStart = -1;
+                }
+            }
         }
 
         const isShowroom = p.branch === 'Showroom' || p.job_title?.toLowerCase().includes('showroom');
@@ -426,5 +508,14 @@ export const processEmployeePayroll = (
           petrolAllowanceRate: p.petrol_allowance_rate || 3.75
         });
 
-        return { ...p, payroll: finalPayroll, weeklyOffOTDays, weeklyOffOTHalfDays, branchOTHours: Math.round(totalOvertimeHours * 10) / 10, attendanceStats: payrollInput.attendanceStats };
+        // Add dailyStats to the return so the calendar can use it for visual representation
+        return { 
+          ...p, 
+          payroll: finalPayroll, 
+          weeklyOffOTDays, 
+          weeklyOffOTHalfDays, 
+          branchOTHours: Math.round(totalOvertimeHours * 10) / 10, 
+          attendanceStats: payrollInput.attendanceStats,
+          sandwichData: dailyStats.filter(s => s.isSandwiched).map(s => s.dateStr)
+        };
 };
