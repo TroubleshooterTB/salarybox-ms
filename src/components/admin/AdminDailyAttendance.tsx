@@ -659,7 +659,7 @@ export default function AdminDailyAttendance({ selectedBranch }: { selectedBranc
                       const data = await res.json();
                       if (!res.ok) throw new Error(data.error || 'Failed to add punch');
 
-                      alert('Punch added successfully!');
+                      alert(data.message || 'Punch added successfully!');
                       setShowQuickAdd(false);
                       setQuickAddReason('');
                       setQuickAddUserId('');

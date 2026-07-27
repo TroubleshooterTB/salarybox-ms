@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const { data: branchData } = await supabaseAdmin
       .from('branches')
-      .select('latitude, longitude, radius_meters, geofence_enabled, shift_start')
+      .select('latitude, longitude, radius_meters, geofence_enabled, shift_start, buffer_minutes')
       .eq('name', targetBranchName)
       .single();
 
@@ -147,8 +147,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Server-side Late / Half-Day Detection ──────────────────────────────
-    // Only apply late logic to Punch-In records
+    // ── Server-side Buffer / Half-Day Detection ──────────────────────────────
+    // Only apply logic to Punch-In records
     let resolvedStatus = punchData.status || 'Present';
     if (punchData.type === 'In' && branchData?.shift_start) {
       const now = new Date();
@@ -159,23 +159,11 @@ export async function POST(req: NextRequest) {
       const [shiftH, shiftM] = branchData.shift_start.split(':').map(Number);
       const shiftMins = shiftH * 60 + shiftM;
 
-      // Grace period before marking Late (default 15 mins)
-      const gracePeriod = 15;
-      // Threshold for Half Day due to late arrival (default 180 mins = 3 hours late)
-      const halfDayThreshold = settings?.late_half_day_threshold_mins ?? 180;
-
+      const bufferMins = branchData.buffer_minutes || 0;
       const minsLate = currentMins - shiftMins;
 
-      if (minsLate > halfDayThreshold) {
-        // Extremely late → mark as Half Day
+      if (minsLate > bufferMins) {
         resolvedStatus = 'Half Day';
-      } else if (minsLate > gracePeriod) {
-        // Late but within half-day threshold
-        if (targetBranchName?.toLowerCase().includes('factory')) {
-          resolvedStatus = 'Half Day'; // Factory branch penalty
-        } else {
-          resolvedStatus = 'Late';
-        }
       } else {
         resolvedStatus = 'Present';
       }

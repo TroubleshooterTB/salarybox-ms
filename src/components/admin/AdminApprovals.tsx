@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { CheckCircle2, XCircle, Smartphone, CalendarDays, Loader2, BarChart3 } from 'lucide-react';
 import { useLanguage } from '../../lib/i18n';
+import useStore from '../../store';
 
 export default function AdminApprovals({ selectedBranch }: { selectedBranch: string }) {
   const { t } = useLanguage();
+  const { userRole } = useStore();
   const [activeTab, setActiveTab] = useState<'leaves' | 'devices' | 'balances' | 'corrections' | 'profiles' | 'holidays'>('leaves');
   const [loading, setLoading] = useState(false);
   const [leaves, setLeaves] = useState<any[]>([]);
@@ -288,12 +290,12 @@ export default function AdminApprovals({ selectedBranch }: { selectedBranch: str
         {[
           { id: 'leaves', icon: CalendarDays, label: t('leaves'), count: leaves.length },
           { id: 'corrections', icon: BarChart3, label: t('corrections'), count: corrections.length },
-          { id: 'manual', icon: CheckCircle2, label: 'Manual Entry', count: manualPunches.length },
+          { id: 'manual', icon: CheckCircle2, label: 'Manual Entry', count: manualPunches.length, roles: ['Super Admin'] },
           { id: 'profiles', icon: Smartphone, label: t('profile'), count: profileRequests.length },
           { id: 'holidays', icon: CalendarDays, label: 'Holidays', count: holidayRequests.length },
           { id: 'balances', icon: BarChart3, label: 'Quotas' },
           { id: 'devices', icon: Smartphone, label: 'Hardware' }
-        ].map(tab => (
+        ].filter(tab => !tab.roles || tab.roles.includes(userRole as string)).map(tab => (
           <button 
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)} 

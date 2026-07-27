@@ -72,10 +72,11 @@ export default function AdminDashboard() {
   const [branches, setBranches] = useState<any[]>([]);
   const [activeFieldVisits, setActiveFieldVisits] = useState<any[]>([]);
   
-  // Logic: If Branch Admin, force their assigned branch.
-  const initialBranch = (userRole === 'Branch Admin' && userProfile?.branch) 
-    ? userProfile.branch 
-    : (localStorage.getItem('admin_branch') || 'All Branches');
+  // Logic: If Branch Admin, force their assigned branch strictly.
+  let initialBranch = localStorage.getItem('admin_branch') || 'All Branches';
+  if (userRole === 'Branch Admin') {
+    initialBranch = userProfile?.branch || 'Unassigned';
+  }
 
   const [selectedBranch, setSelectedBranch] = useState<string>(initialBranch);
 

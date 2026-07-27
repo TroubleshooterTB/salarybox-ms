@@ -19,7 +19,8 @@ export default function AdminBranches() {
     geofence_enabled: true,
     is_active: true,
     shift_start: '09:00',
-    shift_end: '18:00'
+    shift_end: '18:00',
+    buffer_minutes: 0
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -49,7 +50,8 @@ export default function AdminBranches() {
       geofence_enabled: branch.geofence_enabled,
       is_active: branch.is_active,
       shift_start: branch.shift_start?.slice(0, 5) || '09:00',
-      shift_end: branch.shift_end?.slice(0, 5) || '18:00'
+      shift_end: branch.shift_end?.slice(0, 5) || '18:00',
+      buffer_minutes: branch.buffer_minutes || 0
     });
     setShowModal(true);
   };
@@ -128,6 +130,7 @@ export default function AdminBranches() {
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Shift Hours</p>
                 <p className="text-sm font-black text-slate-700 flex items-center"><Clock className="w-3 h-3 mr-1" /> {b.shift_start} - {b.shift_end}</p>
+                {b.buffer_minutes > 0 && <p className="text-[9px] font-bold text-amber-500 mt-1">+{b.buffer_minutes}m Buffer</p>}
               </div>
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Geofence</p>
@@ -183,7 +186,7 @@ export default function AdminBranches() {
                   <span>Shift & Geofence Protocol</span>
                 </h4>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                    <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-500">Start Time</label>
                       <input type="time" value={formData.shift_start} onChange={e=>setFormData({...formData, shift_start: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" />
@@ -191,6 +194,10 @@ export default function AdminBranches() {
                    <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-500">End Time</label>
                       <input type="time" value={formData.shift_end} onChange={e=>setFormData({...formData, shift_end: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" />
+                   </div>
+                   <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500">Buffer (Mins)</label>
+                      <input type="number" min="0" max="120" value={formData.buffer_minutes} onChange={e=>setFormData({...formData, buffer_minutes: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" placeholder="0" />
                    </div>
                 </div>
 

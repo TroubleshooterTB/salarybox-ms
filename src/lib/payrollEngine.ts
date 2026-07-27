@@ -165,7 +165,7 @@ export const calculatePayroll = (input: PayrollInput): PayrollOutput => {
 
   const fieldVisitAllowance = fieldVisitKm * petrolAllowanceRate;
 
-  const lateFine = lateDays * (perDaySalary * 0.5);
+  const lateFine = 0; // Late fine removed in favor of buffer half-day system
   const totalEarnings = grossEarned + bonus + incentive + overtimePay + weeklyOffOTPay + holidayOTPay + fieldVisitAllowance;
 
   // 6. Statutory Deductions
@@ -346,9 +346,9 @@ export const processEmployeePayroll = (
                  if (approvedLeave.is_half_day) halfDays++; else paidLeaves++;
                }
             } else {
-               if (minsLate > 0) {
-                 presentDays++;
-                 lateDays++;
+               const bufferMins = branchInfo?.buffer_minutes || 0;
+               if (minsLate > bufferMins) {
+                 halfDays++;
                } else {
                  presentDays++;
                }
@@ -483,7 +483,14 @@ export const processEmployeePayroll = (
           esiEnabled: p.esi_enabled,
           weeklyOffOTDays,
           weeklyOffOTHalfDays,
-          attendanceStats: { presentDays, paidWeekOffs, paidLeaves, publicHolidays, halfDays },
+          attendanceStats: { 
+            presentDays, 
+            paidWeekOffs, 
+            paidLeaves, 
+            publicHolidays, 
+            halfDays,
+            absentDays: monthDaysCount - (presentDays + paidWeekOffs + paidLeaves + publicHolidays + (halfDays * 0.5))
+          },
           overtimeHourlyRate: p.overtime_hourly_rate || 0,
           branchOvertimeHours: totalOvertimeHours,
           holidayOTDays,

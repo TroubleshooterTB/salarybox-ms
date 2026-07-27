@@ -10,7 +10,7 @@ import useStore from '../../store';
 // Server-side onboarding will handle all administrative auth actions
 
 export default function AdminStaff({ selectedBranch }: { selectedBranch: string }) {
-  const { userRole } = useStore();
+  const { userRole, userProfile } = useStore();
   const APP_VERSION = '1.0.1-FORCE-REFRESH'; // Incrementing and adding comment to bust PWA cache
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +69,9 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     password: 'password123',
     petrol_allowance_rate: 3.75,
     field_visit_enabled: false,
-    field_visit_allowance_eligible: false
+    field_visit_allowance_eligible: false,
+    field_visit_start_lat: '',
+    field_visit_start_lng: ''
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -80,7 +82,11 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
     if (bData) setBranchesConfig(bData);
 
     let query = supabase.from('profiles').select('*').order('full_name');
-    if (selectedBranch && selectedBranch !== 'All Branches') {
+    
+    // Restrict to Branch Admin's own branch strictly
+    if (userRole === 'Branch Admin') {
+      query = query.eq('branch', userProfile?.branch || 'Unassigned');
+    } else if (selectedBranch && selectedBranch !== 'All Branches') {
       query = query.eq('branch', selectedBranch);
     }
 
@@ -104,7 +110,11 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
 
   const openAdd = () => {
     setEditingId(null);
-    setFormData(initialForm);
+    let formParams = { ...initialForm };
+    if (userRole === 'Branch Admin' && userProfile?.branch) {
+       formParams.multiple_branches = [userProfile.branch];
+    }
+    setFormData(formParams);
     setShowModal(true);
   };
 
@@ -142,6 +152,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
       petrol_allowance_rate: profile.petrol_allowance_rate || 3.75,
       field_visit_enabled: profile.field_visit_enabled || false,
       field_visit_allowance_eligible: profile.field_visit_allowance_eligible || false,
+      field_visit_start_lat: profile.field_visit_start_lat || '',
+      field_visit_start_lng: profile.field_visit_start_lng || '',
       password: '' // Don't show existing password (security)
     });
     setNewPass('');
@@ -259,6 +271,8 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
         petrol_allowance_rate: parseFloat(formData.petrol_allowance_rate as any) || 3.75,
         field_visit_enabled: formData.field_visit_enabled || false,
         field_visit_allowance_eligible: formData.field_visit_allowance_eligible || false,
+        field_visit_start_lat: formData.field_visit_start_lat ? parseFloat(formData.field_visit_start_lat) : null,
+        field_visit_start_lng: formData.field_visit_start_lng ? parseFloat(formData.field_visit_start_lng) : null,
         password: formData.password?.trim() || 'password123',
         branch: formData.multiple_branches[0] || null // Fallback to first branch for single-branch legacy logic
       };
@@ -976,12 +990,18 @@ export default function AdminStaff({ selectedBranch }: { selectedBranch: string 
                   <div className="col-span-2 space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Authorized Geofence Branches</label>
                     <div className="flex flex-wrap gap-2">
-                      {branchesConfig.map(b => (
-                        <button type="button" key={b.name} onClick={() => handleBranchToggle(b.name)}
-                          className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${formData.multiple_branches.includes(b.name) ? 'bg-brand-500 text-white border-brand-500 shadow-lg shadow-brand-500/30' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                          {b.name}
+                      {userRole === 'Branch Admin' ? (
+                        <button type="button" className="px-4 py-2 rounded-xl text-xs font-bold transition border bg-brand-500 text-white border-brand-500 shadow-lg shadow-brand-500/30 cursor-default">
+                          {userProfile?.branch}
                         </button>
-                      ))}
+                      ) : (
+                        branchesConfig.map(b => (
+                          <button type="button" key={b.name} onClick={() => handleBranchToggle(b.name)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${formData.multiple_branches.includes(b.name) ? 'bg-brand-500 text-white border-brand-500 shadow-lg shadow-brand-500/30' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                            {b.name}
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>

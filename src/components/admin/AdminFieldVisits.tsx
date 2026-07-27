@@ -26,7 +26,28 @@ export default function AdminFieldVisits() {
       .order('start_time', { ascending: false });
 
     if (!error && data) {
-      setVisits(data);
+      const visitIds = data.map(v => v.id);
+      const { data: logsData } = await supabase
+        .from('field_visit_logs')
+        .select('*')
+        .in('visit_id', visitIds)
+        .order('timestamp', { ascending: false });
+
+      const enrichedVisits = data.map(v => {
+        const vLogs = logsData?.filter(l => l.visit_id === v.id) || [];
+        const lastLog = vLogs[0];
+        
+        let inactiveAlert = false;
+        if (v.status === 'Active' && lastLog) {
+            const lastTime = new Date(lastLog.timestamp).getTime();
+            const now = new Date().getTime();
+            if ((now - lastTime) > 2 * 60 * 60 * 1000) { // 2 hours
+               inactiveAlert = true;
+            }
+        }
+        return { ...v, lastLog, inactiveAlert };
+      });
+      setVisits(enrichedVisits);
     }
     setLoading(false);
   };
@@ -183,6 +204,12 @@ export default function AdminFieldVisits() {
         </div>
         
         <div className="flex items-center space-x-4">
+          <div className="flex bg-rose-50 border border-rose-100 rounded-2xl p-3 shadow-sm items-center space-x-2">
+             <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+             <span className="text-[10px] font-black uppercase tracking-widest text-rose-600">
+               {visits.filter(v => v.inactiveAlert).length} Inactive {'>'} 2 Hrs
+             </span>
+          </div>
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
@@ -234,9 +261,16 @@ export default function AdminFieldVisits() {
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${v.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-brand-50 text-brand-600 animate-pulse'}`}>
-                      {v.status}
-                    </span>
+                    <div className="flex flex-col items-start gap-2">
+                       <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${v.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-brand-50 text-brand-600 animate-pulse'}`}>
+                         {v.status}
+                       </span>
+                       {v.inactiveAlert && (
+                         <span className="px-3 py-1 bg-rose-500 text-white rounded-md text-[9px] font-black uppercase tracking-widest shadow-lg shadow-rose-500/20">
+                           Inactive &gt; 2h
+                         </span>
+                       )}
+                    </div>
                   </td>
                   <td className="px-8 py-6">
                     <p className="text-sm font-bold text-slate-700">{new Date(v.date).toLocaleDateString()}</p>

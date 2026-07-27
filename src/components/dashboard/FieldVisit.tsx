@@ -9,7 +9,7 @@ import VisitingCardScanner from './VisitingCardScanner';
 import { Globe, ScanLine } from 'lucide-react';
 
 export default function FieldVisit({ onBack }: { onBack: () => void }) {
-  const { session } = useStore();
+  const { session, userProfile } = useStore();
   const [activeVisit, setActiveVisit] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,6 +96,15 @@ export default function FieldVisit({ onBack }: { onBack: () => void }) {
     setIsSubmitting(true);
     try {
       const pos = await getCurrentPosition();
+
+      // Enforce start location rule if set by admin
+      if (userProfile?.field_visit_start_lat && userProfile?.field_visit_start_lng) {
+         const dist = calculateDistance(userProfile.field_visit_start_lat, userProfile.field_visit_start_lng, pos.lat, pos.lng);
+         if (dist > 0.5) { // 500 meters
+            throw new Error(`You must be within 500 meters of your assigned start location to begin. You are currently ${dist.toFixed(2)} km away.`);
+         }
+      }
+
       const { data, error } = await supabase
         .from('field_visits')
         .insert({

@@ -24,23 +24,31 @@ export async function POST(req: NextRequest) {
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('role')
+      .select('role, branch, multiple_branches')
       .eq('id', user.id)
       .single();
 
-    if (!['Admin', 'Super Admin'].includes(profile?.role)) {
+    if (!['Admin', 'Super Admin', 'Branch Admin'].includes(profile?.role)) {
       return NextResponse.json({ error: 'Forbidden: Admin access only' }, { status: 403 });
     }
 
     // 2. Fetch old record for audit trail
     const { data: oldRecord, error: fetchError } = await supabaseAdmin
       .from('attendance')
-      .select('*')
+      .select('*, profiles(branch)')
       .eq('id', attendanceId)
       .single();
 
     if (fetchError || !oldRecord) {
       return NextResponse.json({ error: 'Attendance record not found' }, { status: 404 });
+    }
+
+    if (profile?.role === 'Branch Admin') {
+      const allowedBranches = profile.multiple_branches || (profile.branch ? [profile.branch] : []);
+      const targetBranch = oldRecord.profiles?.branch;
+      if (!targetBranch || !allowedBranches.includes(targetBranch)) {
+        return NextResponse.json({ error: 'Forbidden: You can only adjust punches for employees in your assigned branch(es)' }, { status: 403 });
+      }
     }
 
     // 3. If Admin, insert to manual_punch_requests. If Super Admin, update directly.

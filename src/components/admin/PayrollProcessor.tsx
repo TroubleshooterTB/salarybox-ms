@@ -29,7 +29,7 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
       if (pError) throw pError;
 
       // 2. Fetch branches for OT settings
-      const { data: branchesData } = await supabase.from('branches').select('name, overtime_applicable, overtime_hourly_rate, shift_start, shift_end');
+      const { data: branchesData } = await supabase.from('branches').select('name, overtime_applicable, overtime_hourly_rate, shift_start, shift_end, buffer_minutes');
       const branchMap = new Map((branchesData || []).map((b: any) => [b.name, b]));
 
       // 3. Fetch attendance, adjustments, and loans for all profiles in parallel
@@ -211,13 +211,14 @@ export default function PayrollProcessor({ selectedBranch }: { selectedBranch: s
                     <td className="px-6 py-5">
                        <span className="font-bold text-slate-800">{p.full_name}</span>
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.employee_id}</p>
+                       <p className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{p.branch}</p>
                     </td>
                     <td className="px-6 py-5 text-center">
                        <span className="text-sm font-black text-slate-700">{(p.payroll.payableDays + p.weeklyOffOTDays + (p.weeklyOffOTHalfDays * 0.5) + p.payroll.holidayOTDays + (p.payroll.holidayOTHalfDays * 0.5)).toFixed(1)}</span>
                        <p className="text-[10px] font-bold text-slate-400">/ {p.payroll.monthDays}</p>
                        {p.attendanceStats && (
-                         <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-tighter" title="Present + WeekOff + Leave + Holiday">
-                           {p.attendanceStats.presentDays + (p.attendanceStats.halfDays * 0.5)}P • {p.attendanceStats.paidWeekOffs}W • {p.attendanceStats.paidLeaves}L • {p.attendanceStats.publicHolidays}H
+                         <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-tighter" title="Present + Absent + WeekOff + Leave + Holiday">
+                           {(p.attendanceStats.presentDays || 0) + ((p.attendanceStats.halfDays || 0) * 0.5)}P • {p.attendanceStats.absentDays || 0}A • {p.attendanceStats.paidWeekOffs || 0}W • {p.attendanceStats.paidLeaves || 0}L • {p.attendanceStats.publicHolidays || 0}H
                          </p>
                        )}
                     </td>

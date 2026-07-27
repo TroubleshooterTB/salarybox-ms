@@ -28,11 +28,11 @@ export async function POST(req: NextRequest) {
 
     const { data: adminProfile } = await supabaseAdmin
       .from('profiles')
-      .select('role')
+      .select('role, branch, multiple_branches')
       .eq('id', adminUser.id)
       .single();
 
-    if (!['Admin', 'Super Admin'].includes(adminProfile?.role)) {
+    if (!['Admin', 'Super Admin', 'Branch Admin'].includes(adminProfile?.role)) {
       return NextResponse.json({ error: 'Forbidden: Admin access only' }, { status: 403 });
     }
 
@@ -45,6 +45,13 @@ export async function POST(req: NextRequest) {
 
     if (profileError || !employeeProfile) {
       return NextResponse.json({ error: 'Target employee profile not found' }, { status: 404 });
+    }
+
+    if (adminProfile?.role === 'Branch Admin') {
+      const allowedBranches = adminProfile.multiple_branches || (adminProfile.branch ? [adminProfile.branch] : []);
+      if (!employeeProfile.branch || !allowedBranches.includes(employeeProfile.branch)) {
+        return NextResponse.json({ error: 'Forbidden: You can only adjust punches for employees in your assigned branch(es)' }, { status: 403 });
+      }
     }
 
     if (adminProfile?.role !== 'Super Admin') {
