@@ -5,7 +5,7 @@ import {
   User, Clock, 
   CalendarDays, IndianRupee, 
   Palmtree, FolderOpen, Globe, Settings,
-  Briefcase, MessageSquare, ExternalLink, MapPin, Loader2, Bell
+  Briefcase, MessageSquare, ExternalLink, MapPin, Loader2, Bell, BookOpen
 } from 'lucide-react';
 import useStore from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -37,6 +37,7 @@ const baseMenuItems = [
   { id: 'documents', label: 'Documents', icon: FolderOpen, color: 'bg-cyan-500' },
   { id: 'loans', label: 'Loans', icon: IndianRupee, color: 'bg-rose-500' },
   { id: 'followups', label: 'Follow-ups', icon: Bell, color: 'bg-pink-500' },
+  { id: 'operations', label: 'Handbook', icon: BookOpen, color: 'bg-slate-700' },
   { id: 'settings', label: 'Settings', icon: Settings, color: 'bg-slate-600' },
   { id: 'card_scan', label: 'Scan Card', icon: ScanLine, color: 'bg-indigo-600' },
 ];
@@ -343,6 +344,8 @@ export default function StaffDashboard() {
                   onClick={() => {
                     if (item.id === 'crm') {
                       window.open('https://minimalstroke.odoo.com/odoo/crm', '_blank');
+                    } else if (item.id === 'operations') {
+                      router.push('/operations');
                     } else if (item.id === 'followups') {
                       setShowFollowups(true);
                     } else {
