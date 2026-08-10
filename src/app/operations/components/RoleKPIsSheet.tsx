@@ -18,10 +18,30 @@ const rolesData = [
     kpi: null
   },
   {
-    role: "General Manager (GM)",
-    reportsTo: "Managing Director",
-    tasks: "Operational execution, cross-departmental coordination, PWA/ERP adoption, resolving Level 3 escalations (SLA: < 8 hours).",
-    kpi: "Maintain < 5% variance in monthly production vs. delivery targets."
+    role: "General Manager",
+    reportsTo: "MD",
+    tasks: [
+      "Human Resource Management: Total authority over hiring, firing, promotions, demotions, salary increments, bonuses, and employee welfare policies across all 125+ staff spanning factory, design, and retail.",
+      "Organisational Due Diligence: Enforcing strict compliance with company bylaws, labor laws, factory safety regulations, and operational audits.",
+      "Day-to-Day Operations & Employee Issue Management: Resolving cross-departmental friction, daily floor blockages, and employee grievances before they impact production schedules.",
+      "System Planning & Implementation (PWA/Odoo ERP): Overseeing the deployment and adoption of custom digital workflows (MS Salarybox, Odoo ERP architecture) across all departments.",
+      "Operational Bottleneck Handling: Immediate interception of floor-level failures (e.g., administrative delays in MO generation, procurement lags, or design drawing errors).",
+      "Financial Planning & Budgeting: Daily, weekly, monthly, quarterly, and yearly budget tracking, protecting company margins, and enforcing financial model assumptions (e.g., 55% net profit model structures for franchises).",
+      "Growth Plan & Execution: Translating Amit Gandhi’s 5-year vision into operational milestones across all verticals (Minimal Stroke luxury retail, Urban Jula D2C swings, Liso Urbano, Art Gallery, and Global Exports).",
+      "Sales Target Setting & Review: Establishing company-wide and individual sales quotas (e.g., managing the 25L monthly targets per sales driver and auditing real vs. raw pipelines).",
+      "Franchise Due Diligence: Vetting master and unit franchise applicants (e.g., Chatrapati Sambhajinagar zones), auditing their financial stability, and verifying local market viability.",
+      "Cross-Departmental Synchronization: Enforcing strict adherence to the Work Flow MS pipelines—guaranteeing zero communication gaps between Sales, Admin, PPC, and Factory.",
+      "Workflow Enforcement: Ensuring administrative sign-offs (such as the 48-Hour Choice Rule and multi-department PO verification rules) are strictly followed.",
+      "Escalation Management (Level 3): Acting as the definitive Level 3 management authority for unresolved client or operational issues within an 8-hour SLA window.",
+      "Training Module Development: Spearheading the creation of standardized training handbooks and onboarding modules for all new hires.",
+      "IT Department Handling: Directing the MIS Executive and developers to maintain secure, zero-downtime PWA deployments.",
+      "Internal Governance Meetings: Conducting periodic general meetings, collecting structural reports from all department heads, and driving accountability.",
+      "Marketing Plan Implementation: Aligning digital outreach, showroom events, and architect engagement programs with active sales pipelines.",
+      "Corporate Representation: Serving as primary management spokesperson in external institutional, legal, and vendor negotiations.",
+      "Financial Approvals: Exercising direct discretionary financial authorization up to INR 50,000 per transaction.",
+      "Balance Sheet & P&L Auditing: Conducting rigorous weekly and monthly checks of income statements, COGS, OPEX, and cash flow alongside the Fractional CFO (CA Anil Jain)."
+    ],
+    kpi: null
   },
   {
     role: "Sales Head",
@@ -182,9 +202,17 @@ export default function RoleKPIsSheet({ isOpen, onClose }: RoleKPIsSheetProps) {
                           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center">
                             <Briefcase className="w-3.5 h-3.5 mr-1" /> Core Tasks & Responsibilities
                           </h4>
-                          <p className="text-sm text-slate-800 font-medium leading-relaxed">
-                            {role.tasks}
-                          </p>
+                          <div className="text-sm text-slate-800 font-medium leading-relaxed">
+                            {Array.isArray(role.tasks) ? (
+                              <ul className="list-disc pl-5 space-y-1">
+                                {role.tasks.map((task, i) => (
+                                  <li key={i}>{task}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p>{role.tasks}</p>
+                            )}
+                          </div>
                         </div>
                         
                         {role.kpi && (

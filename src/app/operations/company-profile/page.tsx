@@ -9,8 +9,8 @@ export default function CompanyProfilePage() {
 
   const governance = [
     { name: "Amit Gandhi", role: "Managing Director" },
-    { name: "Ninad Shah", role: "Co-Director & CEO" },
-    { name: "Tushar Bansode", role: "COO / General Manager" },
+    { name: "Ninad Shah", role: "Co-Director" },
+    { name: "Tushar Bansode", role: "General Manager" },
     { name: "Yogesh Shah", role: "Professional Director" },
     { name: "Ar. Meena Gandhi", role: "Professional Director" },
     { name: "CA Anil Jain", role: "Fractional CFO" },

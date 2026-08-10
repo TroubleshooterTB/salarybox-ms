@@ -17,7 +17,7 @@ const hierarchyData = [
     level: 1,
     children: [
       {
-        role: "General Manager / COO",
+        role: "General Manager",
         name: "Tushar Bansode",
         level: 2,
         children: [
