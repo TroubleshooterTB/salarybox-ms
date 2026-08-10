@@ -93,8 +93,8 @@ export default function OperationsMenu() {
       // Supervisors only see QC and MO Tracker
       return ["mo-tracker", "qc-gates"].includes(card.id);
     }
-    // Default fallback if role is undefined or other
-    return ["mo-tracker", "qc-gates"].includes(card.id);
+    // Default fallback to true for development so you can see all tiles!
+    return true;
   });
 
   return (
