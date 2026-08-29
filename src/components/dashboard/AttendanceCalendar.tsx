@@ -220,19 +220,21 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
 
   const getDayData = (day: number) => {
     const dayPunches = attendance.filter(a => new Date(a.timestamp).getDate() === day);
+    
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const dStr = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${dStr}`;
+
+    const approvedLeave = leaves.find(l => dateStr >= l.start_date && dateStr <= l.end_date);
+
     if (dayPunches.length === 0) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, '0');
-      const dStr = String(date.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${dStr}`;
-      
       // Check Holidays first
       const holiday = holidays.find(h => h.date === dateStr);
       if (holiday) return { status: 'Holiday', name: holiday.name };
 
       // Check Leaves
-      const approvedLeave = leaves.find(l => dateStr >= l.start_date && dateStr <= l.end_date);
       if (approvedLeave) return { status: approvedLeave.leave_type === 'Unpaid' ? 'Absent' : (approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave'), reason: approvedLeave.reason || approvedLeave.leave_type };
 
       if (date.getDay() === 0) return { status: 'Week Off' };
@@ -245,7 +247,13 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
       return null;
     }
     const lastPunch = dayPunches.at(-1);
-    return { status: lastPunch?.status, raw: dayPunches, reason: lastPunch?.reason };
+    let punchStatus = lastPunch?.status;
+
+    if (punchStatus === 'Half Day' && approvedLeave && approvedLeave.leave_type !== 'Unpaid') {
+      punchStatus = approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave';
+    }
+
+    return { status: punchStatus, raw: dayPunches, reason: lastPunch?.reason || approvedLeave?.reason || approvedLeave?.leave_type };
   };
 
   const computeSandwichedDays = () => {
@@ -316,12 +324,19 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     const stats = { present: 0, absent: 0, halfDay: 0, paidLeave: 0, weekOff: 0 };
     for (let d = 1; d <= daysInMonth; d++) {
       const data = getEffectiveDayData(d);
-      if (data?.status === 'Present' || data?.status === 'Late') stats.present++;
-      else if (data?.status === 'Absent' || data?.status === 'Sandwiched') stats.absent++;
-      else if (data?.status === 'Half Day') stats.halfDay++;
-      else if (data?.status === 'Paid Leave') stats.paidLeave++;
-      else if (data?.status === 'Half Day Leave') stats.paidLeave += 0.5;
-      else if (data?.status === 'Week Off') stats.weekOff++;
+      if (data?.status === 'Present' || data?.status === 'Late') stats.present += 1;
+      else if (data?.status === 'Absent' || data?.status === 'Sandwiched') stats.absent += 1;
+      else if (data?.status === 'Half Day') {
+        stats.halfDay += 1;
+        stats.present += 0.5;
+      }
+      else if (data?.status === 'Paid Leave') stats.paidLeave += 1;
+      else if (data?.status === 'Half Day Leave') {
+        stats.halfDay += 1;
+        stats.present += 0.5;
+        stats.paidLeave += 0.5;
+      }
+      else if (data?.status === 'Week Off') stats.weekOff += 1;
     }
     return stats;
   };

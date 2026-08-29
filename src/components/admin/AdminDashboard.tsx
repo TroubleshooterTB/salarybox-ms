@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -62,6 +62,34 @@ const FieldIcon = L.icon({
   popupAnchor: [1, -34],
   shadowSize: [41, 41]
 });
+
+const MapBoundsFitter = ({ attendance, activeFieldVisits, selectedBranch }: any) => {
+  const map = useMap();
+  useEffect(() => {
+    const bounds = L.latLngBounds([]);
+    let hasPoints = false;
+    
+    attendance
+      .filter((p: any) => p.latitude && p.longitude && (selectedBranch === 'All Branches' || p.profiles?.branch === selectedBranch))
+      .forEach((p: any) => {
+        bounds.extend([p.latitude, p.longitude]);
+        hasPoints = true;
+      });
+
+    activeFieldVisits
+      .filter((v: any) => v.lastLog && (selectedBranch === 'All Branches' || v.profiles?.branch === selectedBranch))
+      .forEach((v: any) => {
+        bounds.extend([v.lastLog.latitude, v.lastLog.longitude]);
+        hasPoints = true;
+      });
+
+    if (hasPoints) {
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+    }
+  }, [attendance, activeFieldVisits, selectedBranch, map]);
+  
+  return null;
+};
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -285,9 +313,10 @@ export default function AdminDashboard() {
              <div className="h-full w-full z-0 relative shadow-inner">
                <MapContainer center={mapCenter} zoom={13} className="h-full w-full">
                  <TileLayer
-                   attribution='&copy; <a href="https://carto.com/">Carto</a>'
-                   url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                  />
+                 <MapBoundsFitter attendance={attendance} activeFieldVisits={activeFieldVisits} selectedBranch={selectedBranch} />
                  
                  {attendance
                    .filter(p => p.latitude && p.longitude && (selectedBranch === 'All Branches' || p.profiles?.branch === selectedBranch))
