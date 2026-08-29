@@ -25,6 +25,7 @@ import NotificationBell from '../common/NotificationBell';
 import FollowUpReminder from './FollowUpReminder';
 import VisitingCardScanner from './VisitingCardScanner';
 import { ScanLine } from 'lucide-react';
+import LiveTracker from '../common/LiveTracker';
 
 const baseMenuItems = [
   { id: 'profile', label: 'Profile', icon: User, color: 'bg-blue-500' },
@@ -215,9 +216,14 @@ export default function StaffDashboard() {
     );
   }
 
+  const hasPunches = todayPunches.length > 0;
+  const lastPunch = hasPunches ? todayPunches[todayPunches.length - 1] : null;
+  const isPunchedIn = hasPunches && lastPunch?.type === 'In';
+
   // A sleek glassmorphism mobile app shell
   return (
     <div className="min-h-screen bg-slate-950 text-white relative flex flex-col items-center overflow-hidden">
+      <LiveTracker punchedIn={isPunchedIn} />
       <FollowUpReminder isOpen={showFollowups} onClose={() => setShowFollowups(false)} />
       {/* Background Aesthetic */}
       <div className="absolute top-0 left-0 w-full h-[35vh] bg-gradient-to-b from-brand-900/30 to-transparent z-0 pointer-events-none" />

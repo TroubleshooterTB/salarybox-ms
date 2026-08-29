@@ -63,7 +63,16 @@ const FieldIcon = L.icon({
   shadowSize: [41, 41]
 });
 
-const MapBoundsFitter = ({ attendance, activeFieldVisits, selectedBranch }: any) => {
+const createLiveIcon = () => L.divIcon({
+  className: 'custom-live-icon',
+  html: `<div style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid #3b82f6; overflow: hidden; box-shadow: 0 0 15px rgba(59,130,246, 0.6); background: white; display: flex; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+         </div>`,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20]
+});
+
+const MapBoundsFitter = ({ attendance, activeFieldVisits, liveProfiles, selectedBranch }: any) => {
   const map = useMap();
   useEffect(() => {
     const bounds = L.latLngBounds([]);
@@ -83,10 +92,17 @@ const MapBoundsFitter = ({ attendance, activeFieldVisits, selectedBranch }: any)
         hasPoints = true;
       });
 
+    liveProfiles
+      .filter((p: any) => p.current_latitude && p.current_longitude && (selectedBranch === 'All Branches' || p.branch === selectedBranch))
+      .forEach((p: any) => {
+        bounds.extend([p.current_latitude, p.current_longitude]);
+        hasPoints = true;
+      });
+
     if (hasPoints) {
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
     }
-  }, [attendance, activeFieldVisits, selectedBranch, map]);
+  }, [attendance, activeFieldVisits, liveProfiles, selectedBranch, map]);
   
   return null;
 };
@@ -99,6 +115,7 @@ export default function AdminDashboard() {
   const [attendance, setAttendance] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [activeFieldVisits, setActiveFieldVisits] = useState<any[]>([]);
+  const [liveProfiles, setLiveProfiles] = useState<any[]>([]);
   
   // Logic: If Branch Admin, force their assigned branch strictly.
   let initialBranch = localStorage.getItem('admin_branch') || 'All Branches';
@@ -123,6 +140,14 @@ export default function AdminDashboard() {
       
       
     if (data) setAttendance(data);
+
+    const { data: pData } = await supabase
+      .from('profiles')
+      .select('*')
+      .not('current_latitude', 'is', null)
+      .not('current_longitude', 'is', null);
+      
+    if (pData) setLiveProfiles(pData);
 
     const { data: fData } = await supabase
       .from('field_visits')
@@ -316,8 +341,34 @@ export default function AdminDashboard() {
                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                  />
-                 <MapBoundsFitter attendance={attendance} activeFieldVisits={activeFieldVisits} selectedBranch={selectedBranch} />
+                 <MapBoundsFitter attendance={attendance} activeFieldVisits={activeFieldVisits} liveProfiles={liveProfiles} selectedBranch={selectedBranch} />
                  
+                 {/* Live Tracking Profiles */}
+                 {liveProfiles
+                   .filter(p => p.current_latitude && p.current_longitude && (selectedBranch === 'All Branches' || p.branch === selectedBranch))
+                   .map((profile: any) => {
+                     const isRecent = new Date(profile.last_location_update).getTime() > Date.now() - 5 * 60 * 1000;
+                     return (
+                     <Marker 
+                       key={`live-${profile.id}`} 
+                       position={[profile.current_latitude, profile.current_longitude]} 
+                       icon={createLiveIcon()}
+                     >
+                       <Popup className="premium-popup">
+                         <div className="text-center font-sans tracking-tight min-w-[140px]">
+                           <h3 className="font-bold text-sm text-slate-800 mb-1">{profile.full_name}</h3>
+                           <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">LIVE TRACKING</p>
+                           <span className={`inline-block px-3 py-1 text-[10px] rounded-full font-bold uppercase tracking-widest ${isRecent ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                             {isRecent ? 'Active Now' : 'Last Known'}
+                           </span>
+                           <p className="mt-2 text-[9px] font-bold text-slate-400">Updated: {new Date(profile.last_location_update).toLocaleTimeString()}</p>
+                           {profile.branch && <p className="mt-1 text-[8px] font-black text-slate-400 uppercase tracking-widest">{profile.branch}</p>}
+                         </div>
+                       </Popup>
+                     </Marker>
+                   )})}
+                 
+                 {/* Static Punch Markers (Faded) */}
                  {attendance
                    .filter(p => p.latitude && p.longitude && (selectedBranch === 'All Branches' || p.profiles?.branch === selectedBranch))
                    .map((punch: any) => (
