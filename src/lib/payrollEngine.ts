@@ -347,10 +347,20 @@ export const processEmployeePayroll = (
                }
             } else {
                const bufferMins = branchInfo?.buffer_minutes || 0;
-               if (minsLate > bufferMins) {
-                 halfDays++;
-               } else {
+               const inStatus = inPunches[0].status;
+               if (inStatus === 'Present' || inStatus === 'Late') {
                  presentDays++;
+                 if (inStatus === 'Late') lateDays++;
+               } else if (inStatus === 'Half Day' || inStatus === 'Late Half Day') {
+                 halfDays++;
+               } else if (inStatus === 'Absent') {
+                 // Do nothing, manually marked absent
+               } else {
+                 if (minsLate > bufferMins) {
+                   halfDays++;
+                 } else {
+                   presentDays++;
+                 }
                }
             }
 

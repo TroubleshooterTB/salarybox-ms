@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SalaryBoxMS</string>
+    <string name="title_activity_main">SalaryBoxMS</string>
+    <string name="package_name">com.salarybox.ms</string>
+    <string name="custom_url_scheme">com.salarybox.ms</string>
+</resources>

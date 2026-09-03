@@ -248,6 +248,13 @@ export default function AttendanceCalendar({ onBack, userId, userName, onRegular
     }
     const lastPunch = dayPunches.at(-1);
     let punchStatus = lastPunch?.status;
+    
+    // Priority: If any punch is Half Day (like a late In punch), the day is a Half Day
+    if (dayPunches.some(p => p.status === 'Half Day')) {
+        punchStatus = 'Half Day';
+    } else if (dayPunches.some(p => p.status === 'Late')) {
+        punchStatus = 'Late';
+    }
 
     if (punchStatus === 'Half Day' && approvedLeave && approvedLeave.leave_type !== 'Unpaid') {
       punchStatus = approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave';
