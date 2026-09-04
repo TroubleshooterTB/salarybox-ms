@@ -71,12 +71,19 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
           const dStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
           const approvedLeave = leaves?.find(l => l.user_id === p.id && dStr >= l.start_date && dStr <= l.end_date);
 
+          let punchStatus = lastRec?.status;
+          if (dayRecs.some(a => a.status === 'Half Day')) {
+             punchStatus = 'Half Day';
+          } else if (dayRecs.some(a => a.status === 'Late')) {
+             punchStatus = 'Late';
+          }
+
           let statusCode = '';
-          if (lastRec?.status === 'Present') statusCode = 'P';
-          else if (lastRec?.status === 'Half Day') statusCode = 'HD';
-          else if (lastRec?.status === 'Late') statusCode = 'L';
-          else if (lastRec?.status === 'Paid Leave') statusCode = 'PL';
-          else if (lastRec?.status === 'Absent') statusCode = 'A';
+          if (punchStatus === 'Present') statusCode = 'P';
+          else if (punchStatus === 'Half Day') statusCode = 'HD';
+          else if (punchStatus === 'Late') statusCode = 'L';
+          else if (punchStatus === 'Paid Leave') statusCode = 'PL';
+          else if (punchStatus === 'Absent') statusCode = 'A';
           else if (approvedLeave) statusCode = approvedLeave.leave_type === 'Unpaid' ? 'A' : (approvedLeave.is_half_day ? 'HD' : 'PL');
 
           baseRow[`D${i}_Status`] = statusCode;
