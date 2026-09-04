@@ -5,7 +5,7 @@ export async function fetchInChunks(
   column: string,
   values: string[],
   queryBuilder: (query: any) => any,
-  chunkSize = 30
+  chunkSize = 5
 ) {
   let allData: any[] = [];
   
