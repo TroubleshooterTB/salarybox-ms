@@ -531,6 +531,8 @@ export const processEmployeePayroll = (
           payroll: finalPayroll, 
           weeklyOffOTDays, 
           weeklyOffOTHalfDays, 
+          holidayOTDays,
+          holidayOTHalfDays,
           branchOTHours: Math.round(totalOvertimeHours * 10) / 10, 
           attendanceStats: payrollInput.attendanceStats,
           sandwichData: dailyStats.filter(s => s.isSandwiched).map(s => s.dateStr)
