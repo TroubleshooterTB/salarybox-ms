@@ -50,6 +50,8 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
       
       const attendance = await fetchInChunks('attendance', 'user_id', profileIds, q => q.gte('timestamp', startDate).lte('timestamp', endDate));
       const leaves = await fetchInChunks('leave_requests', 'user_id', profileIds, q => q.eq('status', 'Approved').lte('start_date', endDate.split('T')[0]).gte('end_date', startDate.split('T')[0]));
+      const { data: holidaysData } = await supabase.from('holidays').select('*').gte('date', startDate.split('T')[0]).lte('date', endDate.split('T')[0]);
+      const holidays = holidaysData || [];
 
       const formatTime = (ts: string) =>
         new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
@@ -70,6 +72,8 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
 
           const dStr = `${exportYear}-${String(exportMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
           const approvedLeave = leaves?.find(l => l.user_id === p.id && dStr >= l.start_date && dStr <= l.end_date);
+          const isHoliday = holidays.find(h => h.date === dStr);
+          const currentDate = new Date(exportYear, exportMonth, i);
 
           let punchStatus = lastRec?.status;
           if (dayRecs.some(a => a.status === 'Half Day')) {
@@ -78,15 +82,35 @@ export default function ExportModule({ selectedBranch }: { selectedBranch: strin
              punchStatus = 'Late';
           }
 
-          let statusCode = '';
-          if (punchStatus === 'Present') statusCode = 'P';
-          else if (punchStatus === 'Half Day') statusCode = 'HD';
-          else if (punchStatus === 'Late') statusCode = 'L';
-          else if (punchStatus === 'Paid Leave') statusCode = 'PL';
-          else if (punchStatus === 'Absent') statusCode = 'A';
-          else if (approvedLeave) statusCode = approvedLeave.leave_type === 'Unpaid' ? 'A' : (approvedLeave.is_half_day ? 'HD' : 'PL');
+          if (punchStatus === 'Half Day' && approvedLeave && approvedLeave.leave_type !== 'Unpaid') {
+            punchStatus = approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave';
+          }
 
-          baseRow[`D${i}_Status`] = statusCode;
+          let finalStatusStr = punchStatus;
+          if (dayRecs.length === 0) {
+            if (isHoliday) finalStatusStr = 'Holiday';
+            else if (approvedLeave) finalStatusStr = approvedLeave.is_half_day ? 'Half Day Leave' : 'Paid Leave';
+            else if (currentDate.getDay() === 0) finalStatusStr = 'Week Off';
+            else if (currentDate > new Date()) finalStatusStr = 'N/A';
+            else finalStatusStr = 'Absent';
+          }
+
+          let statusCode = '';
+          if (finalStatusStr === 'Present') statusCode = 'P';
+          else if (finalStatusStr === 'Half Day') statusCode = 'HD';
+          else if (finalStatusStr === 'Late') statusCode = 'L';
+          else if (finalStatusStr === 'Paid Leave') statusCode = 'PL';
+          else if (finalStatusStr === 'Half Day Leave') statusCode = 'HD';
+          else if (finalStatusStr === 'Absent') statusCode = 'A';
+          else if (finalStatusStr === 'Holiday') statusCode = 'H';
+          else if (finalStatusStr === 'Week Off') statusCode = 'WO';
+          else if (finalStatusStr === 'N/A') statusCode = '-';
+          
+          if (!statusCode && approvedLeave && approvedLeave.leave_type === 'Unpaid') {
+             statusCode = 'A';
+          }
+
+          baseRow[`D${i}_Status`] = statusCode || finalStatusStr || '';
           baseRow[`D${i}_IN`] = inPunch ? formatTime(inPunch.timestamp) : '';
           baseRow[`D${i}_OUT`] = outPunch ? formatTime(outPunch.timestamp) : '';
         }
