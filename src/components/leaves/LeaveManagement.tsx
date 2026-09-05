@@ -14,7 +14,7 @@ export default function LeaveManagement({ onBack, prefillDate }: { onBack: () =>
   const { session } = useStore();
   const [balances, setBalances] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'balances' | 'request'>(prefillDate ? 'request' : 'balances');
+  const [view, setView] = useState<'balances' | 'request' | 'policy'>(prefillDate ? 'request' : 'balances');
   const [formData, setFormData] = useState({
     leave_type: 'Privileged Leave',
     start_date: prefillDate || new Date().toISOString().split('T')[0],
@@ -119,10 +119,10 @@ export default function LeaveManagement({ onBack, prefillDate }: { onBack: () =>
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col max-w-md mx-auto relative overflow-x-hidden">
       <div className="flex items-center mb-8 pt-4">
-        <button onClick={() => view === 'request' ? setView('balances') : onBack()} className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition">
+        <button onClick={() => (view === 'request' || view === 'policy') ? setView('balances') : onBack()} className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h2 className="text-xl font-bold ml-2 tracking-tight">{view === 'balances' ? 'Leave Balance' : 'Request Time Off'}</h2>
+        <h2 className="text-xl font-bold ml-2 tracking-tight">{view === 'balances' ? 'Leave Balance' : view === 'policy' ? 'Leave Policy' : 'Request Time Off'}</h2>
       </div>
 
       {loading ? (
@@ -151,10 +151,57 @@ export default function LeaveManagement({ onBack, prefillDate }: { onBack: () =>
             glow="bg-brand-500/20"
           />
 
-          <button onClick={() => setView('request')} className="w-full mt-4 py-5 bg-white text-slate-950 font-black rounded-2xl flex items-center justify-center space-x-2 shadow-xl hover:shadow-white/20 active:scale-95 transition-all uppercase tracking-widest text-xs">
-            <PlusCircle className="w-5 h-5" />
-            <span>Apply for Leave</span>
-          </button>
+          <div className="space-y-3 mt-6">
+            <button onClick={() => setView('request')} className="w-full py-4 bg-white text-slate-950 font-black rounded-2xl flex items-center justify-center space-x-2 shadow-xl hover:shadow-white/20 active:scale-95 transition-all uppercase tracking-widest text-xs">
+              <PlusCircle className="w-5 h-5" />
+              <span>Apply for Leave</span>
+            </button>
+            <button onClick={() => setView('policy')} className="w-full py-4 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white font-black rounded-2xl flex items-center justify-center space-x-2 shadow-xl hover:bg-slate-800 active:scale-95 transition-all uppercase tracking-widest text-xs">
+              <AlertCircle className="w-5 h-5" />
+              <span>Read Leave Policy</span>
+            </button>
+          </div>
+        </div>
+      ) : view === 'policy' ? (
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl space-y-6 animate-in fade-in slide-in-from-bottom-4">
+          <div className="space-y-6 text-sm text-slate-300 leading-relaxed">
+             <div>
+                <h3 className="text-white font-black text-base mb-2">1. Annual Leave Quota</h3>
+                <ul className="list-disc pl-5 space-y-1 text-slate-400">
+                  <li><strong>11 Privileged Leaves (PL)</strong></li>
+                  <li><strong>5 Casual Leaves (CL)</strong></li>
+                  <li><strong>5 Sick Leaves (SL)</strong></li>
+                </ul>
+             </div>
+             
+             <div>
+                <h3 className="text-white font-black text-base mb-2">2. Carry Forward & Encashment</h3>
+                <ul className="list-disc pl-5 space-y-2 text-slate-400">
+                  <li>Only Privileged Leaves (PL) can be carried forward to the next year.</li>
+                  <li>A maximum of 30 PLs can be retained in your balance.</li>
+                  <li>Any excess PLs will be encashed and compensated along with your salary in the last month of the year.</li>
+                  <li>Sick Leaves (SL) and Casual Leaves (CL) lapse at the end of the year and cannot be carried forward.</li>
+                </ul>
+             </div>
+
+             <div>
+                <h3 className="text-white font-black text-base mb-2">3. Sandwich Leave Policy</h3>
+                <p className="text-slate-400">If an employee takes both Saturday and Monday off, the intervening Sunday will also be considered as a leave and deducted from the paid leave balance. If paid leaves are exhausted, it will be treated as Loss of Pay (Unpaid Leave).</p>
+             </div>
+
+             <div>
+                <h3 className="text-white font-black text-base mb-2">4. Compensatory Off (Comp-Off)</h3>
+                <ul className="list-disc pl-5 space-y-2 text-slate-400">
+                  <li>If an employee works on a Sunday (or weekly off) or a designated Public Holiday, they are eligible for either the respective salary for that day or a Comp-Off within the same month.</li>
+                  <li>Comp-Offs cannot be availed on a Saturday or Monday without explicit prior approval from the reporting manager.</li>
+                </ul>
+             </div>
+
+             <div>
+                <h3 className="text-white font-black text-base mb-2">5. Separation & Full and Final Settlement</h3>
+                <p className="text-slate-400">Upon resignation or termination of employment, any accrued balance leaves will be prorated based on the number of months worked during the current year and compensated in the full and final settlement.</p>
+             </div>
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4">

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       .eq('month_year', monthYear)
       .maybeSingle();
 
-    if (existingRun?.is_locked) {
+    if (existingRun?.is_locked && profile?.role !== 'Super Admin') {
       return NextResponse.json({ error: 'This month is already finalized and locked.' }, { status: 403 });
     }
 
